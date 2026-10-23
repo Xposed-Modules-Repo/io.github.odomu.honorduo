@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="drawing_master_title">Master switch</string>
+    <string name="drawing_quick_edit_title">Quick edit</string>
+    <string name="drawing_order_title">Component order</string>
+    <string name="app_name">HonorDuo</string>
+    <string name="xposed_description">Merges Wi-Fi, mobile signal and battery into a single iPhone-Duo style trio glyph in the status bar.</string>
+
+    <string name="group_stroke">Stroke</string>
+    <string name="group_scale">Overall size</string>
+    <string name="group_text">Text</string>
+    <string name="group_type">Network type</string>
+    <string name="group_layout">Layout</string>
+    <string name="group_out_signal">Out-of-ring signal</string>
+    <string name="group_track">Track</string>
+
+    <string name="tab_home">Home</string>
+
+    <string name="drawing_priority_empty_summary">Nothing placed here yet. Use "Add component" below.</string>
+    <string name="drawing_signal_out_of_ring_notice">The mobile signal is set to "outside the ring", so its dots are not drawn inside it.</string>
+    <string name="drawing_priority_first">#%1$d · shown first</string>
+    <string name="drawing_priority_fallback">#%1$d · takes over if above cannot draw</string>
+    <string name="drawing_priority_move_up">Move up</string>
+    <string name="drawing_priority_move_down">Move down</string>
+    <string name="drawing_priority_remove">Remove</string>
+    <string name="drawing_priority_showing">#1 · showing now</string>
+    <string name="drawing_pick_in_zone">In ring</string>
+    <string name="drawing_pick_elsewhere">Elsewhere</string>
+    <string name="drawing_pick_showing_now">This is the one being shown.</string>
+    <string name="drawing_pick_promote_summary">Already in this third; tapping moves it to the front.</string>
+    <string name="drawing_pick_move_summary">Currently in %1$s; tapping moves it here and leaves %1$s empty.</string>
+    <string name="drawing_move_title">Move it here?</string>
+    <string name="drawing_move_summary">%1$s is currently in %2$s. Moving it here takes it out of %2$s.</string>
+    <string name="drawing_move_confirm">Move here</string>
+    <string name="drawing_priority_add">Add component</string>
+    <string name="drawing_occupant_clock">Time</string>
+    <string name="drawing_occupant_power">Charge power</string>
+    <string name="drawing_occupant_temp">Battery temp</string>
+    <string name="drawing_occupant_running">Running power</string>
+    <string name="drawing_occupant_fps">Frame rate</string>
+    <string name="perf_power_summary">Draws the wattage as its own component while charging.</string>
+    <string name="perf_temp_summary">Draws the battery temperature as its own component.</string>
+    <string name="perf_running_summary">Draws the wattage as its own component while unplugged.</string>
+    <string name="perf_fps_summary">Draws the current screen refresh rate as its own component.</string>
+    <string name="drawing_clock_fixed">The time is drawn only where it is placed; otherwise the bar keeps its own clock.</string>
+    <string name="drawing_pick_title">%1$s: currently %2$s</string>
+    <string name="drawing_pick_none_summary">Remove optional components from this area; the ring and battery bar stay.</string>
+    <string name="drawing_feedback_charging">%1$s is set in %2$s; the charging bolt takes priority while charging. Select Normal to preview it.</string>
+    <string name="drawing_feedback_bolt">%1$s is set in %2$s; select Charging or Fast charging to preview it.</string>
+    <string name="drawing_feedback_wifi">%1$s is set in %2$s; there is no Wi-Fi in this preview. Select Normal to see it.</string>
+    <string name="drawing_feedback_other">%1$s is set in %2$s; this preview currently shows %3$s. Change the preview state to see it.</string>
+    <string name="drawing_pick_impossible">This component does not fit in the %1$s.</string>
+    <string name="drawing_pick_signal_in_centre">%1$s cannot go in the middle: the middle is where the in-ring reading goes, and signal dots only fit the two openings at the top and bottom.</string>
+    <string name="drawing_hint_top">Top</string>
+    <string name="drawing_hint_centre">Middle</string>
+    <string name="drawing_hint_bottom">Bottom</string>
+    <string name="drawing_state_title">Preview state</string>
+    <string name="drawing_scene_normal">Normal</string>
+    <string name="drawing_scene_charging">Charging</string>
+    <string name="drawing_scene_quick">Fast charging</string>
+    <string name="drawing_scene_low">Low battery</string>
+    <string name="drawing_scene_critical">Critical</string>
+    <string name="drawing_scene_no_wifi">No Wi-Fi</string>
+    <string name="drawing_occupant_none">Empty</string>
+    <string name="drawing_occupant_value">Battery number</string>
+    <string name="drawing_occupant_bolt">Charging bolt</string>
+    <string name="drawing_occupant_wifi">Wi-Fi arcs</string>
+    <string name="drawing_occupant_mobile">Mobile dots</string>
+    <string name="drawing_occupant_sim_1">SIM 1 dots</string>
+    <string name="drawing_occupant_sim_2">SIM 2 dots</string>
+    <string name="drawing_occupant_type">Network type</string>
+    <string name="drawing_master_off">The master switch is off: the preview still draws the style you pick, but the status bar will not.</string>
+    <string name="drawing_settings_title">Settings for “%1$s”</string>
+    <string name="drawing_settings_none">This part has no size or colour of its own.</string>
+    <string name="drawing_close">Close</string>
+    <string name="drawing_part_appearance">Overall appearance</string>
+    <string name="drawing_part_readouts">Readings</string>
+    <string name="drawing_parts_title">Component appearance</string>
+    <string name="drawing_outside_title">Outside components</string>
+    <string name="out_order_move_in">Move toward the battery</string>
+    <string name="out_order_move_out">Move outwards</string>
+    <string name="out_order_outwards">← Outwards</string>
+    <string name="out_order_battery">Next to battery →</string>
+    <string name="drawing_readout_sample_summary">Sample readings show content and weight; final sizing follows the status bar.</string>
+    <string name="drawing_preview_hidden">Hidden outside</string>
+    <string name="drawing_theme_system">System theme</string>
+    <string name="drawing_theme_light">Light background</string>
+    <string name="drawing_theme_dark">Dark background</string>
+
+    <string name="master_title">Enable trio glyph</string>
+
+    <string name="trio_style_title">Glyph style</string>
+    <string name="trio_style_ring">Ring</string>
+    <string name="trio_style_capsule">Capsule</string>
+    <string name="show_wifi_title">Wi-Fi arcs</string>
+    <string name="show_wifi_summary">Draw the Wi-Fi arcs; the number of arcs follows the real signal level.</string>
+
+    <string name="show_mobile_title">Signal dots</string>
+    <string name="show_mobile_summary">Draw four level dots for mobile network signal strength.</string>
+    <string name="show_mobile_activity_title">Show data activity icon</string>
+    <string name="show_mobile_activity_summary">Show upload/download data activity arrows beside out-of-ring signal.</string>
+
+
+    <string name="show_sim_1_title">SIM 1 dots</string>
+    <string name="show_sim_1_summary">Draw SIM 1\'s level as its own row of four dots.</string>
+    <string name="show_sim_2_title">SIM 2 dots</string>
+    <string name="show_sim_2_summary">Draw SIM 2\'s level as its own row of four dots.</string>
+
+    <string name="charging_shows_value_title">Percentage while charging</string>
+    <string name="charging_shows_value_summary">Shows the battery percentage in the ring\'s centre while charging, and returns to the layout when unplugged. Ring style only.</string>
+    <string name="show_value_title">Percentage</string>
+    <string name="show_percent_title">Percent sign</string>
+    <string name="show_value_summary">Show the battery percentage inside the ring.</string>
+
+    <string name="show_bolt_title">Bolt while charging</string>
+    <string name="bolt_scale_title">Charging bolt size</string>
+    <string name="bolt_scale_summary" formatted="false">The default is 100% and the slider covers 60–160%.</string>
+    <string name="show_bolt_summary">Show a bolt in the ring while charging.</string>
+    <string name="bolt_anim_title">Charging animation</string>
+    <string name="bolt_speed_title">Animation speed</string>
+    <string name="bolt_speed_summary" formatted="false">The default is 100% and the slider covers 50–200%. Shown only while the charging animation is on.</string>
+    <string name="bolt_anim_summary">The bolt in the ring, capsule and rectangle loops through the chosen style while charging, twice as fast on a fast charger, and stops when the battery is full or unplugged. Off by default.</string>
+    <string name="bolt_anim_off">Off</string>
+    <string name="bolt_anim_pulse">Pulse</string>
+    <string name="bolt_anim_flow">Light sweep</string>
+    <string name="bolt_anim_spark">Sparks</string>
+    <string name="dot_scale_title">In-ring signal dot size</string>
+    <string name="dot_scale_summary" formatted="false">One size for both the top and the bottom row. The default 100% makes each dot as thick as the ring; the slider covers 50–160%, and growing stops where the openings run out of room.</string>
+
+    <string name="type_hide_on_wifi_title">Hide the network type on Wi-Fi</string>
+    <string name="type_hide_on_wifi_summary">Hidden while Wi-Fi is connected; it returns when the connection drops or traffic moves to cellular.</string>
+    <string name="show_mobile_type_title">Network type</string>
+    <string name="show_mobile_type_summary">The 3G/4G/5G label, inside the ring or outside it.</string>
+    <string name="mobile_type_off">Off</string>
+    <string name="mobile_type_inside">In the ring</string>
+    <string name="mobile_type_outside">Outside the ring</string>
+
+
+
+    <string name="data_sim_only_title">Data SIM only</string>
+
+
+
+    <string name="perf_power_title">Power</string>
+
+    <string name="perf_running_title">Running power</string>
+    <string name="perf_temp_title">Battery temp</string>
+    <string name="perf_fps_title">Frame rate</string>
+
+    <string name="glyph_scale_title">Overall icon size</string>
+    <string name="glyph_scale_summary" formatted="false">The default is 100% and the slider covers 60–100%.</string>
+
+    <string name="perf_scale_title">Overall reading size</string>
+    <string name="perf_scale_summary" formatted="false">The default is 100% and the slider covers 60–150%; affects every reading the module draws.</string>
+    <string name="perf_line_gap_title">Reading line gap</string>
+    <string name="perf_line_gap_summary" formatted="false">Extra space between the two stacked lines. Default 0dp, adjustable 0–12dp.</string>
+    <string name="perf_weight_title">Reading weight</string>
+    <string name="perf_weight_summary">The default is 600 and the slider covers 100–900.</string>
+
+    <string name="perf_pair_title">Readings</string>
+
+
+    <string name="color_role_title">State colors</string>
+
+    <string name="color_low_title">Low battery color</string>
+    <string name="color_charging_title">Charging color</string>
+    <string name="color_critical_title">Critical battery color</string>
+    <string name="color_field_summary">Tap to pick a color</string>
+    <string name="color_on_dark">Dark background</string>
+    <string name="color_on_light">Light background</string>
+    <string name="color_dialog_summary">Set the color used when the status bar sits on a dark or a light background.</string>
+    <string name="color_reset">Reset to default</string>
+    <string name="color_reset_summary">Restore the three state colors to their factory presets.</string>
+    <string name="color_reset_dialog_summary">All three state colors go back to their factory presets; your custom colors will be overwritten.</string>
+    <string name="color_reset_confirm">Reset</string>
+    <string name="reset_setting_title">Reset setting</string>
+    <string name="reset_setting_confirm">Reset \"%1$s\" to its default value?</string>
+    <string name="confirm">Confirm</string>
+
+    <string name="low_threshold_title">Low battery threshold</string>
+    <string name="low_threshold_summary" formatted="false">The default is 20% and the slider covers 5–50%.</string>
+
+    <string name="stroke_title">Ring stroke</string>
+    <string name="stroke_summary">The default is 14dp and the slider covers 4–16dp.</string>
+    <string name="stroke_title_rect">Bar thickness</string>
+    <string name="stroke_summary_rect">The default is 14dp and the slider covers 4–16dp.</string>
+
+    <string name="wifi_scale_title">Wi-Fi arc size</string>
+    <string name="wifi_scale_summary">100% by default, adjustable 60–160%. It grows inside each style\'s own fit.</string>
+    <string name="arc_stroke_title">Arc stroke</string>
+    <string name="arc_stroke_summary">The default is 12dp and the slider covers 3–16dp.</string>
+    <string name="arc_stroke_summary_rect">The default is 12dp and the slider covers 3–16dp.</string>
+
+    <string name="value_size_title">Number size</string>
+    <string name="value_size_summary">The default is 36 and the slider covers 16–44 (up to 56 when centred in the ring).</string>
+
+    <string name="value_weight_title">Number weight</string>
+    <string name="value_weight_summary">The default is 600 and the slider covers 100–900.</string>
+
+    <string name="clock_size_title">Overall clock size</string>
+    <string name="clock_size_summary">The default is 36 and the slider covers 16–44.</string>
+
+    <string name="clock_seconds_title">Show seconds</string>
+    <string name="clock_seconds_summary">Append seconds to the time; the clock then refreshes every second.</string>
+    <string name="clock_date_title">Show date</string>
+    <string name="clock_date_summary">Stacked above the system clock; not shown once the time is placed in the glyph.</string>
+    <string name="clock_date_format_title">Date format</string>
+    <string name="clock_date_format_month_day">Month/Day only</string>
+    <string name="clock_date_format_year_month_day">Year/Month/Day</string>
+
+    <string name="clock_lunar_title">Show lunar calendar</string>
+    <string name="clock_lunar_summary">Show lunar calendar in split two-row style.</string>
+
+    <string name="clock_weekday_title">Show weekday</string>
+    <string name="clock_weekday_summary">Shares the date\'s line; alone it shows the weekday only.</string>
+    <string name="clock_weekday_format_title">Weekday format</string>
+    <string name="clock_weekday_format_zh_short">Chinese short (周xx)</string>
+    <string name="clock_weekday_format_zh_full">Chinese full (星期xx)</string>
+    <string name="clock_weekday_format_en_short">English short (e.g. Thu)</string>
+    <string name="clock_weekday_format_en_full">English full (e.g. Thursday)</string>
+
+    <string name="clock_top_offset_x_title">Top row offset</string>
+    <string name="clock_top_offset_x_summary">Horizontal offset for weekday and time.</string>
+    <string name="clock_bottom_offset_x_title">Bottom row offset</string>
+    <string name="clock_bottom_offset_x_summary">Horizontal offset for date and lunar calendar.</string>
+    <string name="clock_lunar_gap_title">Lunar gap</string>
+    <string name="clock_lunar_gap_summary">Spacing between date and lunar calendar.</string>
+    <string name="clock_row_gap_title">Row spacing</string>
+    <string name="clock_row_gap_summary">Vertical spacing between top row and bottom row.</string>
+
+    <string name="clock_weight_title">Overall clock weight</string>
+    <string name="clock_weight_summary">The default is 600 and the slider covers 100–900.</string>
+
+    <string name="color_clock_weekday_title">Weekday color</string>
+    <string name="color_clock_date_title">Date color</string>
+    <string name="color_clock_lunar_title">Lunar calendar color</string>
+    <string name="color_reset_default">Reset to default (no color)</string>
+
+    <string name="type_size_title">Network type size</string>
+    <string name="type_size_summary">The default is 32 and the slider covers 16–44.</string>
+
+    <string name="out_type_size_title">Out-of-ring type size</string>
+    <string name="out_type_size_summary">The default is 14dp and the slider covers 8–26dp; affects the network type only.</string>
+
+    <string name="out_type_margin_left_title">Out-of-ring type margin, left</string>
+    <string name="out_type_margin_left_summary">The default is 2dp and the slider covers 0–16dp.</string>
+
+    <string name="out_type_margin_right_title">Out-of-ring type margin, right</string>
+    <string name="out_type_margin_right_summary">The default is 2dp and the slider covers 0–16dp.</string>
+
+    <string name="type_suffix_scale_title">The A in 5GA</string>
+    <string name="type_suffix_scale_summary" formatted="false">The default is 65% and the slider covers 50–100%.</string>
+
+    <string name="type_weight_title">Network type weight</string>
+    <string name="type_weight_summary">The default is 600 and the slider covers 100–900.</string>
+
+    <string name="track_alpha_title">Track opacity</string>
+    <string name="track_alpha_summary">The default is 56 and the slider covers 0–255.</string>
+
+    <string name="nav_section">Interface</string>
+    <string name="nav_style_title">Bottom bar style</string>
+    <string name="nav_style_docked">Standard bar</string>
+    <string name="nav_style_floating">Floating bar</string>
+    <string name="nav_style_liquid">Liquid glass bar</string>
+    <string name="nav_labels_title">Bottom bar labels</string>
+    <string name="nav_labels_both">Icon and text</string>
+    <string name="nav_labels_icon">Icon only</string>
+    <string name="nav_labels_text">Text only</string>
+    <string name="debug_title">Debug log</string>
+    <string name="debug_summary">Write verbose output to the LSPosed log. Enable only when diagnosing.</string>
+
+    <string name="about_activated">Activated</string>
+    <string name="about_inactive">Inactive</string>
+    <string name="about_inactive_hint">Enable the module in LSPosed</string>
+    <string name="about_module_version">Module version: %1$s</string>
+    <string name="about_scope_count">Scoped apps</string>
+    <string name="about_enabled_count">Enabled toggles</string>
+    <string name="about_title">About</string>
+    <string name="about_summary">HonorDuo · an iPhone-Duo style trio status bar icon for Honor MagicOS</string>
+
+    <string name="info_module_version">App version</string>
+    <string name="info_framework">Xposed framework</string>
+    <string name="info_scope">Scope</string>
+    <string name="info_system_version">System version</string>
+    <string name="info_android_version">Android version</string>
+    <string name="info_device_model">Device model</string>
+    <string name="info_unknown">Unknown</string>
+
+    <string name="update_title">Check for updates</string>
+    <string name="update_summary_idle">Fetches the newest release from GitHub.</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_uptodate">Up to date — %1$s</string>
+    <string name="update_available">Version %1$s is available</string>
+    <string name="update_dialog_title">Version %1$s is available</string>
+    <string name="update_dialog_summary">Installed %1$s · %2$s</string>
+    <string name="update_dialog_notes_title">What changed</string>
+    <string name="update_dialog_no_notes">This release has no notes.</string>
+    <string name="update_dialog_later">Not now</string>
+    <string name="update_available_summary">Installed %1$s · %2$s</string>
+    <string name="update_download">Download</string>
+    <string name="update_downloading">Downloading %1$d%%</string>
+    <string name="update_ready">The new version has been downloaded.</string>
+    <string name="update_ready_summary">Android will ask you to confirm before installing.</string>
+    <string name="update_install">Install</string>
+    <string name="update_retry">Retry</string>
+    <string name="update_failed">Could not check for updates</string>
+    <string name="update_unconfigured">This build has no update source configured</string>
+    <string name="update_no_release">No release has been published yet</string>
+    <string name="update_permission_needed">HonorDuo needs permission to install apps; the settings page has been opened for you.</string>
+    <string name="update_install_failed">No app on this device can handle the install.</string>
+    <string name="update_release_page">Open release page</string>
+    <string name="update_repo">View repository</string>
+    <string name="update_repo_summary">Read the source and the docs on GitHub.</string>
+
+    <string name="restart_title">Restart System UI</string>
+    <string name="restart_summary">Restarting System UI reloads the module, which is what to do after installing it or when System UI misbehaves. It needs root access; System UI disappears for a moment and comes back on its own, without interrupting running apps.</string>
+    <string name="restart_confirm">Restart</string>
+    <string name="restart_running">Restarting…</string>
+    <string name="restart_done">System UI restarted</string>
+    <string name="restart_failed">Restart failed — make sure root access was granted</string>
+    <string name="cancel">Cancel</string>
+
+    <string name="ring_position_native">Hand back to system</string>
+    <string name="ring_position_wifi">Wi-Fi arcs position</string>
+    <string name="ring_position_mobile">Mobile signal position</string>
+    <string name="signal_mode_in_ring">In the ring</string>
+    <string name="signal_mode_out_ring">Outside the ring</string>
+    <string name="stacked_signal_title">Stacked</string>
+    <string name="stacked_signal_summary">Draw the module\'s own dot rows outside the ring; off hands the signal back to MagicOS.</string>
+    <string name="stack_label_title">Type placement</string>
+    <string name="stack_label_left">Beside bars</string>
+    <string name="stack_label_above">Above bars</string>
+    <string name="stack_style_title">Stacked style</string>
+    <string name="stack_style_dots">Dots</string>
+    <string name="stack_style_rows">Two bar rows</string>
+    <string name="out_dot_size_title">Dot size</string>
+    <string name="out_dot_size_summary">100% matches the bar width; 40-180.</string>
+    <string name="out_signal_size_title">Stacked signal size</string>
+    <string name="out_signal_size_summary">The default is 16dp and the slider covers 6–20dp.</string>
+    <string name="out_signal_margin_title">Row gap</string>
+    <string name="out_signal_margin_summary">Default 2dp, 0-16dp: the space between the two stacked rows.</string>
+    <string name="ring_position_sim_1">SIM 1 dots position</string>
+    <string name="ring_position_sim_2">SIM 2 dots position</string>
+    <string name="ring_position_value">Battery number position</string>
+    <string name="ring_position_bolt">Charging bolt position</string>
+    <string name="ring_position_type">Network type position</string>
+    <string name="ring_position_clock">Clock position</string>
+    <string name="ring_position_power">Charge power position</string>
+    <string name="ring_position_temp">Battery temp position</string>
+    <string name="ring_position_running">Running power position</string>
+    <string name="ring_position_fps">Frame rate position</string>
+    <string name="drawing_part_battery">Battery outline</string>
+    <string name="drawing_part_ring">Battery ring</string>
+
+    <!-- issue #38: the launcher entry is an activity-alias and can be switched off. -->
+    <string name="about_hide_icon">Hide the launcher icon</string>
+    <string name="about_hide_icon_summary">Only the home-screen entry goes away; the settings page stays reachable from LSPosed.</string>
+    <!-- issue #45: show the temperature only while a charger is attached. -->
+    <string name="perf_temp_charging_only_title">Temperature only while charging</string>
+    <string name="perf_temp_charging_only_summary">The temperature appears and disappears with the charging power.</string>
+    <!-- While charging the ring's centre shows the number, over whatever the layout put there. -->
+    <!-- The network type steps aside while Wi-Fi is up. -->
+    <!-- Capsule interior padding: the margin each cell keeps from its cap. -->
+    <string name="cap_gap_title">Capsule padding</string>
+    <string name="cap_gap_summary">100% is the reference padding; 0% runs the ink to the caps. It never changes the capsule width.</string>
+    <!-- Capsule length and interior cell nudges, in design units. -->
+    <string name="capsule_length_title">Capsule length</string>
+    <string name="capsule_length_summary">Default 0, range -30 to 60. Lengthens the straight run between the two caps, so the capsule widens; the caps and the height stay as they are.</string>
+    <string name="capsule_nudge_left_dx_title">Left cell horizontal</string>
+    <string name="capsule_nudge_left_dx_summary">Positive moves right, negative left.</string>
+    <string name="capsule_nudge_left_dy_title">Left cell vertical</string>
+    <string name="capsule_nudge_left_dy_summary">Positive moves down, negative up.</string>
+    <string name="capsule_nudge_right_dx_title">Right cell horizontal</string>
+    <string name="capsule_nudge_right_dx_summary">Positive moves right, negative left.</string>
+    <string name="capsule_nudge_right_dy_title">Right cell vertical</string>
+    <string name="capsule_nudge_right_dy_summary">Positive moves down, negative up.</string>
+</resources>

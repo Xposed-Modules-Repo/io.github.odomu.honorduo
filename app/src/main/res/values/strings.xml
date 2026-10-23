@@ -1,0 +1,374 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HonorDuo</string>
+    <string name="xposed_description">荣耀 MagicOS：把状态栏的 Wi-Fi、移动信号与电池合并为一个仿 iPhone Duo 的三合一体图标。</string>
+
+    <string name="group_stroke">描边</string>
+    <string name="group_scale">整体尺寸</string>
+    <string name="group_text">文字</string>
+    <string name="group_type">网络类型</string>
+    <string name="group_layout">布局</string>
+    <string name="group_out_signal">环外信号</string>
+    <string name="group_track">底纹</string>
+
+    <string name="tab_home">首页</string>
+    <string name="drawing_master_title">总开关</string>
+    <string name="drawing_quick_edit_title">快捷编辑</string>
+    <string name="drawing_order_title">组件排序</string>
+
+    <string name="drawing_priority_empty_summary">这一处还没有组件，点下面的「添加组件」</string>
+    <string name="drawing_signal_out_of_ring_notice">移动信号已设为「环外」，信号点不会画在环内。</string>
+    <string name="drawing_priority_first">第 %1$d 位 · 优先显示</string>
+    <string name="drawing_priority_fallback">第 %1$d 位 · 上面画不出来时顶上</string>
+    <string name="drawing_priority_move_up">上移</string>
+    <string name="drawing_priority_move_down">下移</string>
+    <string name="drawing_priority_remove">移除</string>
+    <string name="drawing_priority_showing">第 1 位 · 正在显示</string>
+    <string name="drawing_pick_in_zone">已在环内</string>
+    <string name="drawing_pick_elsewhere">在别处</string>
+    <string name="drawing_pick_showing_now">正在显示这个组件。</string>
+    <string name="drawing_pick_promote_summary">已在环内，点它会挪到第一位。</string>
+    <string name="drawing_pick_move_summary">目前在%1$s，点它会移到这一处，%1$s 将空出。</string>
+    <string name="drawing_move_title">移到这一处？</string>
+    <string name="drawing_move_summary">%1$s 目前在%2$s。移到这里后，%2$s 就不再有它了。</string>
+    <string name="drawing_move_confirm">移到这里</string>
+    <string name="drawing_priority_add">添加组件</string>
+    <string name="show_sim_1_title">显示卡一信号点</string>
+    <string name="show_sim_1_summary">把卡一自己的信号画成一行四点。</string>
+    <string name="show_sim_2_title">显示卡二信号点</string>
+    <string name="show_sim_2_summary">把卡二自己的信号画成一行四点。</string>
+    <string name="ring_position_wifi">Wi-Fi 弧形的位置</string>
+    <string name="ring_position_mobile">移动信号的位置</string>
+    <string name="signal_mode_in_ring">环内</string>
+    <string name="signal_mode_out_ring">环外</string>
+    <string name="stacked_signal_title">堆叠信号</string>
+    <string name="stacked_signal_summary">环外信号画成模块自己的两排点；关闭则交还 MagicOS 的原生信号格。</string>
+    <string name="stack_label_title">网络类型样式</string>
+    <string name="stack_label_left">单独显示</string>
+    <string name="stack_label_above">信号上方</string>
+    <string name="stack_style_title">堆叠风格</string>
+    <string name="stack_style_dots">圆点副卡</string>
+    <string name="stack_style_rows">双排柱</string>
+    <string name="out_dot_size_title">信号点大小</string>
+    <string name="out_dot_size_summary">默认 100%，与信号条同宽；可调 40–180。</string>
+    <string name="out_signal_size_title">堆叠信号大小</string>
+    <string name="out_signal_size_summary">默认 16dp，可调 6–20dp。</string>
+    <string name="out_signal_margin_title">信号行间距</string>
+    <string name="out_signal_margin_summary">默认 2dp，可调 0–16dp；作用于主卡与副卡两行之间的距离。</string>
+    <string name="ring_position_sim_1">卡一信号点的位置</string>
+    <string name="ring_position_sim_2">卡二信号点的位置</string>
+    <string name="ring_position_value">电量数字的位置</string>
+    <string name="ring_position_bolt">充电闪电的位置</string>
+    <string name="ring_position_type">网络类型的位置</string>
+    <string name="ring_position_clock">时钟的位置</string>
+    <string name="ring_position_power">充电功率的位置</string>
+    <string name="ring_position_temp">电池温度的位置</string>
+    <string name="ring_position_running">运行功率的位置</string>
+    <string name="ring_position_fps">帧率的位置</string>
+    <string name="ring_position_native">归还系统</string>
+    <string name="drawing_occupant_sim_1">卡一信号点</string>
+    <string name="drawing_occupant_sim_2">卡二信号点</string>
+    <string name="drawing_outside_title">环外组件</string>
+    <string name="out_order_move_in">往电池方向移动</string>
+    <string name="out_order_move_out">往外移动</string>
+    <string name="out_order_outwards">← 往外</string>
+    <string name="out_order_battery">贴着电池 →</string>
+    <string name="drawing_part_appearance">外观</string>
+    <string name="drawing_part_battery">电池</string>
+    <string name="drawing_part_readouts">读数值</string>
+    <string name="drawing_part_ring">环内组件</string>
+    <string name="drawing_parts_title">组件外观</string>
+    <string name="drawing_preview_hidden">预览已隐藏</string>
+    <string name="drawing_readout_sample_summary">环外读数组的示例，实际内容随状态变化。</string>
+    <string name="drawing_theme_dark">深色</string>
+    <string name="drawing_theme_light">浅色</string>
+    <string name="drawing_theme_system">跟随系统</string>
+    <string name="drawing_occupant_clock">时间</string>
+    <string name="drawing_clock_fixed">时间放进位置后才显示；未放入时状态栏保留系统时钟。</string>
+    <string name="drawing_pick_title">%1$s：现在是%2$s</string>
+    <string name="drawing_pick_none_summary">清除这一处的可选组件；圆环和电量条保留。</string>
+    <string name="drawing_feedback_charging">%1$s已设在%2$s；充电时闪电优先显示。切换到“正常”预览查看。</string>
+    <string name="drawing_feedback_bolt">已将%1$s设在%2$s；切换到“充电”或“快充”预览查看。</string>
+    <string name="drawing_feedback_wifi">%1$s已设在%2$s；当前预览没有 Wi-Fi，切换到“正常”预览查看。</string>
+    <string name="drawing_feedback_other">%1$s已设在%2$s；当前预览显示%3$s。切换预览状态查看。</string>
+    <string name="drawing_pick_impossible">%1$s放不下这个组件。</string>
+    <string name="drawing_pick_signal_in_centre">%1$s不能放在中部：中部是环内读数的地方，信号点只能放在上下两个缺口。</string>
+    <string name="drawing_hint_top">上部</string>
+    <string name="drawing_hint_centre">中部</string>
+    <string name="drawing_hint_bottom">下部</string>
+    <string name="drawing_state_title">预览状态</string>
+    <string name="drawing_scene_normal">正常</string>
+    <string name="drawing_scene_charging">充电</string>
+    <string name="drawing_scene_quick">快充</string>
+    <string name="drawing_scene_low">低电量</string>
+    <string name="drawing_scene_critical">危险</string>
+    <string name="drawing_scene_no_wifi">无 Wi-Fi</string>
+    <string name="drawing_occupant_none">空</string>
+    <string name="drawing_occupant_value">电量数字</string>
+    <string name="drawing_occupant_bolt">充电闪电</string>
+    <string name="drawing_occupant_wifi">Wi-Fi 弧</string>
+    <string name="drawing_occupant_mobile">移动信号点</string>
+    <string name="drawing_occupant_type">网络类型</string>
+    <string name="drawing_occupant_power">充电功率</string>
+    <string name="drawing_occupant_temp">电池温度</string>
+    <string name="drawing_occupant_running">运行功率</string>
+    <string name="drawing_occupant_fps">帧率</string>
+    <string name="perf_power_summary">充电时把瓦数作为一个独立组件绘制。</string>
+    <string name="perf_temp_summary">把电池温度作为一个独立组件绘制。</string>
+    <string name="perf_running_summary">未充电时把瓦数作为一个独立组件绘制。</string>
+    <string name="perf_fps_summary">把屏幕当前的刷新率作为一个独立组件绘制。</string>
+    <string name="drawing_master_off">已关闭总开关，预览按你选的样式照画，但状态栏不会显示。</string>
+    <string name="drawing_settings_title">「%1$s」的设置</string>
+    <string name="drawing_settings_none">这一项没有可调的尺寸或颜色。</string>
+    <string name="drawing_close">关闭</string>
+
+    <string name="master_title">启用三合一图标</string>
+
+    <string name="trio_style_title">三合一样式</string>
+    <string name="trio_style_ring">圆环</string>
+    <string name="trio_style_capsule">胶囊</string>
+    <string name="show_wifi_title">显示 Wi-Fi 弧</string>
+    <string name="show_wifi_summary">最外层绘制 Wi-Fi 弧，弧数跟随信号强度。</string>
+
+    <string name="show_mobile_title">显示移动信号点</string>
+    <string name="show_mobile_summary">底部绘制四个电平点表示移动信号强度。</string>
+    <string name="show_mobile_activity_title">显示流量活动图标</string>
+    <string name="show_mobile_activity_summary">在环外信号旁显示上下行数据活动箭头。</string>
+
+
+    <string name="charging_shows_value_title">充电时环内显示电量</string>
+    <string name="charging_shows_value_summary">充电时中间显示电量百分比，拔线后恢复原来的内容。仅圆环样式。</string>
+    <string name="show_value_title">显示电量数字</string>
+    <string name="show_percent_title">显示百分号</string>
+    <string name="show_value_summary">环内显示电量百分比。</string>
+
+    <string name="show_bolt_title">充电时显示闪电</string>
+    <string name="bolt_scale_title">充电闪电大小</string>
+    <string name="bolt_scale_summary" formatted="false">默认 100%，可调 60–160%。</string>
+    <string name="show_bolt_summary">充电时环内改为闪电图标。</string>
+    <string name="bolt_anim_title">充电动画</string>
+    <string name="bolt_speed_title">动画速度</string>
+    <string name="bolt_speed_summary" formatted="false">默认 100%，可调 50–200%。只在开启充电动画后出现。</string>
+    <string name="bolt_anim_summary">圆环、胶囊与矩形里的闪电按所选样式循环播放，充满电或拔掉充电器即停；快充时速度快一倍。默认关闭。</string>
+    <string name="bolt_anim_off">关闭</string>
+    <string name="bolt_anim_pulse">呼吸</string>
+    <string name="bolt_anim_flow">流光</string>
+    <string name="bolt_anim_spark">电火花</string>
+    <string name="dot_scale_title">环内信号点大小</string>
+    <string name="dot_scale_summary" formatted="false">上部与下部两排点共用。默认 100% 即点径等于环的粗细；可调 50–160%，放大会在上下的缺口里停止增长。</string>
+
+    <string name="type_hide_on_wifi_title">连 Wi-Fi 时隐藏网络类型</string>
+    <string name="type_hide_on_wifi_summary">Wi-Fi 已连接时隐藏，断开或切到流量后自动恢复。</string>
+    <string name="show_mobile_type_title">网络类型</string>
+    <string name="show_mobile_type_summary">3G/4G/5G 等文字，可放在环内或环外。</string>
+    <string name="mobile_type_off">关闭</string>
+    <string name="mobile_type_inside">环内</string>
+    <string name="mobile_type_outside">环外</string>
+
+
+
+    <string name="data_sim_only_title">仅显示上网卡</string>
+
+
+
+    <string name="perf_power_title">功率显示</string>
+
+    <string name="perf_running_title">运行功率</string>
+    <string name="perf_temp_title">电池温度</string>
+    <string name="perf_fps_title">帧率显示</string>
+
+    <string name="glyph_scale_title">图标整体尺寸</string>
+    <string name="glyph_scale_summary" formatted="false">默认 100%，可调 60–100%。</string>
+
+    <string name="perf_scale_title">读数整体尺寸</string>
+    <string name="perf_scale_summary" formatted="false">默认 100%，可调 60–150%；作用于模块绘制的全部读数文字。</string>
+    <string name="perf_line_gap_title">读数行距</string>
+    <string name="perf_line_gap_summary" formatted="false">堆叠读数两行之间的额外间距，默认 0dp，可调 0–12dp。</string>
+    <string name="perf_weight_title">读数字重</string>
+    <string name="perf_weight_summary">默认 600，可调 100–900。</string>
+
+    <string name="perf_pair_title">读数值</string>
+
+
+    <string name="color_role_title">状态颜色</string>
+
+    <string name="color_low_title">低电量颜色</string>
+    <string name="color_charging_title">充电颜色</string>
+    <string name="color_critical_title">危险电量颜色</string>
+    <string name="color_field_summary">点按选择颜色</string>
+    <string name="color_on_dark">深色背景</string>
+    <string name="color_on_light">浅色背景</string>
+    <string name="color_dialog_summary">分别设置状态栏为深色与浅色背景时使用的颜色。</string>
+    <string name="color_reset">恢复默认</string>
+    <string name="color_reset_summary">把三种状态颜色恢复为出厂预设。</string>
+    <string name="color_reset_dialog_summary">三种状态颜色都会回到出厂预设，当前的自定义颜色会被覆盖。</string>
+    <string name="color_reset_confirm">恢复</string>
+    <string name="reset_setting_title">重置设置</string>
+    <string name="reset_setting_confirm">确认将“%1$s”恢复为默认值？</string>
+    <string name="confirm">确认</string>
+
+    <string name="low_threshold_title">低电量阈值</string>
+    <string name="low_threshold_summary" formatted="false">默认 20%，可调 5–50%。</string>
+
+    <string name="stroke_title">环线粗细</string>
+    <string name="stroke_summary">默认 14dp，可调 4–16dp。</string>
+    <string name="stroke_title_rect">电量条粗细</string>
+    <string name="stroke_summary_rect">默认 14dp，可调 4–16dp。</string>
+
+    <string name="wifi_scale_title">Wi-Fi 弧尺寸</string>
+    <string name="wifi_scale_summary">默认 100%，可调 60–160%。在各自样式的适配空间内放大。</string>
+    <string name="arc_stroke_title">弧线粗细</string>
+    <string name="arc_stroke_summary">默认 12dp，可调 3–16dp。</string>
+    <string name="arc_stroke_summary_rect">默认 12dp，可调 3–16dp。</string>
+
+    <string name="value_size_title">数字字号</string>
+    <string name="value_size_summary">默认 36，可调 16–44（环内居中最大 56）。</string>
+
+    <string name="value_weight_title">数字字重</string>
+    <string name="value_weight_summary">默认 600，可调 100–900。</string>
+
+    <string name="clock_size_title">整体字号</string>
+    <string name="clock_size_summary">默认 36，可调 16–44。</string>
+
+    <string name="clock_seconds_title">显示秒</string>
+    <string name="clock_seconds_summary">在时间后追加秒数；开启后按时钟每秒刷新。</string>
+    <string name="clock_date_title">显示日期</string>
+    <string name="clock_date_summary">叠加在系统时钟上方；时间放进环内或胶囊后不显示。</string>
+    <string name="clock_date_format_title">日期格式</string>
+    <string name="clock_date_format_month_day">仅显示月日</string>
+    <string name="clock_date_format_year_month_day">显示年月日</string>
+
+    <string name="clock_lunar_title">显示农历</string>
+    <string name="clock_lunar_summary">在双行分列中显示农历日期。</string>
+
+    <string name="clock_weekday_title">显示星期</string>
+    <string name="clock_weekday_summary">与日期同一行；只开这一项时单独显示星期。</string>
+    <string name="clock_weekday_format_title">星期格式</string>
+    <string name="clock_weekday_format_zh_short">中文简写（周xx）</string>
+    <string name="clock_weekday_format_zh_full">中文全写（星期xx）</string>
+    <string name="clock_weekday_format_en_short">英文简写（如 Thu）</string>
+    <string name="clock_weekday_format_en_full">英文全写（如 Thursday）</string>
+
+    <string name="clock_weight_title">整体字重</string>
+    <string name="clock_weight_summary">默认 600，可调 100–900。</string>
+
+
+    <string name="clock_top_offset_x_title">上层偏移</string>
+    <string name="clock_top_offset_x_summary">调整星期与时间的水平位置。</string>
+    <string name="clock_bottom_offset_x_title">下层偏移</string>
+    <string name="clock_bottom_offset_x_summary">调整日期与农历的水平位置。</string>
+    <string name="clock_lunar_gap_title">农历间距</string>
+    <string name="clock_lunar_gap_summary">调整日期与农历之间的间距。</string>
+    <string name="clock_row_gap_title">上下间距</string>
+    <string name="clock_row_gap_summary">调整时间与日期之间的垂直间距。</string>
+    <string name="color_clock_weekday_title">星期颜色</string>
+    <string name="color_clock_date_title">日期颜色</string>
+    <string name="color_clock_lunar_title">农历颜色</string>
+    <string name="color_reset_default">恢复默认（无颜色）</string>
+
+    <string name="type_size_title">网络类型字号</string>
+    <string name="type_size_summary">默认 32，可调 16–44。</string>
+
+    <string name="out_type_size_title">环外网络类型字号</string>
+    <string name="out_type_size_summary">默认 14dp，可调 8–26dp；只作用于网络类型。</string>
+
+    <string name="out_type_margin_left_title">环外网络类型左边距</string>
+    <string name="out_type_margin_left_summary">默认 2dp，可调 0–16dp。</string>
+
+    <string name="out_type_margin_right_title">环外网络类型右边距</string>
+    <string name="out_type_margin_right_summary">默认 2dp，可调 0–16dp。</string>
+
+    <string name="type_suffix_scale_title">5GA 中 A 的比例</string>
+    <string name="type_suffix_scale_summary" formatted="false">默认 65%，可调 50–100%。</string>
+
+    <string name="type_weight_title">网络类型字重</string>
+    <string name="type_weight_summary">默认 600，可调 100–900。</string>
+
+    <string name="track_alpha_title">底纹浓度</string>
+    <string name="track_alpha_summary">默认 56，可调 0–255。</string>
+
+    <string name="nav_section">界面</string>
+    <string name="nav_style_title">底栏样式</string>
+    <string name="nav_style_docked">标准底栏</string>
+    <string name="nav_style_floating">悬浮底栏</string>
+    <string name="nav_style_liquid">液态玻璃底栏</string>
+    <string name="nav_labels_title">底栏标签</string>
+    <string name="nav_labels_both">图标和文字</string>
+    <string name="nav_labels_icon">仅图标</string>
+    <string name="nav_labels_text">仅文字</string>
+    <string name="debug_title">调试日志</string>
+    <string name="debug_summary">把详细过程写入 LSPosed 日志，排查问题时开启。</string>
+
+    <string name="about_activated">已激活</string>
+    <string name="about_inactive">未激活</string>
+    <string name="about_inactive_hint">请在 LSPosed 中启用模块</string>
+    <string name="about_module_version">模块版本：%1$s</string>
+    <string name="about_scope_count">作用域应用</string>
+    <string name="about_enabled_count">已开启显示项</string>
+    <string name="about_title">关于</string>
+    <string name="about_summary">HonorDuo · 仿 iPhone Duo 三合一状态栏图标（荣耀 MagicOS）</string>
+
+    <string name="info_module_version">应用版本</string>
+    <string name="info_framework">Xposed 框架</string>
+    <string name="info_scope">作用域</string>
+    <string name="info_system_version">系统版本</string>
+    <string name="info_android_version">Android 版本</string>
+    <string name="info_device_model">设备型号</string>
+    <string name="info_unknown">未知</string>
+
+    <string name="update_title">检查更新</string>
+    <string name="update_summary_idle">从 GitHub Releases 获取最新版本。</string>
+    <string name="update_checking">正在检查…</string>
+    <string name="update_uptodate">已是最新版本 %1$s</string>
+    <string name="update_available">发现新版本 %1$s</string>
+    <string name="update_dialog_title">发现新版本 %1$s</string>
+    <string name="update_dialog_summary">当前版本 %1$s · 安装包 %2$s</string>
+    <string name="update_dialog_notes_title">更新内容</string>
+    <string name="update_dialog_no_notes">这一版没有写更新说明。</string>
+    <string name="update_dialog_later">以后再说</string>
+    <string name="update_available_summary">当前版本 %1$s · %2$s</string>
+    <string name="update_download">下载更新</string>
+    <string name="update_downloading">正在下载 %1$d%%</string>
+    <string name="update_ready">新版本已下载完成。</string>
+    <string name="update_ready_summary">系统会弹出安装确认，确认后生效。</string>
+    <string name="update_install">安装</string>
+    <string name="update_retry">重试</string>
+    <string name="update_failed">检查更新失败</string>
+    <string name="update_unconfigured">此版本未配置更新源</string>
+    <string name="update_no_release">作者尚未发布任何正式版本</string>
+    <string name="update_permission_needed">需要先允许本应用安装应用，已为你打开对应设置。</string>
+    <string name="update_install_failed">系统里找不到能处理安装的应用。</string>
+    <string name="update_release_page">打开发布页面</string>
+    <string name="update_repo">查看仓库</string>
+    <string name="update_repo_summary">在 GitHub 上查看源码与说明。</string>
+
+    <string name="restart_title">重启系统界面</string>
+    <string name="restart_summary">重启系统界面会重新加载模块，用于刚安装模块或系统界面状态异常时。此操作需要 root 授权，系统界面会短暂消失并自动恢复，不会影响正在运行的应用。</string>
+    <string name="restart_confirm">重启</string>
+    <string name="restart_running">正在重启…</string>
+    <string name="restart_done">系统界面已重启</string>
+    <string name="restart_failed">重启失败，请确认已授予 root 权限</string>
+    <string name="cancel">取消</string>
+
+
+    <!-- issue #38: the launcher entry is an activity-alias and can be switched off. -->
+    <string name="about_hide_icon">隐藏桌面图标</string>
+    <string name="about_hide_icon_summary">只关掉桌面入口，LSPosed 里仍可打开设置。</string>
+    <!-- issue #45: show the temperature only while a charger is attached. -->
+    <string name="perf_temp_charging_only_title">温度仅充电时显示</string>
+    <string name="perf_temp_charging_only_summary">开启后温度随功率一起出现和消失。</string>
+    <!-- Capsule interior padding: the margin each cell keeps from its cap. -->
+    <string name="cap_gap_title">胶囊内边距</string>
+    <string name="cap_gap_summary">100% 为默认内边距，0% 内容贴紧两端圆角；只影响内容，不改胶囊宽度。</string>
+    <!-- Capsule length and interior cell nudges, in design units. -->
+    <string name="capsule_length_title">胶囊长度</string>
+    <string name="capsule_length_summary">默认 0，可调 -30 到 60。加长的是两端圆角之间的直线段，胶囊随之变宽，圆角与高度不变。</string>
+    <string name="capsule_nudge_left_dx_title">左格水平位置</string>
+    <string name="capsule_nudge_left_dx_summary">正值右移，负值左移。</string>
+    <string name="capsule_nudge_left_dy_title">左格垂直位置</string>
+    <string name="capsule_nudge_left_dy_summary">正值下移，负值上移。</string>
+    <string name="capsule_nudge_right_dx_title">右格水平位置</string>
+    <string name="capsule_nudge_right_dx_summary">正值右移，负值左移。</string>
+    <string name="capsule_nudge_right_dy_title">右格垂直位置</string>
+    <string name="capsule_nudge_right_dy_summary">正值下移，负值上移。</string>
+</resources>

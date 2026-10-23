@@ -1,0 +1,45 @@
+# ---------------------------------------------------------------------------
+# Local toolchain (.tools) is ~2.4 GB (JDK, Android SDK, Gradle dist, caches).
+# Only the two pieces a fresh clone actually needs to build are tracked:
+#   .tools/maven/        vendored io.github.libxposed:*:102.0.0 artifacts,
+#                        referenced first in settings.gradle.kts so --offline works
+#   .tools/debug.keystore  the signing key app/build.gradle.kts points at
+# ---------------------------------------------------------------------------
+/.tools/*
+!/.tools/maven
+!/.tools/debug.keystore
+
+# Reference material and decompiled SystemUI (analysis only, ~800 MB)
+/.ref/
+/work/
+/commonMain/
+
+# Scratch space: decompiled sources, uiautomator dumps, screenshots from
+# on-device verification. Nothing here is needed to build.
+/.tmp/
+/.local/
+/.zcode/
+
+# Build output
+/build/
+/app/build/
+/dist/
+/.gradle/
+/.kotlin/
+*.apk
+*.apks
+*.idsig
+*.hprof
+
+# Machine-specific SDK path
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store

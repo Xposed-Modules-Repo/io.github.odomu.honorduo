@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Read by WifiPresence, in the hooked SystemUI process, to answer "is Wi-Fi
+         connected" without waiting for an icon rebind. A normal permission: granted
+         at install, no prompt, and it exposes no network traffic. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Read by TrioState.sampleSims for the per-card signal rows. The call itself is
+         made inside SystemUI, which already holds it; declaring it here is what the
+         API's contract asks for, and the app never prompts for it. -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+    <!-- Only the settings app talks to the network, to ask GitHub for the newest
+         release. The hooked SystemUI process never gets this permission because
+         it is granted per-package, and the hooks make no network calls. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Lets the updater hand a downloaded APK to the system installer. It grants no
+         silent install: the user confirms in the system dialog, after allowing
+         "install unknown apps" for this app.
+         The lint check on this permission is Play's self-update policy; this module is
+         sideloaded through LSPosed and has no store listing, so the policy does not
+         apply. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:ignore="RequestInstallPackagesPolicy" />
+
+    <!-- miuix-blur declares android:minSdkVersion="33" because its effects need
+         RuntimeShader. We keep 29: every effect in the library is gated on
+         isRuntimeShaderSupported() at runtime and silently falls back to plain
+         drawing below API 33, so the older floor costs only the blur itself. -->
+    <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur" />
+
+    <application
+        android:name=".HonorDuoApp"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <meta-data
+            android:name="xposedminversion"
+            android:value="93" />
+        <meta-data
+            android:name="xposeddescription"
+            android:value="@string/xposed_description" />
+        <meta-data
+            android:name="xposedscope"
+            android:resource="@array/xposed_scope" />
+        <meta-data
+            android:name="libxposed"
+            android:value="true" />
+
+        <!-- LSPosed / Vector manager entry point. -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="de.robv.android.xposed.category.MODULE_SETTINGS" />
+            </intent-filter>
+        </activity>
+
+        <!-- Launcher entry point so the settings app can also be opened directly. -->
+        <activity-alias
+            android:name=".ui.MainActivityAlias"
+            android:enabled="true"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:icon="@mipmap/ic_launcher"
+            android:targetActivity=".ui.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Serves the downloaded APK to the system installer. The installer is a
+             different process, so a plain file:// path would be refused on every
+             supported Android version. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+
+</manifest>

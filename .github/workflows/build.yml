@@ -1,0 +1,185 @@
+# Builds the module on GitHub's Linux runners.
+#
+# The build uses the Gradle build the repository declares - it needs nothing
+# beyond the checkout, the tracked .tools/maven repository and public Maven
+# artifacts.
+#
+# The APK is signed with the tracked .tools/debug.keystore, so a new build installs
+# in place over an existing HonorDuo.
+name: build
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      versionName:
+        description: versionName to stamp
+        required: false
+        default: 1.7.2
+      versionCode:
+        description: versionCode to stamp (must be higher than the installed one)
+        required: false
+        default: '10702'
+
+permissions:
+  contents: write
+
+# Keyed by commit, not by ref: pushing the same commit to main and to a v* tag used
+# to start two identical builds. The tag run supersedes the branch one, which is the
+# one that matters (it is the only one that publishes a release).
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # The SDK lives outside the workspace, so actions/cache needs the absolute
+      # path resolved first; ${{ env.ANDROID_SDK_ROOT }} is not populated for
+      # runner-provided variables.
+      - name: Locate the Android SDK
+        run: echo "SDK_PATH=${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}" >> "$GITHUB_ENV"
+
+      # Installing the platform and build-tools costs a network round trip on every
+      # run; they never change for a given version, so they are cached by version.
+      - name: Cache Android SDK packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.SDK_PATH }}/platforms
+            ${{ env.SDK_PATH }}/build-tools/37.0.0
+          key: android-37.0-bt37.0.0-${{ runner.os }}
+
+      - name: Android SDK platform 37 + build-tools
+        run: |
+          set -x
+          SDK="$SDK_PATH"
+          TOOLS="$(ls -1d "$SDK"/cmdline-tools/*/bin 2>/dev/null | tail -1)"
+          export PATH="$TOOLS:$PATH"
+          # The image already ships cmdline-tools; android-actions/setup-android is
+          # not used because it insists on installing the retired "tools" package,
+          # which no longer exists in the repository and fails the step outright.
+          #
+          # API 37 also ships as minor releases: there is no "platforms;android-37",
+          # only 37.0 / 37.1 / 37.2.
+          if [ ! -d "$SDK/platforms" ] || ! ls -1 "$SDK"/platforms/android-37.* > /dev/null 2>&1; then
+            yes | sdkmanager --licenses > /dev/null 2>&1 || true
+            sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0" \
+              || sdkmanager --channel=3 --install "platforms;android-37.2" "build-tools;37.0.0"
+          else
+            echo "platform 37 restored from cache"
+          fi
+          ls -1 "$SDK/platforms"
+          # compileSdk 37 reads the platform directory named android-37, while the
+          # package installs as android-37.<minor>: make one name point at the other
+          # instead of pinning the build to whichever minor happens to be current.
+          if [ ! -d "$SDK/platforms/android-37" ]; then
+            minor=$(ls -1d "$SDK"/platforms/android-37.* 2>/dev/null | head -1)
+            if [ -n "$minor" ]; then
+              ln -sfn "$(basename "$minor")" "$SDK/platforms/android-37"
+            fi
+          fi
+          ls -l "$SDK/platforms"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+
+      # No gradle-version here: the wrapper pins it, so CI and a local build can
+      # never disagree about which Gradle runs.
+      # setup-gradle keeps ~/.gradle/caches and the wrapper between runs. Branch
+      # builds only read that cache: writing every branch's cache would evict the
+      # main one and blow the 10 GB limit.
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
+          gradle-home-cache-cleanup: true
+
+      - name: Resolve version
+        id: stamp
+        env:
+          INPUT_NAME: ${{ github.event.inputs.versionName }}
+          INPUT_CODE: ${{ github.event.inputs.versionCode }}
+        run: |
+          # A pushed v* tag names the version; otherwise the dispatch input, and
+          # finally the checked-in default. The code follows the name.
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            name="${GITHUB_REF#refs/tags/v}"
+          else
+            name="${INPUT_NAME:-1.7.2}"
+          fi
+          IFS=. read -r major minor patch <<< "$name"
+          code=$(( 10#${major:-0} * 10000 + 10#${minor:-0} * 100 + 10#${patch:-0} ))
+          if [[ -n "$INPUT_CODE" && "$GITHUB_REF" != refs/tags/v* ]]; then code="$INPUT_CODE"; fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Build release APK
+        run: |
+          ./gradlew assembleRelease \
+            -PversionName="${{ steps.stamp.outputs.name }}" \
+            -PversionCode="${{ steps.stamp.outputs.code }}"
+
+      - name: Collect
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk \
+             "dist/HonorDuo-${{ steps.stamp.outputs.name }}.apk"
+
+      # The runner can reach GitHub's blob storage; the phone this build gets
+      # installed on cannot (artifact, release assets and logs all time out from
+      # it, while api.github.com is fine). When the workflow is started by hand,
+      # the APK is therefore also committed as base64, which the Git Data API can
+      # serve - so the same build is still installable from here. The file is
+      # removed again by the next manual run.
+      - name: Publish the APK as base64 in the repo
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          base64 -w 0 dist/HonorDuo-*.apk > ci-apk.b64
+          ls -l ci-apk.b64
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          git add -f ci-apk.b64
+          git commit -m "ci: apk snapshot for on-device install"
+          git push origin HEAD:refs/heads/${GITHUB_REF_NAME}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HonorDuo-${{ steps.stamp.outputs.name }}
+          path: dist/*.apk
+          if-no-files-found: error
+
+      # A release is published for exactly two things: a pushed v* tag (the real
+      # release, body taken from docs/release-notes) and a manual run (a throwaway
+      # prerelease for testing). An ordinary branch push only produces the artifact.
+      - name: Read release notes
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        id: notes
+        run: |
+          file="docs/release-notes/release-notes-${{ steps.stamp.outputs.name }}.md"
+          if [[ -f "$file" ]]; then
+            { echo 'body<<__NOTES__'; cat "$file"; echo '__NOTES__'; } >> "$GITHUB_OUTPUT"
+          else
+            echo "no $file; the release will have an empty body"
+          fi
+
+      - name: Publish a release for the APK
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('ci-{0}-{1}', steps.stamp.outputs.code, github.run_number) }}
+          name: HonorDuo ${{ steps.stamp.outputs.name }} (${{ steps.stamp.outputs.code }})
+          body: ${{ steps.notes.outputs.body }}
+          files: dist/*.apk
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
