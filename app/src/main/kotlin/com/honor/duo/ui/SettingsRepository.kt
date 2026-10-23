@@ -11,14 +11,16 @@
 
 package com.honor.duo.ui
 
+
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.core.content.edit
 import com.honor.duo.HonorDuoApp
-import com.honor.duo.Prefs
-import com.honor.duo.TrioSettings
+import com.honor.duo.model.Prefs
+import com.honor.duo.model.TrioSettings
+import com.honor.duo.render.TrioZones
 import io.github.libxposed.service.XposedService
 
 /**
@@ -151,20 +153,20 @@ class SettingsRepository(context: Context) {
      * type slot) removes the piece. The three ints are still the three zones, which is why
      * the mapping is kept - the ring's editor drives the priority lists directly.
      */
-    fun setRingPartPosition(part: com.honor.duo.TrioZones.Part, position: Int) {
+    fun setRingPartPosition(part: TrioZones.Part, position: Int) {
         val current = TrioSettings.from(preferences(), density)
         if (position in 1..3) {
             applyRingAssignment(
-                com.honor.duo.TrioZones.withPiece(current, position - 1, part)
+                TrioZones.withPiece(current, position - 1, part)
             )
         } else {
             val next = current.copy()
-            val id = com.honor.duo.TrioZones.encodePart(part)
+            val id = TrioZones.encodePart(part)
             next.ringZones = TrioSettings.copyZones(current.ringZones)
             for (zone in next.ringZones.indices) {
                 next.ringZones[zone] = next.ringZones[zone].filter { it != id }.toIntArray()
             }
-            if (part == com.honor.duo.TrioZones.Part.TYPE) {
+            if (part == TrioZones.Part.TYPE) {
                 next.mobileTypeMode =
                     if (position == 4) Prefs.MOBILE_TYPE_OUT_RING else Prefs.MOBILE_TYPE_OFF
             }
@@ -182,15 +184,15 @@ class SettingsRepository(context: Context) {
     fun setWifiPosition(position: Int) {
         val current = TrioSettings.from(preferences(), density)
         if (position in 1..3) {
-            val next = com.honor.duo.TrioZones.withPiece(
-                current, position - 1, com.honor.duo.TrioZones.Part.WIFI)
+            val next = TrioZones.withPiece(
+                current, position - 1, TrioZones.Part.WIFI)
             next.showWifi = true
             applyRingAssignment(next)
         } else {
             val next = current.copy()
             next.showWifi = false
-            val id = com.honor.duo.TrioZones.encodePart(
-                com.honor.duo.TrioZones.Part.WIFI)
+            val id = TrioZones.encodePart(
+                TrioZones.Part.WIFI)
             next.ringZones = TrioSettings.copyZones(current.ringZones)
             for (zone in next.ringZones.indices) {
                 next.ringZones[zone] = next.ringZones[zone].filter { it != id }.toIntArray()
@@ -199,7 +201,7 @@ class SettingsRepository(context: Context) {
         }
     }
 
-    /** 0 = the signal readings stay inside the ring, 1 = they go back to the system (环外). */
+    
     fun setSignalMode(value: Int) = writeStyled(style(), Prefs.KEY_SIGNAL_MODE) { e, k ->
         e.putInt(k, value.coerceIn(Prefs.MIN_SIGNAL_MODE, Prefs.MAX_SIGNAL_MODE)) }
 
@@ -349,6 +351,8 @@ class SettingsRepository(context: Context) {
     fun setOutDotSize(value: Int) = writeInt(Prefs.KEY_OUT_DOT_SIZE, value)
     /** Stacked look of the out-of-ring reading - see [Prefs.KEY_STACK_STYLE]. */
     fun setStackStyle(value: Int) = writeInt(Prefs.KEY_STACK_STYLE, value)
+    fun setAntiBurnIn(value: Boolean) = writeBoolean(Prefs.KEY_ANTI_BURN_IN, value)
+    fun setSignalColumns(value: Int) = writeInt(Prefs.KEY_SIGNAL_COLUMNS, Prefs.clamp(value, 4, 5))
     /** Where the stacked reading puts its type - see [Prefs.KEY_STACK_LABEL]. */
     fun setStackLabel(value: Int) = writeInt(Prefs.KEY_STACK_LABEL, value)
     fun setOutTypeMarginLeft(value: Int) = writeInt(Prefs.KEY_OUT_TYPE_MARGIN_LEFT, value)
@@ -446,6 +450,8 @@ class SettingsRepository(context: Context) {
             prefs.putInt(Prefs.KEY_OUT_DOT_SIZE, snapshot.outDotSize)
             prefs.putInt(Prefs.KEY_STACK_STYLE, snapshot.stackStyle)
             prefs.putInt(Prefs.KEY_STACK_LABEL, snapshot.stackLabel)
+            prefs.putBoolean(Prefs.KEY_ANTI_BURN_IN, snapshot.antiBurnIn)
+            prefs.putInt(Prefs.KEY_SIGNAL_COLUMNS, snapshot.signalColumns)
             prefs.putInt(Prefs.KEY_OUT_TYPE_MARGIN_LEFT, snapshot.outTypeMarginLeft)
             prefs.putInt(Prefs.KEY_OUT_TYPE_MARGIN_RIGHT, snapshot.outTypeMarginRight)
             prefs.putInt(Prefs.KEY_OUT_SIGNAL_MARGIN, snapshot.outSignalMargin)

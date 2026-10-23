@@ -9,15 +9,13 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package com.honor.duo
+package com.honor.duo.model
 
 import android.content.SharedPreferences
 import android.os.Bundle
-import com.honor.duo.TrioSettings.Companion.from
-import com.honor.duo.TrioSettings.Companion.fromBundle
-import com.honor.duo.TrioSettings.Companion.readMobileTypeMode
-import com.honor.duo.TrioSettings.Companion.readOutTypeSize
-import com.honor.duo.TrioSettings.Companion.readRingLayout
+import com.honor.duo.model.TrioSettings.Companion.readMobileTypeMode
+import com.honor.duo.model.TrioSettings.Companion.readOutTypeSize
+import com.honor.duo.model.TrioSettings.Companion.readRingLayout
 import kotlin.math.roundToInt
 
 /**
@@ -209,6 +207,8 @@ class TrioSettings {
 
     /** Where the stacked reading puts its type - see [Prefs.KEY_STACK_LABEL]. */
     var stackLabel = Prefs.DEF_STACK_LABEL
+    var antiBurnIn = Prefs.DEF_ANTI_BURN_IN
+    var signalColumns = Prefs.DEF_SIGNAL_COLUMNS
 
 
 
@@ -632,6 +632,11 @@ class TrioSettings {
             )
             s.stackStyle = p.getInt(Prefs.KEY_STACK_STYLE, Prefs.DEF_STACK_STYLE)
             s.stackLabel = p.getInt(Prefs.KEY_STACK_LABEL, Prefs.DEF_STACK_LABEL)
+            s.antiBurnIn = p.getBoolean(Prefs.KEY_ANTI_BURN_IN, Prefs.DEF_ANTI_BURN_IN)
+            s.signalColumns = Prefs.clamp(
+                p.getInt(Prefs.KEY_SIGNAL_COLUMNS, Prefs.DEF_SIGNAL_COLUMNS),
+                Prefs.MIN_SIGNAL_COLUMNS, Prefs.MAX_SIGNAL_COLUMNS,
+            )
             s.outSignalSize = Prefs.clamp(
                 p.getInt(Prefs.KEY_OUT_SIGNAL_SIZE, Prefs.DEF_OUT_SIGNAL_SIZE),
                 Prefs.MIN_OUT_SIGNAL_SIZE,
@@ -896,6 +901,11 @@ class TrioSettings {
             )
             s.stackStyle = bundle.getInt(Prefs.KEY_STACK_STYLE, Prefs.DEF_STACK_STYLE)
             s.stackLabel = bundle.getInt(Prefs.KEY_STACK_LABEL, Prefs.DEF_STACK_LABEL)
+            s.antiBurnIn = bundle.getBoolean(Prefs.KEY_ANTI_BURN_IN, Prefs.DEF_ANTI_BURN_IN)
+            s.signalColumns = Prefs.clamp(
+                bundle.getInt(Prefs.KEY_SIGNAL_COLUMNS, Prefs.DEF_SIGNAL_COLUMNS),
+                Prefs.MIN_SIGNAL_COLUMNS, Prefs.MAX_SIGNAL_COLUMNS,
+            )
             s.outSignalSize = Prefs.clamp(
                 bundle.getInt(Prefs.KEY_OUT_SIGNAL_SIZE, Prefs.DEF_OUT_SIGNAL_SIZE),
                 Prefs.MIN_OUT_SIGNAL_SIZE,
@@ -1240,6 +1250,8 @@ class TrioSettings {
         s.outDotSize = outDotSize
         s.stackStyle = stackStyle
         s.stackLabel = stackLabel
+        s.antiBurnIn = antiBurnIn
+        s.signalColumns = signalColumns
         s.outTypeMarginLeft = outTypeMarginLeft
         s.outTypeMarginRight = outTypeMarginRight
         s.outSignalMargin = outSignalMargin
@@ -1475,6 +1487,8 @@ class TrioSettings {
         putInt(Prefs.KEY_OUT_DOT_SIZE, outDotSize)
         putInt(Prefs.KEY_STACK_STYLE, stackStyle)
         putInt(Prefs.KEY_STACK_LABEL, stackLabel)
+        putBoolean(Prefs.KEY_ANTI_BURN_IN, antiBurnIn)
+        putInt(Prefs.KEY_SIGNAL_COLUMNS, signalColumns)
         putInt(Prefs.KEY_OUT_TYPE_MARGIN_LEFT, outTypeMarginLeft)
         putInt(Prefs.KEY_OUT_TYPE_MARGIN_RIGHT, outTypeMarginRight)
         putInt(Prefs.KEY_OUT_SIGNAL_MARGIN, outSignalMargin)
@@ -1568,6 +1582,8 @@ class TrioSettings {
             outDotSize == other.outDotSize &&
             stackStyle == other.stackStyle &&
             stackLabel == other.stackLabel &&
+            antiBurnIn == other.antiBurnIn &&
+            signalColumns == other.signalColumns &&
             outTypeMarginLeft == other.outTypeMarginLeft &&
             outTypeMarginRight == other.outTypeMarginRight &&
             outSignalMargin == other.outSignalMargin &&

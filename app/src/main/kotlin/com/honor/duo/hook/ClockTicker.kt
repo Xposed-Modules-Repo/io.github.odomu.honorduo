@@ -9,11 +9,14 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package com.honor.duo
+package com.honor.duo.hook
 
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import com.honor.duo.model.Prefs
+import com.honor.duo.model.TrioConfig
+import com.honor.duo.model.TrioState
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale

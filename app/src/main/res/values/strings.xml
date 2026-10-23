@@ -49,6 +49,10 @@
     <string name="stack_style_title">堆叠风格</string>
     <string name="stack_style_dots">圆点副卡</string>
     <string name="stack_style_rows">双排柱</string>
+    <string name="signal_columns_title">信号柱风格</string>
+    <string name="signal_columns_summary">可选 4 信号柱（默认）或 5 信号柱；自动等比自适应显示比例。</string>
+    <string name="signal_columns_4">4 信号柱（默认）</string>
+    <string name="signal_columns_5">5 信号柱</string>
     <string name="out_dot_size_title">信号点大小</string>
     <string name="out_dot_size_summary">默认 100%，与信号条同宽；可调 40–180。</string>
     <string name="out_signal_size_title">堆叠信号大小</string>
@@ -127,6 +131,8 @@
     <string name="trio_style_title">三合一样式</string>
     <string name="trio_style_ring">圆环</string>
     <string name="trio_style_capsule">胶囊</string>
+    <string name="anti_burn_in_title">智能防烧屏</string>
+    <string name="anti_burn_in_summary">每隔 30 秒在微米级像素网格（±1dp）内循环位移，避免 OLED 屏幕长时间常驻显示产生残影。</string>
     <string name="show_wifi_title">显示 Wi-Fi 弧</string>
     <string name="show_wifi_summary">最外层绘制 Wi-Fi 弧，弧数跟随信号强度。</string>
 
@@ -270,7 +276,8 @@
     <string name="type_size_summary">默认 32，可调 16–44。</string>
 
     <string name="out_type_size_title">环外网络类型字号</string>
-    <string name="out_type_size_summary">默认 14dp，可调 8–26dp；只作用于网络类型。</string>
+    <string name="out_type_size_summary">信号上方时默认 14dp，可调 8–26dp；只作用于网络类型。</string>
+    <string name="out_type_size_alone_summary">单独显示时默认 12dp，可调 8–26dp；上下双卡整体联动。</string>
 
     <string name="out_type_margin_left_title">环外网络类型左边距</string>
     <string name="out_type_margin_left_summary">默认 2dp，可调 0–16dp。</string>

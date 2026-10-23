@@ -9,7 +9,8 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package com.honor.duo
+package com.honor.duo.ui
+
 
 import android.content.Context
 import android.graphics.Canvas
@@ -18,8 +19,16 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
-import androidx.core.graphics.withTranslation
 import androidx.core.graphics.withSave
+import androidx.core.graphics.withTranslation
+import com.honor.duo.hook.ClockTicker
+import com.honor.duo.model.Prefs
+import com.honor.duo.model.TrioAppearance
+import com.honor.duo.model.TrioSettings
+import com.honor.duo.model.TrioState
+import com.honor.duo.render.TrioGeometry
+import com.honor.duo.render.TrioRenderer
+import com.honor.duo.render.TrioZones
 
 /**
  * Renders the trio glyph for the settings app's live preview.

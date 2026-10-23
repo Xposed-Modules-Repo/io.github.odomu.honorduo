@@ -9,7 +9,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package com.honor.duo
+package com.honor.duo.hook
 
 import java.lang.reflect.Field
 import java.lang.reflect.Method

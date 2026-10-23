@@ -9,24 +9,27 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package com.honor.duo
+package com.honor.duo.model
 
-import android.os.Build
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.content.res.Resources
+import android.os.Build
 import android.os.SystemClock
 import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
 import android.view.View
 import androidx.core.content.ContextCompat
-import com.honor.duo.TrioState.Companion.POWER_UNKNOWN
-import com.honor.duo.TrioState.Companion.SIMS_INTERVAL_MS
-import com.honor.duo.TrioState.Companion.TEMP_UNKNOWN
-import com.honor.duo.TrioState.Companion.sClockText
+import com.honor.duo.hook.BatteryPresence
+import com.honor.duo.hook.ClockTicker
+import com.honor.duo.hook.FpsTicker
+import com.honor.duo.hook.Refl
+import com.honor.duo.hook.TrioHooks
+import com.honor.duo.hook.WifiPresence
+import com.honor.duo.model.TrioState.Companion.SIMS_INTERVAL_MS
 import java.lang.reflect.Field
 import java.util.concurrent.ConcurrentHashMap
 
@@ -255,7 +258,7 @@ internal class TrioState(val host: View) {
         @JvmField
         var sClockBarText = ""
 
-        /** The weekday for the same preview line - "星期四" in the user's locale. */
+        
         @Volatile
         @JvmField
         var sClockWeekday = ""

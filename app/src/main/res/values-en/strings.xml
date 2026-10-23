@@ -92,6 +92,8 @@
     <string name="trio_style_title">Glyph style</string>
     <string name="trio_style_ring">Ring</string>
     <string name="trio_style_capsule">Capsule</string>
+    <string name="anti_burn_in_title">Smart burn-in protection</string>
+    <string name="anti_burn_in_summary">Periodically shifts views by ±1dp every 30s to prevent OLED burn-in.</string>
     <string name="show_wifi_title">Wi-Fi arcs</string>
     <string name="show_wifi_summary">Draw the Wi-Fi arcs; the number of arcs follows the real signal level.</string>
 
@@ -240,7 +242,8 @@
     <string name="type_size_summary">The default is 32 and the slider covers 16–44.</string>
 
     <string name="out_type_size_title">Out-of-ring type size</string>
-    <string name="out_type_size_summary">The default is 14dp and the slider covers 8–26dp; affects the network type only.</string>
+    <string name="out_type_size_summary">The default is 14dp above signal and the slider covers 8–26dp; affects the network type only.</string>
+    <string name="out_type_size_alone_summary">The default is 12dp in standalone mode and the slider covers 8–26dp; scales dual cards together.</string>
 
     <string name="out_type_margin_left_title">Out-of-ring type margin, left</string>
     <string name="out_type_margin_left_summary">The default is 2dp and the slider covers 0–16dp.</string>
@@ -333,6 +336,10 @@
     <string name="stack_style_title">Stacked style</string>
     <string name="stack_style_dots">Dots</string>
     <string name="stack_style_rows">Two bar rows</string>
+    <string name="signal_columns_title">Signal bars style</string>
+    <string name="signal_columns_summary">Choose 4 bars (default) or 5 bars; automatically scales proportions.</string>
+    <string name="signal_columns_4">4 signal bars (default)</string>
+    <string name="signal_columns_5">5 signal bars</string>
     <string name="out_dot_size_title">Dot size</string>
     <string name="out_dot_size_summary">100% matches the bar width; 40-180.</string>
     <string name="out_signal_size_title">Stacked signal size</string>

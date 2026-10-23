@@ -9,7 +9,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package com.honor.duo
+package com.honor.duo.hook
 
 import android.content.Context
 import android.hardware.display.DisplayManager
@@ -17,6 +17,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.Choreographer
+import com.honor.duo.model.TrioConfig
 import java.io.File
 import kotlin.math.roundToInt
 

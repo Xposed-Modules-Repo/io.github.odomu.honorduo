@@ -9,7 +9,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package com.honor.duo
+package com.honor.duo.hook
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -30,10 +30,17 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.view.isGone
-import com.honor.duo.TrioHooks.PERF_MIN_SIZE_RATIO
-import com.honor.duo.TrioHooks.allowOverflow
-import com.honor.duo.TrioHooks.owned
-import com.honor.duo.TrioHooks.syncRow
+import com.honor.duo.hook.TrioHooks.PERF_MIN_SIZE_RATIO
+import com.honor.duo.hook.TrioHooks.allowOverflow
+import com.honor.duo.hook.TrioHooks.owned
+import com.honor.duo.hook.TrioHooks.syncRow
+import com.honor.duo.model.Prefs
+import com.honor.duo.model.TrioAppearance
+import com.honor.duo.model.TrioConfig
+import com.honor.duo.model.TrioState
+import com.honor.duo.render.GlyphView
+import com.honor.duo.render.TrioGeometry
+import com.honor.duo.render.TrioRenderer
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
 import java.lang.ref.WeakReference
@@ -121,6 +128,20 @@ internal object TrioHooks {
 
         /** The out-of-ring order the views were last arranged in. */
         @JvmField var outOrderApplied: IntArray? = null
+
+        var burnInIndex = 0
+        val burnInTask: Runnable = object : Runnable {
+            override fun run() {
+                val a = TrioConfig.appearance()
+                if (!a.antiBurnIn) {
+                    resetBurnIn(this@Row)
+                    return
+                }
+                applyBurnInStep(this@Row)
+                this@Row.row.removeCallbacks(this)
+                this@Row.row.postDelayed(this, Prefs.BURN_IN_INTERVAL_MS)
+            }
+        }
     }
 
     @Volatile
@@ -219,10 +240,51 @@ internal object TrioHooks {
                         // Layout is where Honor re-shows its battery, and where a row that lost its glyph gets it back.
                         requestSync(row)
                     }
+                    checkCapsuleAvoidanceAndRescue(self)
                 }
                 result
             },
         )
+        sCapsuleRightField = Refl.field(rowClass, "mCapsuleRight")
+        sIsCapsuleShownField = Refl.field(rowClass, "mIsCapsuleShown")
+        sIsColoredCapsuleShownField = Refl.field(rowClass, "mIsColoredCapsuleShown")
+        n += hook(
+            module, methodNamed(rowClass, "updateIconsAlpha", 0),
+            "honorduo-update-icons-alpha",
+        ) { chain ->
+            val result = chain.proceed()
+            val self = chain.thisObject
+            if (self is ViewGroup) {
+                checkCapsuleAvoidanceAndRescue(self)
+            }
+            result
+        }
+        n += hook(
+            module, methodNamed(rowClass, "setCapsuleArea", 5),
+            "honorduo-capsule-area",
+        ) { chain ->
+            val result = chain.proceed()
+            val self = chain.thisObject
+            if (self is ViewGroup) {
+                val isShown = chain.getArg(1) as? Boolean ?: false
+                val right = (chain.getArg(2) as? Number)?.toInt() ?: 0
+                handleCapsuleAvoidanceAndRescue(self, isShown, right)
+            }
+            result
+        }
+        n += hook(
+            module, methodNamed(rowClass, "setColoredCapsuleArea", 3),
+            "honorduo-colored-capsule-area",
+        ) { chain ->
+            val result = chain.proceed()
+            val self = chain.thisObject
+            if (self is ViewGroup) {
+                val right = (chain.getArg(1) as? Number)?.toInt() ?: 0
+                val isShown = chain.getArg(2) as? Boolean ?: false
+                handleCapsuleAvoidanceAndRescue(self, isShown, right)
+            }
+            result
+        }
         n += hook(
             module, Refl.method(rowClass, "onAttachedToWindow"),
             "honorduo-row-attach",
@@ -265,7 +327,9 @@ internal object TrioHooks {
         synchronized(ROWS) {
             for (i in ROWS.indices.reversed()) {
                 if (ROWS[i].row === row) {
-                    ROWS.removeAt(i)
+                    val r = ROWS.removeAt(i)
+                    r.row.removeCallbacks(r.burnInTask)
+                    resetBurnIn(r)
                 }
             }
         }
@@ -316,6 +380,13 @@ internal object TrioHooks {
         if (force || row.lastStyle != a.style) {
             row.lastStyle = a.style
             row.glyph?.requestLayout()
+        }
+        if (a.antiBurnIn) {
+            row.row.removeCallbacks(row.burnInTask)
+            row.row.postDelayed(row.burnInTask, Prefs.BURN_IN_INTERVAL_MS)
+        } else {
+            row.row.removeCallbacks(row.burnInTask)
+            resetBurnIn(row)
         }
     }
 
@@ -498,16 +569,12 @@ internal object TrioHooks {
             slots[0] >= 0 -> 0
             else -> dataSlot
         }
-        signal.type = if (alone) {
+        signal.type = row.state.slotTypes[firstSlot].ifEmpty { fallback }
+        // For the second card, use slot 1's type; fall back to the sampled type so no row goes blank.
+        signal.type2 = if (a.dataSimOnly || !dual) {
             null
         } else {
-            row.state.slotTypes[firstSlot].ifEmpty { fallback }
-        }
-        // No fallback for the second card: the sampled type is the data card's.
-        signal.type2 = if (alone || a.dataSimOnly || !dual) {
-            null
-        } else {
-            row.state.slotTypes[1].ifEmpty { null }
+            row.state.slotTypes[1].ifEmpty { fallback }
         }
         signal.bars = max(0, reading[0])
         signal.dots = reading[1]
@@ -1636,6 +1703,127 @@ internal object TrioHooks {
         return if (id != 0) view.resources.getDimensionPixelSize(id) else 0
     }
 
+    /**
+     * Dynamically avoids system notification capsules (Smart Capsule / Live Window / Island).
+     *
+     * In MagicOS, when a capsule appears/expands on the status bar, it occupies the area up to
+     * [capsuleRight]. We inspect our own views in the row using their absolute on-screen positions:
+     * - ONLY views that are actually encroached/covered by the capsule have alpha set to 0f.
+     * - Views that are still to the right of the capsule boundary stay completely visible (alpha = 1f).
+     * - When the capsule retracts, all views are restored to alpha = 1f.
+     */
+    private val ALPHA_GROUP_NAMES = arrayOf("statusIcons", "network_area_icons")
+    @Volatile private var sAlphaGroupIds: IntArray? = null
+
+    /**
+     * Smart physical avoidance and rescue scheme
+     */
+    private fun handleCapsuleAvoidanceAndRescue(rowView: ViewGroup, isShown: Boolean, capsuleRight: Int) {
+        val row = find(rowView) ?: return
+        val density = rowView.resources.displayMetrics.density
+        val safeGap = (4f * density).toInt()
+        val avoidBound = capsuleRight + safeGap
+        val loc = IntArray(2)
+
+        // 1. Rescue falsely faded status icons and network icons
+        val ids = sAlphaGroupIds ?: run {
+            val res = rowView.context.resources
+            val pkg = rowView.context.packageName
+            ALPHA_GROUP_NAMES.mapNotNull { name ->
+                res.getIdentifier(name, "id", pkg).takeIf { it != 0 }
+            }.toIntArray().also { sAlphaGroupIds = it }
+        }
+        for (id in ids) {
+            val group = rowView.findViewById<ViewGroup>(id) ?: continue
+            for (i in 0 until group.childCount) {
+                val child = group.getChildAt(i) ?: continue
+                if (child.visibility != View.VISIBLE) continue
+                if (!isShown || capsuleRight <= 0) {
+                    if (child.alpha != 1f) child.alpha = 1f
+                } else {
+                    child.getLocationOnScreen(loc)
+                    val leftOnScreen = loc[0]
+                    if (leftOnScreen >= avoidBound) {
+                        // Safely outside the capsule boundary: restore visibility
+                        if (child.alpha != 1f) child.alpha = 1f
+                    }
+                }
+            }
+        }
+
+        // 2. Per-view collision avoidance for module's own views
+        val views = listOfNotNull(row.signal, row.type, row.perf, row.fps, row.glyph)
+        for (v in views) {
+            if (v.parent !== row.container) continue
+            if (!isShown || capsuleRight <= 0) {
+                v.alpha = 1.0f
+                v.translationX = 0f
+            } else {
+                v.getLocationOnScreen(loc)
+                val viewLeftOnScreen = loc[0]
+                if (viewLeftOnScreen < avoidBound) {
+                    // Truly encroached by the capsule: hide to avoid collision
+                    v.alpha = 0f
+                    v.translationX = 0f
+                } else {
+                    // Safe in clear area: keep fully visible
+                    v.alpha = 1.0f
+                    v.translationX = 0f
+                }
+            }
+        }
+    }
+
+    private fun checkCapsuleAvoidanceAndRescue(rowView: ViewGroup) {
+        val isCapsule = (Refl.get(sIsCapsuleShownField, rowView) as? Boolean) ?: false
+        val isColored = (Refl.get(sIsColoredCapsuleShownField, rowView) as? Boolean) ?: false
+        val right = (Refl.get(sCapsuleRightField, rowView) as? Number)?.toInt() ?: 0
+        if ((isCapsule || isColored) && right > 0) {
+            handleCapsuleAvoidanceAndRescue(rowView, true, right)
+        } else {
+            handleCapsuleAvoidanceAndRescue(rowView, false, 0)
+        }
+    }
+
+    private val BURN_IN_CELLS = arrayOf(
+        0 to 0, 1 to 0, 1 to 1, 0 to 1,
+        -1 to 1, -1 to 0, -1 to -1, 0 to -1, 1 to -1,
+    )
+
+    private fun applyBurnInStep(row: Row) {
+        val cell = BURN_IN_CELLS[row.burnInIndex % BURN_IN_CELLS.size]
+        row.burnInIndex++
+        val density = row.row.resources.displayMetrics.density
+        val step = 1f * density
+        val views = listOfNotNull(row.glyph, row.signal, row.type, row.perf, row.fps)
+        val p = row.container
+        for (v in views) {
+            if (v.parent !== p) continue
+            var dx = cell.first * step
+            var dy = cell.second * step
+            if (p.width > 0 && p.height > 0 && v.width > 0 && v.height > 0) {
+                val minX = (p.paddingLeft - v.left).toFloat()
+                val maxX = (p.width - p.paddingRight - v.right).toFloat()
+                dx = if (minX > maxX) 0f else dx.coerceIn(minX, maxX)
+                val minY = (p.paddingTop - v.top).toFloat()
+                val maxY = (p.height - p.paddingBottom - v.bottom).toFloat()
+                dy = if (minY > maxY) 0f else dy.coerceIn(minY, maxY)
+            }
+            v.translationX = dx
+            v.translationY = dy
+        }
+    }
+
+    private fun resetBurnIn(row: Row) {
+        val views = listOfNotNull(row.glyph, row.signal, row.type, row.perf, row.fps)
+        for (v in views) {
+            if (v.parent === row.container) {
+                v.translationX = 0f
+                v.translationY = 0f
+            }
+        }
+    }
+
     /** (Re)arms the update loop, always restarting so the cadence follows the settings. */
     private fun startBarClockLoop(view: BarClockView) {
         sBarClockLoop = true
@@ -1974,6 +2162,9 @@ internal object TrioHooks {
         }
     }
 
+    private var sCapsuleRightField: Field? = null
+    private var sIsCapsuleShownField: Field? = null
+    private var sIsColoredCapsuleShownField: Field? = null
     private var sOperatorWidth: Field? = null
     private var sPaddingLeft: Field? = null
     private var sPaddingRight: Field? = null
@@ -2048,7 +2239,7 @@ internal object TrioHooks {
     }
 
     private fun hide(view: Any?) {
-        if (view !is View || view.visibility == View.GONE) {
+        if (view !is View || view.isGone) {
             return
         }
         // Not recorded when already GONE: that GONE may be the module's own earlier write.

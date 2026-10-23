@@ -11,6 +11,7 @@
 
 package com.honor.duo.ui
 
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -52,11 +53,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -68,12 +69,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.honor.duo.Prefs
 import com.honor.duo.R
-import com.honor.duo.TrioAppearance
-import com.honor.duo.TrioPreviewView
-import com.honor.duo.TrioSettings
-import com.honor.duo.TrioZones
+import com.honor.duo.model.Prefs
+import com.honor.duo.model.TrioAppearance
+import com.honor.duo.model.TrioSettings
+import com.honor.duo.render.TrioZones
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -1512,7 +1512,6 @@ private fun zonesFor(a: TrioAppearance): List<TrioZones.Zone> = TrioZones.Zone.e
  *
  * Shown inside the order card rather than as a dialog: it is a standing explanation of why
  * nothing here is producing dots, not an event to acknowledge. A user who has just switched
- * the signal to 环外 (or who upgraded into that state) sees this instead of concluding the
  * module broke.
  */
 @Composable

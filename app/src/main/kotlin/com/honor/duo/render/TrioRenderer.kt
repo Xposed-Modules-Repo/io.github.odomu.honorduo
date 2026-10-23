@@ -9,7 +9,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package com.honor.duo
+package com.honor.duo.render
 
 import android.graphics.Canvas
 import android.graphics.Color
@@ -24,17 +24,20 @@ import android.os.SystemClock
 import android.view.View
 import androidx.core.graphics.withSave
 import androidx.core.graphics.withTranslation
-import com.honor.duo.TrioRenderer.RING_POINT
-import com.honor.duo.TrioRenderer.TEXT
-import com.honor.duo.TrioRenderer.animPhase
-import com.honor.duo.TrioRenderer.batteryRing
-import com.honor.duo.TrioRenderer.boltMoving
-import com.honor.duo.TrioRenderer.drawInto
-import com.honor.duo.TrioRenderer.drawType
-import com.honor.duo.TrioRenderer.fitSize
-import com.honor.duo.TrioRenderer.isDarkBackground
-import com.honor.duo.TrioRenderer.quickCharge
-import com.honor.duo.TrioRenderer.textInkHeight
+import com.honor.duo.model.Prefs
+import com.honor.duo.model.TrioAppearance
+import com.honor.duo.model.TrioConfig
+import com.honor.duo.model.TrioSettings
+import com.honor.duo.model.TrioState
+import com.honor.duo.render.TrioRenderer.RING_POINT
+import com.honor.duo.render.TrioRenderer.TEXT
+import com.honor.duo.render.TrioRenderer.animPhase
+import com.honor.duo.render.TrioRenderer.batteryRing
+import com.honor.duo.render.TrioRenderer.boltMoving
+import com.honor.duo.render.TrioRenderer.drawType
+import com.honor.duo.render.TrioRenderer.fitSize
+import com.honor.duo.render.TrioRenderer.quickCharge
+import com.honor.duo.render.TrioRenderer.textInkHeight
 import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.abs
@@ -2142,10 +2145,27 @@ object TrioRenderer {
         }
     }
 
-    /** Columns per row: four in both styles, matching MagicOS signal icon steps. */
-    private fun outColumns(a: TrioAppearance?): Int = TrioGeometry.STACK_COLUMNS
+    /** Columns per row: 4 (default) or 5, adapting proportions harmoniously. */
+    private fun outColumns(a: TrioAppearance?): Int = a?.signalColumns?.coerceIn(4, 5) ?: 4
 
-    /** The module's 0..4 level clamped to 0..4. */
+    private fun outBarHeights(columns: Int): FloatArray =
+        if (columns == 5) TrioGeometry.STACK_BAR_H_5 else TrioGeometry.STACK_BAR_H
+
+    /** Map signal level (0..4 or 0..5) to lit bar count according to column style. */
+    private fun levelMapped(level: Int, columns: Int): Int {
+        if (level <= 0) return 0
+        if (columns == 5) {
+            return when (level) {
+                1 -> 1
+                2 -> 2
+                3 -> 4
+                4 -> 5
+                else -> level.coerceIn(0, 5)
+            }
+        }
+        return level.coerceIn(0, 4)
+    }
+
     private fun level4(level: Int): Int = level.coerceIn(0, TrioGeometry.STACK_COLUMNS)
 
     private fun outBarWidth(a: TrioAppearance?, dual: Boolean = true): Float =
@@ -2180,11 +2200,11 @@ object TrioRenderer {
         return a.outSignalMargin * (baseInk / a.outSignalSize)
     }
 
-    // --- DOTS STYLE (圆点副卡堆叠) INDEPENDENT CONSTANTS ---
+    // --- DOTS STYLE CONSTANTS ---
     private const val DOTS_ACTIVITY_ARROW_W = 1.35f
     private const val DOTS_ACTIVITY_GAP = 0.6f
     private const val DOTS_ACTIVITY_GAP_SHARE = 0.25f
-    /** Dedicated activity arrow height for single-card (仅显示上网卡), independent from dual-card */
+    /** Dedicated activity arrow height for single-card, independent from dual-card */
     private const val SINGLE_ACTIVITY_PAIR_H = 44f
 
     private fun dotsActivityBlockWidth(barW: Float): Float =
@@ -2193,7 +2213,7 @@ object TrioRenderer {
     private fun rowsGap(a: TrioAppearance): Float =
         TrioGeometry.STACK_ROW_H * 0.12f
 
-    // --- ROWS STYLE (双排柱堆叠) INDEPENDENT CONSTANTS ---
+    // --- ROWS STYLE CONSTANTS ---
     private const val ROWS_ACTIVITY_ARROW_W = 1.15f
     private const val ROWS_ACTIVITY_GAP = 0.5f
     private const val ROWS_ACTIVITY_GAP_SHARE = 0.22f
@@ -2226,7 +2246,7 @@ object TrioRenderer {
             // The label is centred over bar 1, so the box grows only by its left overhang.
             return bars + outLabelOverhang(a, type, type2, dual)
         }
-        val size = outCaptionSize(a, dual)
+        val size = aloneCaptionSize(a, dual)
         val second = if (dual) type2 else null
         val widest = max(
             labelWidth(type, size, a.typeSuffixScale),
@@ -2285,17 +2305,38 @@ object TrioRenderer {
         return barsH + gap + dotD
     }
 
+    /**
+     * Caption size in design units when the network type is shown beside the reading (ALONE mode).
+     *
+     * In ALONE mode, the baseline font size is 12dp on screen (by default), contrasting with
+     * the 14dp default used when the caption is positioned directly above the signal bar (BESIDE mode).
+     * It scales proportionally whenever the user adjusts the outTypeSize setting (12dp * outTypeSize / 14).
+     */
+    private fun aloneCaptionSize(a: TrioAppearance, dual: Boolean = true): Float {
+        val refHeight = if (rowsStyle(a, dual)) {
+            val rowH = TrioGeometry.STACK_ROW_H
+            rowH * 2f + rowsGap(a)
+        } else {
+            val barsH = TrioGeometry.STACK_BAR_H[TrioGeometry.STACK_COLUMNS - 1]
+            val dotD = TrioGeometry.STACK_DOT_D * ((a.outDotSize) / 100f)
+            val gap = rowGap(a, barsH + dotD)
+            barsH + gap + dotD
+        }
+        val scaleFactor = a.outTypeSize.coerceAtLeast(1) / Prefs.DEF_OUT_TYPE_SIZE_DP.toFloat()
+        return refHeight * 0.48f * scaleFactor
+    }
+
     private fun outCaptionSize(a: TrioAppearance, dual: Boolean = true): Float =
         outSignalLabelSize(a, dual) * (a.outTypeSize.coerceAtLeast(1) / Prefs.DEF_OUT_TYPE_SIZE_DP.toFloat())
 
     private fun outSignalLabelSize(a: TrioAppearance, dual: Boolean = true): Float =
         if (rowsStyle(a, dual)) {
-            TrioGeometry.STACK_ROW_H * 0.62f
+            TrioGeometry.STACK_ROW_H * 0.72f
         } else {
             TrioGeometry.STACK_BAR_H[TrioGeometry.STACK_COLUMNS - 1] * LABEL_TO_BAR
         }
 
-    private const val LABEL_TO_BAR = 0.55f
+    private const val LABEL_TO_BAR = 0.65f
 
     private fun labelAbove(a: TrioAppearance): Boolean =
         a.stackTypeShown() && a.stackLabel == Prefs.STACK_LABEL_BESIDE
@@ -2309,13 +2350,14 @@ object TrioRenderer {
      * change how large the type is.
      */
     private fun drawColumnLabel(
-        c: Canvas, text: String?, left: Float, cy: Float, scale: Float,
+        c: Canvas, text: String?, left: Float, targetY: Float, scale: Float,
         fg: Int, a: TrioAppearance, dual: Boolean,
+        align: Int = 0, // 0 = center on targetY, 1 = top edge on targetY, -1 = bottom edge on targetY
     ) {
         if (text.isNullOrEmpty() || scale <= 0f) {
             return
         }
-        val size = outCaptionSize(a, dual) * scale
+        val size = aloneCaptionSize(a, dual) * scale
         if (size <= 0f) {
             return
         }
@@ -2323,8 +2365,11 @@ object TrioRenderer {
         TEXT.textSize = size
         TEXT.color = fg
         TEXT.getTextBounds(text, 0, text.length, TEXT_INK)
-        // Centre the glyphs on the row, not the font's metrics.
-        val baseline = cy - (TEXT_INK.top + TEXT_INK.bottom) * 0.5f
+        val baseline = when (align) {
+            1 -> targetY - TEXT_INK.top // top edge of drawn ink touches targetY
+            -1 -> targetY - TEXT_INK.bottom // bottom edge of drawn ink touches targetY
+            else -> targetY - (TEXT_INK.top + TEXT_INK.bottom) * 0.5f // center of drawn ink aligns with targetY
+        }
         val ink = measureType(text, size, a.typeSuffixScale)
         drawType(c, text, left + ink * 0.5f, baseline, size, fg, a)
     }
@@ -2467,14 +2512,16 @@ object TrioRenderer {
             return drawStackRows(c, width, height, bars, dots, fg, a, type, type2)
         }
         val dotRow = dots >= 0
-        val columns = TrioGeometry.STACK_COLUMNS
+        val columns = outColumns(a)
+        val barHeights = outBarHeights(columns)
         val pitch = outPitch(a, dotRow)
         val barRun = outSignalBarsWidth(a, dotRow)
         val inkW = outSignalInkWidth(a, type, type2, dotRow)
         val labelW = inkW - barRun
         val dotScale = a.outDotSize / 100f
-        val dotD = TrioGeometry.STACK_DOT_D * dotScale
-        val barsH = TrioGeometry.STACK_BAR_H[columns - 1]
+        val baseDotD = if (columns == 5) 31f else TrioGeometry.STACK_DOT_D
+        val dotD = baseDotD * dotScale
+        val barsH = barHeights[columns - 1]
         val gap = if (dotRow) rowGap(a, barsH + dotD) else 0f
         val inkH = if (dotRow) barsH + gap + dotD else barsH
         val fitHeight = height * (if (dotRow) 1f else LONE_ROW_FILL)
@@ -2518,25 +2565,27 @@ object TrioRenderer {
         // 2. The type column, when the setting asks for it beside the reading: one label
         // per card, each centred on its own row (bars above, dots below).
         if (!above && a.labelInReading()) {
-            // barRun includes the activity block, which is drawn to the LEFT of bar 1, so the
-            // bars' own right edge is that much to the left of barsX + barRun.
             val colLeft = barsX + barRun * scale - actTotal + outLabelGap(a, dotRow) * scale
-            drawColumnLabel(
-                c, type, colLeft, baseline - barsH * 0.5f * scale, scale, fg, a, dotRow,
-            )
+            val signalTop = baseline - barsH * scale
+            val signalBottom = if (dotRow) baseline + (gap + dotD) * scale else baseline
             if (dotRow) {
-                val dotCentre = baseline + (gap + dotD * 0.5f) * scale
-                drawColumnLabel(c, type2, colLeft, dotCentre, scale, fg, a, dotRow)
+                // Dual cards: Top label aligns top edge with signal top; bottom label aligns bottom edge with dot bottom
+                drawColumnLabel(c, type, colLeft, signalTop, scale, fg, a, true, align = 1)
+                drawColumnLabel(c, type2, colLeft, signalBottom, scale, fg, a, true, align = -1)
+            } else {
+                // Single card: center vertically on the signal cluster
+                val midY = (signalTop + signalBottom) * 0.5f
+                drawColumnLabel(c, type, colLeft, midY, scale, fg, a, false, align = 0)
             }
         }
 
         // 3. Activity arrows: independent parameters for dual-card vs single-card
         val actBottom = if (dotRow) baseline + (gap + dotD) * scale else baseline
         val actTop = if (dotRow) {
-            // Dual card with dots: height matches Bar 1 + Dot 1 ("第一个双圆点")
-            baseline - TrioGeometry.STACK_BAR_H[0] * scale
+            // Dual card with dots: height matches Bar 1 + Dot 1
+            baseline - barHeights[0] * scale
         } else {
-            // Single card (仅显示上网卡): dedicated independent height
+            // Single card: dedicated independent height
             actBottom - SINGLE_ACTIVITY_PAIR_H * scale
         }
         if (a.showMobileActivity) {
@@ -2555,14 +2604,14 @@ object TrioRenderer {
         val inactive = withAlpha(fg, a.trackAlpha)
         for (i in 0 until columns) {
             val left = barsX + i * pitch * scale
-            FILL.color = if (i < level4(bars)) fg else inactive
+            FILL.color = if (i < levelMapped(bars, columns)) fg else inactive
             OUT_BAR.set(
-                left, baseline - TrioGeometry.STACK_BAR_H[i] * scale,
+                left, baseline - barHeights[i] * scale,
                 left + barW, baseline,
             )
             c.drawRoundRect(OUT_BAR, radius, radius, FILL)
             if (dotRow) {
-                FILL.color = if (i < level4(dots)) fg else inactive
+                FILL.color = if (i < levelMapped(dots, columns)) fg else inactive
                 c.drawCircle(left + radius, dotCy, dotR, FILL)
             }
         }
@@ -2618,16 +2667,18 @@ object TrioRenderer {
                 top + 10f * scale, scale, fg, a, dual = true, hang = true,
             )
         } else if (!above && a.labelInReading()) {
-            // Same column as the dot style: one type per card, centred on its own row and
-            // left-aligned on a shared edge.
             val colLeft = barsX + (pitch * (columns - 1) + barW) * scale +
                 outLabelGap(a, true) * scale
-            drawColumnLabel(c, type, colLeft, top + rowH * 0.5f * scale, scale, fg, a, true)
+            val signalTop = top
+            val signalBottom = if (dual) top + (rowH * 2f + gap) * scale else top + rowH * scale
             if (dual) {
-                val rowTwoTop = top + (rowH + gap) * scale
-                drawColumnLabel(
-                    c, type2, colLeft, rowTwoTop + rowH * 0.5f * scale, scale, fg, a, true,
-                )
+                // Dual cards: Top label aligns top edge with Row 1 top; bottom label aligns bottom edge with Row 2 bottom
+                drawColumnLabel(c, type, colLeft, signalTop, scale, fg, a, true, align = 1)
+                drawColumnLabel(c, type2, colLeft, signalBottom, scale, fg, a, true, align = -1)
+            } else {
+                // Single card: center vertically on the row
+                val midY = (signalTop + signalBottom) * 0.5f
+                drawColumnLabel(c, type, colLeft, midY, scale, fg, a, false, align = 0)
             }
         }
 
@@ -2641,7 +2692,7 @@ object TrioRenderer {
 
         // 3. Draw Row 1 bars
         drawRowBars(
-            c, level4(bars), barsX, top, rowH * scale, columns,
+            c, levelMapped(bars, columns), barsX, top, rowH * scale, columns,
             barWpx, pitch * scale, fg, inactive,
         )
 
@@ -2658,7 +2709,7 @@ object TrioRenderer {
                 )
             }
             drawRowBars(
-                c, level4(max(0, dots)), barsX, secondTop, rowH * scale, columns,
+                c, levelMapped(max(0, dots), columns), barsX, secondTop, rowH * scale, columns,
                 barWpx, pitch * scale, fg, inactive,
             )
         }

@@ -9,7 +9,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package com.honor.duo
+package com.honor.duo.hook
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -23,6 +23,7 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import com.honor.duo.model.TrioState
 
 /**
  * Event-driven Wi-Fi presence, independent of the icons this module hides.

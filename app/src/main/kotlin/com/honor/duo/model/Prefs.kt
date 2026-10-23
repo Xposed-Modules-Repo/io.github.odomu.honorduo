@@ -9,49 +9,9 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package com.honor.duo
+package com.honor.duo.model
 
-import com.honor.duo.Prefs.DEF_CLOCK_DATE
-import com.honor.duo.Prefs.DEF_FONT_WEIGHT
-import com.honor.duo.Prefs.DEF_PERF_POWER
-import com.honor.duo.Prefs.DEF_SHOW_SIM_1
-import com.honor.duo.Prefs.DEF_VALUE_WEIGHT
-import com.honor.duo.Prefs.EMPTY_LAYOUT
-import com.honor.duo.Prefs.KEY_CLOCK_DATE
-import com.honor.duo.Prefs.KEY_CLOCK_SECONDS
-import com.honor.duo.Prefs.KEY_CLOCK_SIZE
-import com.honor.duo.Prefs.KEY_DUAL_SIM
-import com.honor.duo.Prefs.KEY_MOBILE_TYPE_MODE
-import com.honor.duo.Prefs.KEY_OUT_ORDER
-import com.honor.duo.Prefs.KEY_OUT_TYPE_SIZE_DP
-import com.honor.duo.Prefs.KEY_RING_LAYOUT
-import com.honor.duo.Prefs.KEY_RING_SLOTS_V2
-import com.honor.duo.Prefs.KEY_SHOW_SIM_1
-import com.honor.duo.Prefs.KEY_SIGNAL_MODE
-import com.honor.duo.Prefs.KEY_STACKED_SIGNAL
-import com.honor.duo.Prefs.KEY_VALUE_SIZE
-import com.honor.duo.Prefs.MAX_RING_VALUE_SIZE
-import com.honor.duo.Prefs.MOBILE_TYPE_IN_RING
-import com.honor.duo.Prefs.MOBILE_TYPE_OFF
-import com.honor.duo.Prefs.MOBILE_TYPE_OUT_RING
-import com.honor.duo.Prefs.OUT_SLOT_COUNT
-import com.honor.duo.Prefs.OUT_SLOT_READOUTS
-import com.honor.duo.Prefs.OUT_SLOT_SIGNAL
-import com.honor.duo.Prefs.OUT_SLOT_TYPE
-import com.honor.duo.Prefs.PART_NONE
-import com.honor.duo.Prefs.PART_SIM_1
-import com.honor.duo.Prefs.PART_SIM_2
-import com.honor.duo.Prefs.SIGNAL_OUT_RING
-import com.honor.duo.Prefs.STACK_LABEL_ALONE
-import com.honor.duo.Prefs.STACK_LABEL_BESIDE
-import com.honor.duo.Prefs.STACK_STYLE_DOTS
-import com.honor.duo.Prefs.STACK_STYLE_ROWS
-import com.honor.duo.Prefs.STYLED_KEYS
-import com.honor.duo.Prefs.ZONE_COUNT
-import com.honor.duo.Prefs.decodeLayout
-import com.honor.duo.Prefs.decodeOutOrder
-import com.honor.duo.Prefs.migrateLayout
-import com.honor.duo.Prefs.zoneAccepts
+import com.honor.duo.render.TrioGeometry
 
 
 /**
@@ -617,7 +577,6 @@ object Prefs {
     const val KEY_CLOCK_WEIGHT = "clock_weight"
 
     /**
-     * Draws the date ("2026年10月22日") on its own line above the time.
      *
      * A second line rather than part of [KEY_CLOCK_SECONDS]' text: the time is what the
      * slot is sized for, and the date is optional information the user may want without
@@ -626,7 +585,6 @@ object Prefs {
     const val KEY_CLOCK_DATE = "clock_date"
 
     /**
-     * Draws the weekday beside the date on that same line ("2026年10月22日 星期四").
      *
      * Independent of [KEY_CLOCK_DATE] because the two answer different questions: a user
      * can want the weekday without the full date, and the renderer joins whichever of
@@ -1071,6 +1029,14 @@ object Prefs {
      * battery it is a caption, not a reading.
      */
     const val DEF_OUT_TYPE_SIZE_DP = 14
+    const val KEY_ANTI_BURN_IN = "anti_burn_in"
+    const val DEF_ANTI_BURN_IN = false
+    const val BURN_IN_INTERVAL_MS = 30_000L
+
+    const val KEY_SIGNAL_COLUMNS = "signal_columns"
+    const val DEF_SIGNAL_COLUMNS = 4
+    const val MIN_SIGNAL_COLUMNS = 4
+    const val MAX_SIGNAL_COLUMNS = 5
 
     /**
      * 16dp: the system's own signal bars measure about 48px at density 3, so the reading

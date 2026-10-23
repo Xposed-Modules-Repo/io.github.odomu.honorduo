@@ -11,6 +11,7 @@
 
 package com.honor.duo
 
+import com.honor.duo.hook.TrioHooks
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 

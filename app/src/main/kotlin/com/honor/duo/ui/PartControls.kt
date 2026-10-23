@@ -11,6 +11,7 @@
 
 package com.honor.duo.ui
 
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,11 +30,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.honor.duo.Prefs
 import com.honor.duo.R
-import com.honor.duo.TrioAppearance
-import com.honor.duo.TrioSettings
-import com.honor.duo.TrioZones
+import com.honor.duo.model.Prefs
+import com.honor.duo.model.TrioAppearance
+import com.honor.duo.model.TrioSettings
+import com.honor.duo.render.TrioZones
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.basic.Text
@@ -443,7 +444,13 @@ internal fun geometrySliders(): List<SliderSpec> {
             read = { it.outTypeSize },
             write = { r, v -> r.setOutTypeSize(v) },
             titleRes = { R.string.out_type_size_title },
-            summaryRes = { R.string.out_type_size_summary },
+            summaryRes = {
+                if (it.stackLabel == Prefs.STACK_LABEL_ALONE) {
+                    R.string.out_type_size_alone_summary
+                } else {
+                    R.string.out_type_size_summary
+                }
+            },
             // Live in both modes: outside it is the label's size, above it is the
             // caption's - the same setting, so the row must not disappear.
             enabled = { it.glyph && it.typeOutOfRing },

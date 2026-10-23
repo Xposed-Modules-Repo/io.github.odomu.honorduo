@@ -9,7 +9,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package com.honor.duo
+package com.honor.duo.model
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -20,10 +20,10 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import androidx.core.content.ContextCompat
-import com.honor.duo.TrioConfig.appearance
-import com.honor.duo.TrioConfig.prefs
-import com.honor.duo.TrioConfig.publish
-import com.honor.duo.TrioConfig.snapshot
+import com.honor.duo.hook.TrioHooks
+import com.honor.duo.model.TrioConfig.prefs
+import com.honor.duo.model.TrioConfig.publish
+import com.honor.duo.model.TrioConfig.snapshot
 import io.github.libxposed.api.XposedInterface
 
 /**

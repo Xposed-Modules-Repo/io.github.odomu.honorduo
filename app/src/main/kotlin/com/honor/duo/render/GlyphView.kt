@@ -9,12 +9,14 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package com.honor.duo
+package com.honor.duo.render
 
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.PorterDuff
 import android.view.View
+import com.honor.duo.model.TrioConfig
+import com.honor.duo.model.TrioState
 import kotlin.math.roundToInt
 
 /**

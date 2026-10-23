@@ -9,9 +9,11 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package com.honor.duo
+package com.honor.duo.render
 
 import android.graphics.Path
+import com.honor.duo.model.Prefs
+import com.honor.duo.model.TrioAppearance
 
 
 /**
@@ -127,7 +129,6 @@ object TrioGeometry {
     /**
      * The charging bolt, scaled up from the reference path.
      *
-     * The reference path only spans x 51.3..67.6 and y 2.2..21.6 鈥?a pinched
      * sliver next to a 103-unit ring. [#BOLT_SCALE] grows it about
      * [#BOLT_CX] and pins its top edge to [#BOLT_TOP], so it fills
      * the opened 12 o'clock gap without leaving the 120x120 box.
@@ -1196,6 +1197,8 @@ object TrioGeometry {
      */
     @JvmField
     val STACK_BAR_H = floatArrayOf(40f, 76f, 110f, 142f)
+    @JvmField
+    val STACK_BAR_H_5 = floatArrayOf(30f, 58f, 86f, 114f, 142f)
 
     //
     // Everything below lays the same pieces out the other way: two columns of

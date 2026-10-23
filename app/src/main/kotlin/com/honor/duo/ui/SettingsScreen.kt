@@ -11,6 +11,7 @@
 
 package com.honor.duo.ui
 
+
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
@@ -32,8 +33,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.border
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -112,10 +113,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.pm.PackageInfoCompat
 import com.honor.duo.HonorDuoApp
-import com.honor.duo.Prefs
 import com.honor.duo.R
-import com.honor.duo.TrioAppearance
-import com.honor.duo.TrioSettings
+import com.honor.duo.model.Prefs
+import com.honor.duo.model.TrioAppearance
+import com.honor.duo.model.TrioSettings
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.drawPlainBackdrop
@@ -234,8 +235,6 @@ private enum class SettingsTab(val labelRes: Int, val route: Route) {
  * has to round-trip. Page content uses its tab name as a separate saveable-state
  * key so the preview's saved choices survive a section switch.
  *
- * The on-screen state that is not a place 鈥?the colour picker, the restart sheet,
- * the reset prompt 鈥?deliberately stays a dialog. Those are prompts dismissed
  * over the page, and pushing them would turn the back gesture into "cancel"
  * instead of "go back a section".
  */
@@ -313,7 +312,7 @@ fun SettingsScreen(repository: SettingsRepository) {
     }
 
     // Switching section: tapping the one already open is a no-op rather than a
-    // second copy of it on the stack 鈥?the library rejects a repeated route, and
+    
     // the strip accepts taps faster than a transition runs. Going back to a
     // section further down walks back to it instead of pushing it again, so the
     // stack stays a path through the page rather than a log of every tap.
@@ -1279,8 +1278,6 @@ private fun GlassIconButton(
  * The scrolling body of one destination: the shared header and then the rows of
  * whichever section this is.
  *
- * Each destination carries its own copy of the header 鈥?the preview and the strip
- * are the same two rows everywhere 鈥?because they have to scroll with the list
  * they belong to. A band pinned above the display would not: it would have to sit
  * outside every destination, which is a different page shape from the one the rows
  * were written for.
@@ -1289,7 +1286,6 @@ private fun GlassIconButton(
  * section keeps contributing plain `item {}`s: the list owns their identity and
  * therefore their state, and the shape of the four `*Tab` functions is unchanged.
  *
- * [isTop] is whether this destination is the section currently on screen 鈥?the top
  * of the back stack. It gates the reset to the first row, so a section opens at the
  * top every time the strip brings it forward rather than resuming where it was left.
  */
@@ -1460,15 +1456,12 @@ private fun UpdateNotesDialog(
  * The in-app updater.
  *
  * The card is a short stack of Miuix preference rows, one per action the
- * current state actually offers 鈥?check, download, install, open the release
- * page 鈥?with the state itself spelled out as the summary of the first row.
  * A row only exists while its verb is possible, so the card never shows an
  * action that would do nothing, and it never says the same words twice the way
  * a heading plus a button of the same name did.
  *
  * The repository row is the one deliberate exception to that rule, and it
  * sits last so it stays out of the way: reading the source is possible in every
- * state, including the ones the card handles worst 鈥?no release published yet, or
  * a check that just failed.
  *
  * The state lives in [updater], which the screen remembers, so scrolling this
@@ -1492,7 +1485,7 @@ private fun UpdateCard(updater: UpdateController, showMessage: (String) -> Unit)
         )
 
         is UpdateState.Ready -> null
-        // The raw reason is diagnostic text 鈥?an HTTP code, a socket error 鈥?and
+        
         // would lose its meaning if it were run through a string resource.
         is UpdateState.Failed -> listOfNotNull(
             stringResource(
@@ -1540,7 +1533,7 @@ private fun UpdateCard(updater: UpdateController, showMessage: (String) -> Unit)
         // The one row that is always there: it reports the state and, whenever
         // nothing is in flight and nothing is waiting to be installed, offers
         // another look at the release feed. It is also the retry action after a
-        // failure, because its summary is the failure 鈥?asking the user to press a
+        
         // second row called "retry" to find that out would be one row too many.
         if (busy) {
             ArrowPreference(
@@ -1669,8 +1662,8 @@ private fun UpdateCard(updater: UpdateController, showMessage: (String) -> Unit)
         }
 
         // Last, and unlike every row above it, always present: the repository is
-        // what the user reads when the card cannot answer 鈥?no release published,
-        // a check that failed, or a changelog that explains too little 鈥?so taking
+        
+        
         // it away exactly when the card is least useful would be backwards.
         if (HAS_REPO) {
             ArrowPreference(
@@ -1803,7 +1796,7 @@ private fun ActivatedCard(active: Boolean, version: String, modifier: Modifier =
             }
             // The badge is not aligned to the corner: it is nudged 27x31 further
             // out so a different slice of the ring survives the clip. The vector
-            // is the reference's own asset rather than a redrawing of it 鈥?the
+            
             // ring-to-viewport ratio is what the eye compares, and it is easy to
             // get wrong by hand.
             Box(
@@ -1856,7 +1849,6 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
 
 /**
  * The reference's four identity rows first, then the two the reference has no
- * equivalent for 鈥?the scope list and the Android level are what a user actually
  * needs to report a bug, so they stay on rather than being dropped for symmetry.
  */
 /**
@@ -1965,7 +1957,6 @@ private fun InfoCard(service: XposedService?) {
  * of borrowing a second popup style. Rendering through the Scaffold's popup host
  * is also why this has to stay inside the Scaffold's content lambda.
  *
- * Dismissal is refused while the kill is in flight 鈥?the user may already be
  * looking at a root prompt, and closing the dialog there would leave the outcome
  * with nowhere to be reported.
  */

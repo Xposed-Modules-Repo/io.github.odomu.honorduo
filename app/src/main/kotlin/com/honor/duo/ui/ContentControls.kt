@@ -11,13 +11,14 @@
 
 package com.honor.duo.ui
 
+
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
-import com.honor.duo.Prefs
 import com.honor.duo.R
-import com.honor.duo.TrioAppearance
-import com.honor.duo.TrioSettings
-import com.honor.duo.TrioZones
+import com.honor.duo.model.Prefs
+import com.honor.duo.model.TrioAppearance
+import com.honor.duo.model.TrioSettings
+import com.honor.duo.render.TrioZones
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -41,6 +42,8 @@ internal enum class ContentControl(val owner: TrioSettingsPart) {
     /** Master switch, then layout: both decide what exists at all. */
     Enabled(TrioSettingsPart.Appearance),
     Style(TrioSettingsPart.Appearance),
+    AntiBurnIn(TrioSettingsPart.Appearance),
+    SignalColumns(TrioSettingsPart.Mobile),
     Wifi(TrioSettingsPart.Wifi),
     /**
      * The signal card: one switch for the aggregate meter, then one per card.
@@ -183,6 +186,22 @@ internal fun ContentControlRow(
                 null,
                 listOf(R.string.trio_style_ring, R.string.trio_style_capsule),
                 master) { index -> update { it.setTrioStyle(styles[index]) } }
+        }
+        ContentControl.AntiBurnIn -> ContentToggle(
+            checked = settings.antiBurnIn,
+            title = R.string.anti_burn_in_title,
+            summaryRes = R.string.anti_burn_in_summary,
+            dependencies = master,
+        ) { value -> update { it.setAntiBurnIn(value) } }
+        ContentControl.SignalColumns -> {
+            val columns = listOf(4, 5)
+            ContentChoice(
+                selected = columns.indexOf(settings.signalColumns).coerceAtLeast(0),
+                title = R.string.signal_columns_title,
+                summaryRes = R.string.signal_columns_summary,
+                options = listOf(R.string.signal_columns_4, R.string.signal_columns_5),
+                dependencies = master + (a.mobile to R.string.show_mobile_title),
+            ) { index -> update { it.setSignalColumns(columns[index]) } }
         }
         // Wi-Fi is a position row rather than a switch plus a position row: "off" and
         // "nowhere in the ring" are the same intention, so the row writes both at once.
@@ -355,7 +374,6 @@ internal fun ContentControlRow(
  * This is the one position row that is not a slot list, because the signal is the one
  * piece drawn from per-card rows rather than from a single slot. "Outside the ring" here
  * means exactly what "return it to the system" means on every other row - the glyph draws
- * nothing and MagicOS keeps its icon - so it is labelled 环外 to match where the reading then
  * appears.
  */
 @Composable

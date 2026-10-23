@@ -9,8 +9,11 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package com.honor.duo
+package com.honor.duo.model
 
+import com.honor.duo.render.TrioGeometry
+import com.honor.duo.render.TrioRenderer
+import com.honor.duo.render.TrioZones
 import kotlin.math.roundToInt
 
 /**
@@ -223,6 +226,8 @@ class TrioAppearance(c: TrioSettings) {
      * over the first bar of each row, so it needs no label column of its own.
      */
     @JvmField val stackLabel: Int = c.stackLabel
+    @JvmField val antiBurnIn: Boolean = c.antiBurnIn
+    @JvmField val signalColumns: Int = c.signalColumns
 
     /** The gap the out-of-ring label keeps on each side, in dp. */
     @JvmField val outTypeMarginLeft: Int = c.outTypeMarginLeft
@@ -463,7 +468,6 @@ class TrioAppearance(c: TrioSettings) {
     /**
      * The size a readout piece is drawn at inside the glyph, in design units.
      *
-     * The same "读数整体尺寸" multiplier the out-of-ring strip uses, applied to the size
      * the other in-glyph readings ship at, so one slider moves every reading the module
      * draws.
      */

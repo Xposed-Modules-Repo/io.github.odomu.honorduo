@@ -9,15 +9,11 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package com.honor.duo
+package com.honor.duo.render
 
-import com.honor.duo.TrioZones.assign
-import com.honor.duo.TrioZones.boxes
-import com.honor.duo.TrioZones.occupant
-import com.honor.duo.TrioZones.placeableParts
-import com.honor.duo.TrioZones.withPiece
-import com.honor.duo.TrioZones.withoutAt
-import com.honor.duo.TrioZones.zoneAt
+import com.honor.duo.model.Prefs
+import com.honor.duo.model.TrioAppearance
+import com.honor.duo.model.TrioSettings
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.hypot
