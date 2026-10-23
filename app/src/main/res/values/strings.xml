@@ -11,10 +11,25 @@
     <string name="group_out_signal">环外信号</string>
     <string name="group_track">底纹</string>
 
-    <string name="tab_home">首页</string>
-    <string name="drawing_master_title">总开关</string>
+    <string name="tab_layout">排布</string>
+    <string name="tab_settings">设置</string>
+    <string name="section_appearance">基础外观</string>
+    <string name="card_appearance_summary">三合一总开关、圆环与胶囊样式选择、智能防烧屏及整体尺寸微调</string>
+    <string name="card_battery_title">电池电量</string>
+    <string name="card_battery_summary">电量数字、百分比、充电显示、电量字号字重、低电量阈值与状态颜色</string>
+        <string name="card_wifi_title">无线网络</string>
+    <string name="card_wifi_summary">显示 Wi-Fi 弧开关、Wi-Fi 弧尺寸与弧线粗细微调</string>
+    <string name="card_mobile_title">移动信号</string>
+    <string name="card_mobile_summary">移动信号点、双卡独立设置、堆叠风格、4柱/5柱、流量活动图标、读数间距</string>
+    <string name="card_type_title">网络类型</string>
+    <string name="card_type_summary">网络类型位置、单独显示/信号上方、字号大小、A比例、字重与边距</string>
+    <string name="card_readouts_title">硬件读数</string>
+    <string name="card_readouts_summary">充电功率、运行功率、电池温度、电池高温阈值、高温颜色与屏幕帧率</string>
+    <string name="card_clock_title">时钟日期</string>
+    <string name="card_clock_summary">时钟秒数、4种日期格式、农历、星期格式与时间偏移微调</string>
+
     <string name="drawing_quick_edit_title">快捷编辑</string>
-    <string name="drawing_order_title">组件排序</string>
+    <string name="drawing_order_title">环内排序</string>
 
     <string name="drawing_priority_empty_summary">这一处还没有组件，点下面的「添加组件」</string>
     <string name="drawing_signal_out_of_ring_notice">移动信号已设为「环外」，信号点不会画在环内。</string>
@@ -57,8 +72,8 @@
     <string name="out_dot_size_summary">默认 100%，与信号条同宽；可调 40–180。</string>
     <string name="out_signal_size_title">堆叠信号大小</string>
     <string name="out_signal_size_summary">默认 16dp，可调 6–20dp。</string>
-    <string name="out_signal_margin_title">信号行间距</string>
-    <string name="out_signal_margin_summary">默认 2dp，可调 0–16dp；作用于主卡与副卡两行之间的距离。</string>
+    <string name="out_signal_margin_title">读数间距</string>
+    <string name="out_signal_margin_summary">默认 2px，可调 0–16px；作用于主卡与副卡两行之间的距离。</string>
     <string name="ring_position_sim_1">卡一信号点的位置</string>
     <string name="ring_position_sim_2">卡二信号点的位置</string>
     <string name="ring_position_value">电量数字的位置</string>
@@ -73,6 +88,8 @@
     <string name="drawing_occupant_sim_1">卡一信号点</string>
     <string name="drawing_occupant_sim_2">卡二信号点</string>
     <string name="drawing_outside_title">环外组件</string>
+
+
     <string name="out_order_move_in">往电池方向移动</string>
     <string name="out_order_move_out">往外移动</string>
     <string name="out_order_outwards">← 往外</string>
@@ -81,7 +98,6 @@
     <string name="drawing_part_battery">电池</string>
     <string name="drawing_part_readouts">读数值</string>
     <string name="drawing_part_ring">环内组件</string>
-    <string name="drawing_parts_title">组件外观</string>
     <string name="drawing_preview_hidden">预览已隐藏</string>
     <string name="drawing_readout_sample_summary">环外读数组的示例，实际内容随状态变化。</string>
     <string name="drawing_theme_dark">深色</string>
@@ -205,6 +221,9 @@
     <string name="color_on_dark">深色背景</string>
     <string name="color_on_light">浅色背景</string>
     <string name="color_dialog_summary">分别设置状态栏为深色与浅色背景时使用的颜色。</string>
+        <string name="temp_threshold_title">电池高温阈值</string>
+    <string name="temp_threshold_summary">默认 40℃，可调 30–60℃；达到或超过该温度时显示高温警告色。</string>
+    <string name="color_high_temp_title">高温颜色</string>
     <string name="color_reset">恢复默认</string>
     <string name="color_reset_summary">把三种状态颜色恢复为出厂预设。</string>
     <string name="color_reset_dialog_summary">三种状态颜色都会回到出厂预设，当前的自定义颜色会被覆盖。</string>
@@ -241,8 +260,10 @@
     <string name="clock_date_title">显示日期</string>
     <string name="clock_date_summary">叠加在系统时钟上方；时间放进环内或胶囊后不显示。</string>
     <string name="clock_date_format_title">日期格式</string>
-    <string name="clock_date_format_month_day">仅显示月日</string>
-    <string name="clock_date_format_year_month_day">显示年月日</string>
+    <string name="clock_date_format_slash_md">月/日</string>
+    <string name="clock_date_format_slash_ymd">年/月/日</string>
+    <string name="clock_date_format_zh_md">月日</string>
+    <string name="clock_date_format_zh_ymd">年月日</string>
 
     <string name="clock_lunar_title">显示农历</string>
     <string name="clock_lunar_summary">在双行分列中显示农历日期。</string>
@@ -253,7 +274,6 @@
     <string name="clock_weekday_format_zh_short">中文简写（周xx）</string>
     <string name="clock_weekday_format_zh_full">中文全写（星期xx）</string>
     <string name="clock_weekday_format_en_short">英文简写（如 Thu）</string>
-    <string name="clock_weekday_format_en_full">英文全写（如 Thursday）</string>
 
     <string name="clock_weight_title">整体字重</string>
     <string name="clock_weight_summary">默认 600，可调 100–900。</string>
@@ -276,8 +296,7 @@
     <string name="type_size_summary">默认 32，可调 16–44。</string>
 
     <string name="out_type_size_title">环外网络类型字号</string>
-    <string name="out_type_size_summary">信号上方时默认 14dp，可调 8–26dp；只作用于网络类型。</string>
-    <string name="out_type_size_alone_summary">单独显示时默认 12dp，可调 8–26dp；上下双卡整体联动。</string>
+    <string name="out_type_size_summary">默认 14dp，可调 8–26dp；只作用于网络类型。</string>
 
     <string name="out_type_margin_left_title">环外网络类型左边距</string>
     <string name="out_type_margin_left_summary">默认 2dp，可调 0–16dp。</string>

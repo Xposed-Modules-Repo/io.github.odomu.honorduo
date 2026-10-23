@@ -17,14 +17,14 @@ val tagVersionCode = providers.gradleProperty("versionCode").orNull?.toIntOrNull
 val repoSlug = providers.gradleProperty("repo").orNull?.trim().orEmpty()
 
 android {
-    namespace = "com.honor.duo"
+    namespace = "io.github.odomu.honorduo"
     compileSdk = 37
 
     defaultConfig {
         // Changing this makes the module a different app to Android: an existing
         // install cannot be updated in place, and its settings and LSPosed scope
         // entry do not carry over. Uninstall the old one first.
-        applicationId = "com.honor.duo"
+        applicationId = "io.github.odomu.honorduo"
         minSdk = 29
         //noinspection TargetSdkVersionUpdate
         targetSdk = 37

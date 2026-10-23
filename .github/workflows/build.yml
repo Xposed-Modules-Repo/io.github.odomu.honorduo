@@ -13,7 +13,6 @@ name: build
 # because that is how a release is produced from a fork commit.
 on:
   push:
-    branches: ['fork']
     tags: ['v*']
   workflow_dispatch:
     inputs:
@@ -33,7 +32,7 @@ permissions:
 # to start two identical builds. The tag run supersedes the branch one, which is the
 # one that matters (it is the only one that publishes a release).
 concurrency:
-  group: build-${{ github.ref }}
+  group: build-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -104,11 +103,22 @@ jobs:
       # setup-gradle keeps ~/.gradle/caches and the wrapper between runs. Branch
       # builds only read that cache: writing every branch's cache would evict the
       # main one and blow the 10 GB limit.
-      - name: Gradle
+      # Globally shared Gradle cache across all tags and branches via actions/cache
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-shared-v1-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-shared-v1-${{ runner.os }}-
+            gradle-shared-v1-
+
+      - name: Gradle Setup
         uses: gradle/actions/setup-gradle@v4
         with:
-          cache-read-only: false
-          cache-cleanup: on-success
+          cache-disabled: true
 
       - name: Resolve version
         id: stamp

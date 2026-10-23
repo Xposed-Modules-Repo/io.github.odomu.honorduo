@@ -51,8 +51,8 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $Root    = Split-Path $PSScriptRoot -Parent
-$Module  = 'Xposed-Modules-Repo/com.honor.duo'
-$Package = 'com.honor.duo'
+$Module  = 'Xposed-Modules-Repo/io.github.odomu.honorduo'
+$Package = 'io.github.odomu.honorduo'
 $Tag     = "$VersionCode-$Version"
 $Asset   = "HonorDuo-$Version.apk"
 $Readme  = Join-Path $Root 'module-README.md'

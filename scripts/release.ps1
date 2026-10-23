@@ -19,7 +19,7 @@
 # 想保留历史 Release 就加 -KeepOldReleases。
 #
 # 主仓发布成功后还会接着调 release-module.ps1，把同一 APK、同一份说明发到 LSPosed 模块仓
-# （Xposed-Modules-Repo/com.honor.duo）——两个仓库必须同版本，模块页的下载链接走模块仓的
+# （Xposed-Modules-Repo/io.github.odomu.honorduo）——两个仓库必须同版本，模块页的下载链接走模块仓的
 # Release。只发主仓加 -SkipModuleRepo；模块仓那步失败不会撤回主仓，直接重跑
 # scripts\release-module.ps1 补齐即可（用法见该文件头注释）。
 #
@@ -51,7 +51,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $Root    = Split-Path $PSScriptRoot -Parent
-$Package = 'com.honor.duo'
+$Package = 'io.github.odomu.honorduo'
 # The GitHub slug comes from the checkout itself, so the release can never be
 # published to a repository other than the one this tree was cloned from.
 $Repo = (& git -C $Root remote get-url origin 2>$null)

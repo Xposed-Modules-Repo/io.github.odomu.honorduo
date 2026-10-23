@@ -23,7 +23,7 @@ $Root     = Split-Path $PSScriptRoot -Parent
 $sdk = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { $env:ANDROID_SDK_ROOT }
 $Adb = if ($sdk) { Join-Path $sdk 'platform-tools\adb.exe' } else { 'adb' }
 $Apk      = Join-Path $Root 'app\build\outputs\apk\debug\app-debug.apk'
-$Package  = 'com.honor.duo'
+$Package  = 'io.github.odomu.honorduo'
 
 function Step($t) { Write-Host "==> $t" -ForegroundColor Cyan }
 
@@ -55,10 +55,10 @@ Step 'verifying the package is present'
 & $Adb shell pm list packages 2>&1 | Select-String -Pattern $Package
 
 Step 'confirming the modern-API entry point survived packaging'
-& $Adb shell "unzip -l /data/app/*/com.honor.duo*/base.apk 2>/dev/null | grep -E 'xposed|classes.dex'" 2>&1
+& $Adb shell "unzip -l /data/app/*/io.github.odomu.honorduo*/base.apk 2>/dev/null | grep -E 'xposed|classes.dex'" 2>&1
 
 Step 'opening the settings screen'
-& $Adb shell am start -n com.honor.duo/.ui.MainActivity 2>&1 | Out-Null
+& $Adb shell am start -n io.github.odomu.honorduo/.ui.MainActivity 2>&1 | Out-Null
 
 if ($InstallOnly) { exit 0 }
 
