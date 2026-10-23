@@ -8,19 +8,23 @@
 # in place over an existing HonorDuo.
 name: build
 
+# Only the fork branch is packaged. `main` mirrors upstream, whose sources are
+# not this project's and must not consume runner time; a v* tag still builds,
+# because that is how a release is produced from a fork commit.
 on:
   push:
+    branches: ['fork']
     tags: ['v*']
   workflow_dispatch:
     inputs:
       versionName:
         description: versionName to stamp
         required: false
-        default: 1.7.2
+        default: 1.0.0
       versionCode:
         description: versionCode to stamp (must be higher than the installed one)
         required: false
-        default: '10702'
+        default: '10000'
 
 permissions:
   contents: write
@@ -103,8 +107,8 @@ jobs:
       - name: Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          cache-read-only: ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
-          gradle-home-cache-cleanup: true
+          cache-read-only: false
+          cache-cleanup: on-success
 
       - name: Resolve version
         id: stamp
@@ -117,7 +121,7 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             name="${GITHUB_REF#refs/tags/v}"
           else
-            name="${INPUT_NAME:-1.7.2}"
+            name="${INPUT_NAME:-1.0.0}"
           fi
           IFS=. read -r major minor patch <<< "$name"
           code=$(( 10#${major:-0} * 10000 + 10#${minor:-0} * 100 + 10#${patch:-0} ))
@@ -143,8 +147,10 @@ jobs:
       # the APK is therefore also committed as base64, which the Git Data API can
       # serve - so the same build is still installable from here. The file is
       # removed again by the next manual run.
+      # Only a manual run on the fork branch: this step commits back to the branch it
+      # ran on, and `main` mirrors upstream, where a CI commit does not belong.
       - name: Publish the APK as base64 in the repo
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && github.ref_name == 'fork'
         run: |
           base64 -w 0 dist/HonorDuo-*.apk > ci-apk.b64
           ls -l ci-apk.b64
