@@ -54,6 +54,7 @@ internal object TrioHooks {
         hooked += SignalIconHook.install(module, cl)
         hooked += BarClockManager.hookPivotXY(module, cl)
         hooked += StatusBarIconHook.install(module, cl)
+        hooked += ShadeHook.install(module, cl)
 
         log(
             module,
@@ -73,7 +74,12 @@ internal object TrioHooks {
         StatusBarRowManager.syncAll(a, force = true)
         BarClockManager.sync(a)
         StatusBarIconManager.applyIconVisibility(a)
-        StatusBarIconHook.updateConfig(a.replaceWifiIcon, a.replaceStatusIcon)
+        StatusBarIconHook.updateConfig(
+            a.replaceWifiIcon,
+            a.replaceStatusIcon,
+            a.hideAlarmIcon,
+            a.hideBluetoothIcon,
+        )
         FpsTicker.onConfigChanged()
         BatteryPresence.onConfigChanged()
     }

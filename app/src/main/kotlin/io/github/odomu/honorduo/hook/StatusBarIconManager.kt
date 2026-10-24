@@ -19,6 +19,7 @@ import androidx.core.view.isGone
 import io.github.odomu.honorduo.model.TrioAppearance
 import io.github.odomu.honorduo.model.TrioConfig
 import java.lang.ref.WeakReference
+import java.lang.reflect.Field
 
 /**
  * Manages resource id resolution, ownership arbitration, suppression (hide),
@@ -42,6 +43,15 @@ internal object StatusBarIconManager {
     @Volatile var mobileSignalId = 0
         private set
 
+    /**
+     * Slot names of the status icons the user can drop outright.
+     *
+     * Read from the framework's own strings rather than hardcoded: `PhoneStatusBarPolicy`
+     * builds the alarm's slot from the same resource, so the two cannot drift.
+     */
+    @Volatile private var alarmSlot: String = ""
+    @Volatile private var bluetoothSlot: String = ""
+
     @Volatile var idsResolved = false
         private set
 
@@ -55,6 +65,19 @@ internal object StatusBarIconManager {
     /** Views hidden by this module, so a detached row cannot leave one behind. */
     private val HIDDEN = ArrayList<WeakReference<View>>()
 
+    /** Views hidden because of their slot, with the visibility they had before. */
+    private val slotHidden = ArrayList<SlotHide>()
+
+    private class SlotHide(val view: WeakReference<View>, val previous: Int)
+
+    /** `mSlot` per icon view class; one entry in practice. */
+    private val slotFields = HashMap<Class<*>, Field?>(2)
+
+    private const val STATUS_ICON_VIEW_SUFFIX = "StatusBarIconView"
+
+    /** The stylus icon the bar also draws from the Bluetooth slot family. */
+    private const val BLUETOOTH_PENCIL_SLOT = "bluetooth_pencil"
+
     /** Caches the resource ids the suppression compares against. */
     fun resolveIds(res: Resources?) {
         if (res == null) return
@@ -64,7 +87,19 @@ internal object StatusBarIconManager {
         clockId = id(res, "clock")
         mobileGroupId = id(res, "mobile_combo")
         mobileSignalId = id(res, "mobile_signal")
+        alarmSlot = frameworkString(res, "status_bar_alarm_clock")
+        bluetoothSlot = frameworkString(res, "status_bar_bluetooth")
         idsResolved = true
+    }
+
+    /** A framework string by name, or "" when this ROM does not have it. */
+    private fun frameworkString(res: Resources, name: String): String {
+        return try {
+            val key = res.getIdentifier(name, "string", "android")
+            if (key != 0) res.getString(key) else ""
+        } catch (ignored: Throwable) {
+            ""
+        }
     }
 
     private fun id(res: Resources, name: String): Int {
@@ -86,7 +121,7 @@ internal object StatusBarIconManager {
         id == wifiId -> a.glyph && a.ownsWifi()
         id == mobileId -> (a.glyph && (a.signalDots() || a.drawsAnySimRow())) || a.stackedOut()
         id == batteryId -> a.glyph
-        id == clockId -> (a.glyph && a.hidesStatusClock()) || BarClockManager.isClockAttached
+        id == clockId -> a.barClockHidden || (a.glyph && a.hidesStatusClock()) || BarClockManager.isClockAttached
         else -> false
     }
 
@@ -105,7 +140,83 @@ internal object StatusBarIconManager {
             } else {
                 release(root)
             }
+            return
         }
+        settleSlotIcon(root, a)
+    }
+
+    /**
+     * Hides an alarm/Bluetooth icon by its slot.
+     *
+     * These two are not reachable through the id table: the host builds them in
+     * `PhoneStatusBarPolicy.updateAlarm()` / `updateBluetooth()`, each of which resolves
+     * its drawable once and hands the view to the row. Swapping the drawable therefore
+     * only lands at boot or at the next state change, so the switch has to act on the
+     * view - and only on views this module hid, or turning the switch off would make an
+     * icon the host itself had hidden reappear.
+     */
+    private fun settleSlotIcon(view: View, a: TrioAppearance) {
+        if (!a.hideAlarmIcon && !a.hideBluetoothIcon) {
+            restoreSlotIcon(view)
+            return
+        }
+        val slot = slotOf(view) ?: return
+        val hide = (a.hideAlarmIcon && alarmSlot.isNotEmpty() && slot == alarmSlot) ||
+            (a.hideBluetoothIcon && (slot == bluetoothSlot || slot == BLUETOOTH_PENCIL_SLOT))
+        if (hide) {
+            if (!isSlotTracked(view)) rememberSlotHidden(view, view.visibility)
+            rememberHidden(view)
+            hide(view)
+        } else {
+            restoreSlotIcon(view)
+        }
+    }
+
+    /**
+     * Hands [view] back with the visibility it had before this module touched it.
+     *
+     * Deliberately not plain `VISIBLE`: the host hides these icons itself when there is
+     * no alarm or no Bluetooth attached, so forcing VISIBLE would draw an icon for a
+     * state that is not on. A view the host has shown again since is left alone.
+     */
+    private fun restoreSlotIcon(view: View) {
+        val previous = forgetSlotHidden(view) ?: return
+        if (view.visibility == View.GONE) view.visibility = previous
+    }
+
+    /** The slot of a `StatusBarIconView`, or null for anything else. */
+    private fun slotOf(view: View): String? {
+        val cls = view.javaClass
+        if (!cls.name.endsWith(STATUS_ICON_VIEW_SUFFIX)) return null
+        val f = synchronized(slotFields) {
+            slotFields.getOrPut(cls) { Refl.field(cls, "mSlot") }
+        } ?: return null
+        return Refl.get(f, view) as? String
+    }
+
+    private fun isSlotTracked(view: View): Boolean = synchronized(slotHidden) {
+        slotHidden.any { it.view.get() === view }
+    }
+
+    private fun rememberSlotHidden(view: View, previous: Int) {
+        synchronized(slotHidden) {
+            slotHidden.add(SlotHide(WeakReference(view), previous))
+        }
+    }
+
+    /** The visibility to restore, or null when this module did not hide [view]. */
+    private fun forgetSlotHidden(view: View): Int? {
+        synchronized(slotHidden) {
+            for (i in slotHidden.indices.reversed()) {
+                val known = slotHidden[i].view.get()
+                if (known == null) {
+                    slotHidden.removeAt(i)
+                } else if (known === view) {
+                    return slotHidden.removeAt(i).previous
+                }
+            }
+        }
+        return null
     }
 
     fun enforceSuppression(view: View) {
@@ -154,7 +265,10 @@ internal object StatusBarIconManager {
                 if (view == null) {
                     HIDDEN.removeAt(i)
                 } else if (!insideOwnedContainer(view)) {
-                    release(view)
+                    // A slot icon is handed back with the visibility the host gave it;
+                    // forcing VISIBLE would draw an alarm or Bluetooth icon that is not
+                    // actually on.
+                    if (isSlotTracked(view)) restoreSlotIcon(view) else release(view)
                     HIDDEN.removeAt(i)
                 }
             }

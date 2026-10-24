@@ -4,7 +4,9 @@ import android.content.res.Resources
 import android.content.res.TypedArray
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import io.github.libxposed.api.XposedModule
 import io.github.odomu.honorduo.model.TrioConfig
@@ -33,6 +35,20 @@ internal object StatusBarIconHook {
     private const val ASSET_STATUS_PREFIX = "assets/icons/"
     private const val BITMAP_IN_DENSITY = 480
 
+    /**
+     * The resource entries the alarm icon is drawn from.
+     *
+     * Matched by name rather than by view id: the status bar builds these icons from
+     * drawables, and there is no `alarm` id in the icon row to compare against.
+     */
+    private val ALARM_ENTRIES = setOf("stat_sys_alarm", "stat_sys_alarm_dim")
+
+    /** The resource entries the Bluetooth icon is drawn from. */
+    private val BLUETOOTH_ENTRIES = setOf(
+        "stat_sys_data_bluetooth",
+        "stat_sys_data_bluetooth_connected",
+    )
+
     /** Dynamic switch state for Wi-Fi icon replacement. */
     @Volatile
     private var sWifiEnabled = false
@@ -40,6 +56,14 @@ internal object StatusBarIconHook {
     /** Dynamic switch state for system status icon replacement. */
     @Volatile
     private var sStatusEnabled = false
+
+    /** Dynamic switch state for hiding the alarm icon. */
+    @Volatile
+    private var sHideAlarm = false
+
+    /** Dynamic switch state for hiding the Bluetooth icon. */
+    @Volatile
+    private var sHideBluetooth = false
 
     /** Path to module's own APK file, captured at install time to open assets zip. */
     @Volatile
@@ -63,6 +87,8 @@ internal object StatusBarIconHook {
         val a = TrioConfig.appearance()
         sWifiEnabled = a.replaceWifiIcon
         sStatusEnabled = a.replaceStatusIcon
+        sHideAlarm = a.hideAlarmIcon
+        sHideBluetooth = a.hideBluetoothIcon
         sModuleApkPath = module.moduleApplicationInfo.sourceDir
 
         var hooked = 0
@@ -122,17 +148,37 @@ internal object StatusBarIconHook {
     /**
      * Updates replacement enablement dynamically on configuration change without requiring reboot.
      */
-    fun updateConfig(replaceWifi: Boolean, replaceStatus: Boolean) {
+    fun updateConfig(
+        replaceWifi: Boolean,
+        replaceStatus: Boolean,
+        hideAlarm: Boolean,
+        hideBluetooth: Boolean,
+    ) {
         sWifiEnabled = replaceWifi
         sStatusEnabled = replaceStatus
+        sHideAlarm = hideAlarm
+        sHideBluetooth = hideBluetooth
     }
 
     /**
      * Look up replacement drawable by matching resource entry name against asset catalogs.
      */
     private fun lookup(resources: Resources, resId: Int, wifiOnly: Boolean): Drawable? {
-        if (!sWifiEnabled && !sStatusEnabled) return null
+        // The name below costs a reflective call, and this hook sees every drawable the
+        // host resolves, so the switches are checked before it.
+        if (!sWifiEnabled && !sStatusEnabled && !sHideAlarm && !sHideBluetooth) return null
         val entry = runCatching { resources.getResourceEntryName(resId) }.getOrNull() ?: return null
+
+        // A hidden icon is handed back as a transparent drawable: the status bar draws
+        // whatever this returns, and one with no intrinsic size collapses the slot
+        // instead of leaving a gap where the icon was.
+        if (!wifiOnly) {
+            val hide = (sHideAlarm && entry in ALARM_ENTRIES) ||
+                (sHideBluetooth && entry in BLUETOOTH_ENTRIES)
+            if (hide) return ColorDrawable(Color.TRANSPARENT)
+        }
+
+        if (!sWifiEnabled && !sStatusEnabled) return null
 
         if (sWifiEnabled) {
             getIcon(ASSET_WIFI_PREFIX, entry, sWifiCache)?.let {
