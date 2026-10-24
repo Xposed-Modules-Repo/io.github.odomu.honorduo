@@ -111,9 +111,11 @@ internal object ReleaseNotesLoader {
                         add("https://api.github.com/repos/$r/releases/tags/$targetVersion")
                         add("https://gh-proxy.com/https://api.github.com/repos/$r/releases/tags/v$targetVersion")
                         add("https://api.github.com/repos/$r/releases/tags/v$targetVersion")
-                        val codePrefix = targetVersion.replace(".", "") + "00"
-                        add("https://gh-proxy.com/https://api.github.com/repos/$r/releases/tags/$codePrefix-$targetVersion")
-                        add("https://api.github.com/repos/$r/releases/tags/$codePrefix-$targetVersion")
+                        val codePrefix = releaseCodeOf(targetVersion)
+                        if (codePrefix > 0) {
+                            add("https://gh-proxy.com/https://api.github.com/repos/$r/releases/tags/$codePrefix-$targetVersion")
+                            add("https://api.github.com/repos/$r/releases/tags/$codePrefix-$targetVersion")
+                        }
                         add("https://gh-proxy.com/https://raw.githubusercontent.com/$r/fork/docs/release-notes/release-notes-$targetVersion.md")
                         add("https://raw.githubusercontent.com/$r/fork/docs/release-notes/release-notes-$targetVersion.md")
                         add("https://gh-proxy.com/https://raw.githubusercontent.com/$r/main/docs/release-notes/release-notes-$targetVersion.md")
@@ -191,6 +193,20 @@ internal object ReleaseNotesLoader {
             null
         }
     }
+}
+
+/**
+ * The build number a release tag stamps for [version]: `1.0.2` -> `10002`.
+ *
+ * Same rule the release script and CI use (`major*10000 + minor*100 + patch`), so the
+ * tag this dialog looks up is the one that was actually published. Zero when the
+ * version does not parse, which simply skips that lookup.
+ */
+private fun releaseCodeOf(version: String): Int {
+    val parts = version.trim().removePrefix("v").removePrefix("V")
+        .split('.').mapNotNull { it.toIntOrNull() }
+    if (parts.isEmpty()) return 0
+    return parts.getOrElse(0) { 0 } * 10000 + parts.getOrElse(1) { 0 } * 100 + parts.getOrElse(2) { 0 }
 }
 
 /**

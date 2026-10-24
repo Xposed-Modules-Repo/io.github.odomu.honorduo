@@ -28,8 +28,8 @@ android {
         minSdk = 29
         //noinspection TargetSdkVersionUpdate
         targetSdk = 37
-        versionCode = tagVersionCode ?: 10000
-        versionName = tagVersionName ?: "1.0.0"
+        versionCode = tagVersionCode ?: 10002
+        versionName = tagVersionName ?: "1.0.2"
 
         buildConfigField("String", "REPO_SLUG", "\"$repoSlug\"")
     }

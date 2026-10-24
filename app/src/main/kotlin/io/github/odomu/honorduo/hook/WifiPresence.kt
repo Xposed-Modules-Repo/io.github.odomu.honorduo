@@ -48,6 +48,9 @@ internal object WifiPresence {
     @Volatile
     private var connected: Boolean? = null
 
+    val isConnected: Boolean
+        get() = connected == true
+
     private var pendingRefresh: Runnable? = null
 
     /** Framework state when it is known, the icon view's own state otherwise. */

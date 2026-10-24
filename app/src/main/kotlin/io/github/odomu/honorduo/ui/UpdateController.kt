@@ -99,10 +99,17 @@ private const val ATTEMPTS = 3
 
 /** One published release, reduced to what the card renders. */
 internal data class UpdateInfo(
-    /** Release tag as published, e.g. `v1.2`. */
+    /** Release tag as published, e.g. `10200-1.0.2`. */
     val tag: String,
-    /** The tag without its `v`, used for comparison and display. */
+    /** The version part of the tag, used for display. */
     val version: String,
+    /**
+     * The build number the tag carries, or 0 when the tag predates that form.
+     *
+     * This is what the check compares: version names sort badly across the two tag
+     * forms (`10002-1.0.2` would read as 10002.1.0.2), so the stamped code decides.
+     */
+    val versionCode: Int,
     val notes: String,
     val pageUrl: String,
     val apkUrl: String,
@@ -213,6 +220,7 @@ internal class UpdateController(private val context: Context) {
         state = UpdateState.Checking
         scope.launch {
             val current = installedVersion(context)
+            val currentCode = installedCode(context)
             val result = withContext(Dispatchers.IO) { runCatching { retry { fetchLatest() } } }
             state = result.fold(
                 onSuccess = { info ->
@@ -220,6 +228,17 @@ internal class UpdateController(private val context: Context) {
                         // A repository with no release yet answers 404, which is an
                         // empty answer rather than a failure.
                         info == null -> UpdateState.NoRelease
+                        // The tag stamps the build number, and that is the honest
+                        // comparison: a local build can carry a higher code than the
+                        // published one (a test build), and comparing the *name* would
+                        // then offer that older release as an update.
+                        info.versionCode > 0 && currentCode > 0 ->
+                            if (info.versionCode > currentCode) {
+                                UpdateState.Available(info, current)
+                            } else {
+                                UpdateState.UpToDate(current)
+                            }
+                        // Tags without a code: fall back to the name.
                         isNewer(info.version, current) -> UpdateState.Available(info, current)
                         else -> UpdateState.UpToDate(current)
                     }
@@ -357,6 +376,16 @@ private fun installedVersion(context: Context): String = runCatching {
 }.getOrNull()?.takeIf { it.isNotBlank() } ?: "0"
 
 /**
+ * The build number of the installed APK, which is what a release's tag is compared to.
+ *
+ * Zero when the package cannot be read, which the caller treats as "unknown" and falls
+ * back to comparing names.
+ */
+private fun installedCode(context: Context): Int = runCatching {
+    context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
+}.getOrDefault(0)
+
+/**
  * Queries the GitHub API for the newest release, or null when none is published.
  *
  * Tries the mirror first, then the origin - see [MIRROR] for why a different host is the
@@ -409,7 +438,7 @@ private fun fetchLatestFrom(url: String): UpdateInfo? {
  */
 private fun parseRelease(json: JSONObject): UpdateInfo {
     val tag = json.optString("tag_name").ifBlank { throw IllegalStateException("tag_name missing") }
-    val version = tag.trim().removePrefix("v").removePrefix("V")
+    val (code, version) = splitTag(tag)
     val assets = json.optJSONArray("assets")
     var apkUrl = ""
     var apkName = "HonorDuo-$version.apk"
@@ -431,6 +460,7 @@ private fun parseRelease(json: JSONObject): UpdateInfo {
     return UpdateInfo(
         tag = tag,
         version = version,
+        versionCode = code,
         notes = json.optString("body").trim(),
         pageUrl = json.optString("html_url").ifBlank { RELEASES_PAGE },
         apkUrl = apkUrl,
@@ -438,6 +468,23 @@ private fun parseRelease(json: JSONObject): UpdateInfo {
         apkSize = apkSize,
         assetId = assetId,
     )
+}
+
+/**
+ * The build number and version name a tag carries.
+ *
+ * Releases are tagged `<versionCode>-<versionName>` (`10002-1.0.2`); an older one is
+ * just `v<versionName>`, which carries no code and answers 0 so the caller falls back
+ * to comparing names.
+ */
+private fun splitTag(tag: String): Pair<Int, String> {
+    val cleaned = tag.trim().removePrefix("v").removePrefix("V")
+    val dash = cleaned.indexOf('-')
+    if (dash > 0) {
+        val code = cleaned.substring(0, dash).toIntOrNull()
+        if (code != null && code > 0) return code to cleaned.substring(dash + 1)
+    }
+    return 0 to cleaned
 }
 
 /**

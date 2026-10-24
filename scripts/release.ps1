@@ -6,7 +6,8 @@
 #   .\scripts\release.ps1 -Version 1.1 -DryRun          # 只构建，不打 tag、不建 Release
 #
 # 版本号 -> versionCode 规则：major*10000 + minor*100 + patch（v1.0 -> 10000）。
-# 版本号可写 1、1.0 或 1.0.0，缺的段按 0 计；tag 名与所写的版本号一致。
+# 版本号可写 1、1.0 或 1.0.0，缺的段按 0 计；tag 名为「versionCode-版本号」，
+# 例如 1.0.2 -> tag 10200-1.0.2（LSPosed 模块仓与 CI 都按这个格式认版本）。
 #
 # ★ 这个脚本只推 tag，**不推分支**。所以完整的发布是两步：
 #     git push origin main
@@ -86,7 +87,9 @@ if ($Version -notmatch '^\d+(\.\d+){0,2}$') {
 $parts = @($Version.Split('.') | ForEach-Object { [int]$_ })
 while ($parts.Count -lt 3) { $parts += 0 }
 $code = $parts[0] * 10000 + $parts[1] * 100 + $parts[2]
-$tag   = "v$Version"
+# The tag carries the versionCode as well: that is the form LSPosed's module repo
+# and this repo's CI both read, so one tag names the exact build.
+$tag   = "$code-$Version"
 $asset = "HonorDuo-$Version.apk"
 $dist  = Join-Path $Root 'dist'
 
@@ -297,6 +300,7 @@ if ($SkipModuleRepo) {
         Version     = $Version
         VersionCode = $code
         Apk         = $target
+        TagName     = $tag
     }
     if ($Notes)           { $moduleArgs.Notes = $Notes }
     if ($Force)           { $moduleArgs.Force = $true }

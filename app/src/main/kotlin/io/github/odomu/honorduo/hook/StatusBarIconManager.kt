@@ -65,6 +65,7 @@ internal object StatusBarIconManager {
     /** Views hidden by this module, so a detached row cannot leave one behind. */
     private val HIDDEN = ArrayList<WeakReference<View>>()
 
+
     /** Views hidden because of their slot, with the visibility they had before. */
     private val slotHidden = ArrayList<SlotHide>()
 
@@ -138,7 +139,7 @@ internal object StatusBarIconManager {
                 rememberHidden(root)
                 hide(root)
             } else {
-                release(root)
+                release(root, a)
             }
             return
         }
@@ -268,7 +269,7 @@ internal object StatusBarIconManager {
                     // A slot icon is handed back with the visibility the host gave it;
                     // forcing VISIBLE would draw an alarm or Bluetooth icon that is not
                     // actually on.
-                    if (isSlotTracked(view)) restoreSlotIcon(view) else release(view)
+                    if (isSlotTracked(view)) restoreSlotIcon(view) else release(view, a)
                     HIDDEN.removeAt(i)
                 }
             }
@@ -296,9 +297,14 @@ internal object StatusBarIconManager {
         }
     }
 
-    fun release(view: View) {
-        if (view.visibility != View.VISIBLE) {
-            view.visibility = View.VISIBLE
+    fun release(view: View, a: TrioAppearance = TrioConfig.appearance()) {
+        val target = when (view.id) {
+            wifiId -> if (WifiPresence.isConnected) View.VISIBLE else View.GONE
+            clockId -> if (a.barClockHidden) View.GONE else View.VISIBLE
+            else -> View.VISIBLE
+        }
+        if (view.visibility != target) {
+            view.visibility = target
         }
     }
 

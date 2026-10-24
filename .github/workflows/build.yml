@@ -128,14 +128,19 @@ jobs:
         run: |
           # A pushed v* tag names the version; otherwise the dispatch input, and
           # finally the checked-in default. The code follows the name.
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+          if [[ "$GITHUB_REF" =~ refs/tags/([0-9]+)-(.+) ]]; then
+            code="${BASH_REMATCH[1]}"
+            name="${BASH_REMATCH[2]}"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             name="${GITHUB_REF#refs/tags/v}"
+            IFS=. read -r major minor patch <<< "$name"
+            code=$(( 10#${major:-0} * 10000 + 10#${minor:-0} * 100 + 10#${patch:-0} ))
           else
-            name="${INPUT_NAME:-1.0.0}"
+            name="${INPUT_NAME:-1.0.2}"
+            IFS=. read -r major minor patch <<< "$name"
+            code=$(( 10#${major:-0} * 10000 + 10#${minor:-0} * 100 + 10#${patch:-0} ))
           fi
-          IFS=. read -r major minor patch <<< "$name"
-          code=$(( 10#${major:-0} * 10000 + 10#${minor:-0} * 100 + 10#${patch:-0} ))
-          if [[ -n "$INPUT_CODE" && "$GITHUB_REF" != refs/tags/v* ]]; then code="$INPUT_CODE"; fi
+          if [[ -n "$INPUT_CODE" && "$GITHUB_REF" != refs/tags/* ]]; then code="$INPUT_CODE"; fi
           echo "name=$name" >> "$GITHUB_OUTPUT"
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
@@ -180,7 +185,7 @@ jobs:
       # release, body taken from docs/release-notes) and a manual run (a throwaway
       # prerelease for testing). An ordinary branch push only produces the artifact.
       - name: Read release notes
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         id: notes
         run: |
           file="docs/release-notes/release-notes-${{ steps.stamp.outputs.name }}.md"
@@ -191,11 +196,11 @@ jobs:
           fi
 
       - name: Publish a release for the APK
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('ci-{0}-{1}', steps.stamp.outputs.code, github.run_number) }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('ci-{0}-{1}', steps.stamp.outputs.code, github.run_number) }}
           name: HonorDuo ${{ steps.stamp.outputs.name }} (${{ steps.stamp.outputs.code }})
           body: ${{ steps.notes.outputs.body }}
           files: dist/*.apk
-          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
