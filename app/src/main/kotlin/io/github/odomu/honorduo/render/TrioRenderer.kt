@@ -2035,7 +2035,8 @@ object TrioRenderer {
             val dateStr = if (a.clockDate) TrioState.sClockDate else ""
             val wkStr = if (a.clockWeekday) TrioState.sClockWeekday else ""
             val lunarStr = if (a.clockLunar) TrioState.sClockLunar else ""
-            drawPreviewClock(c, width, height, sample, dateStr, wkStr, lunarStr, a, fg)
+            val weatherStr = if (a.clockWeather) (TrioState.sWeather.ifEmpty { "雾 18°C" }) else ""
+            drawPreviewClock(c, width, height, sample, dateStr, wkStr, lunarStr, weatherStr, a, fg)
             return true
         }
         return false
@@ -2044,7 +2045,7 @@ object TrioRenderer {
     /** The clock sheet's sample: fitted as one block according to offsets and gaps. */
     private fun drawPreviewClock(
         c: Canvas, width: Int, height: Int, time: String,
-        date: String, weekday: String, lunar: String,
+        date: String, weekday: String, lunar: String, weather: String,
         a: TrioAppearance, fg: Int,
     ) {
         applyWeight(a.clockWeight)
@@ -2053,10 +2054,14 @@ object TrioRenderer {
         val wkColor = if (isDark) a.clockWeekdayColorOnDark else a.clockWeekdayColorOnLight
         val dtColor = if (isDark) a.clockDateColorOnDark else a.clockDateColorOnLight
         val lnColor = if (isDark) a.clockLunarColorOnDark else a.clockLunarColorOnLight
+        val wtColor = if (isDark) a.clockWeatherColorOnDark else a.clockWeatherColorOnLight
         val wkDrawColor = if (wkColor != 0) wkColor else fg
         val dtDrawColor = if (dtColor != 0) dtColor else fg
         val lnDrawColor = if (lnColor != 0) lnColor else fg
+        val wtDrawColor = if (wtColor != 0) wtColor else fg
+        val inkBounds = Rect()
 
+        val isBalanced = a.clockStyle == Prefs.CLOCK_STYLE_BALANCED
         var timeSize = height * 0.45f * userScale
         var lineSize = timeSize * PREVIEW_DATE_SCALE
         val lunarGap = a.clockLunarGap.toFloat()
@@ -2064,62 +2069,222 @@ object TrioRenderer {
         val topOffsetX = a.clockTopOffsetX.toFloat()
         val bottomOffsetX = a.clockBottomOffsetX.toFloat()
 
-        TEXT.textSize = lineSize
-        val wkW = if (weekday.isEmpty()) 0f else TEXT.measureText(weekday) + lineSize * 0.2f
-        val dtW = if (date.isEmpty()) 0f else TEXT.measureText(date)
-        val effectiveLunarGap = if (date.isNotEmpty() && lunar.isNotEmpty()) max(lunarGap, lineSize * 0.2f) else 0f
-        val lnW = if (lunar.isEmpty()) 0f else TEXT.measureText(lunar)
-        TEXT.textSize = timeSize
-        val tmW = TEXT.measureText(time)
-        val topW = wkW + tmW
-        val botW = dtW + effectiveLunarGap + lnW
-        val widest = max(topW, botW)
-        val clear = width * 0.9f
-        if (widest > clear) {
-            val scale = clear / widest
-            timeSize *= scale
-            lineSize *= scale
-        }
-        val gap = max(rowGap, timeSize * 0.12f)
-        TEXT.textSize = timeSize
-        val timeInk = TEXT.fontMetrics.let { it.descent - it.ascent }
-        TEXT.textSize = lineSize
-        val lineInk = TEXT.fontMetrics.let { it.descent - it.ascent }
-        val hasBottom = date.isNotEmpty() || lunar.isNotEmpty()
-        val totalH = timeInk + (if (hasBottom) lineInk + gap else 0f)
-        var top = height / 2f - totalH / 2f
-        val cx = width / 2f
+        val previewCondition = if (weather.contains(" ")) weather.substringBefore(" ") else weather
+        val previewTemp = if (weather.contains(" ")) weather.substringAfter(" ") else ""
 
-        // Top row
-        val topStartX = cx - topW / 2f + topOffsetX
-        var currX = topStartX
-        TEXT.textAlign = Paint.Align.LEFT
-        if (weekday.isNotEmpty()) {
-            TEXT.textSize = lineSize
-            TEXT.color = wkDrawColor
-            c.drawText(weekday, currX, top + (timeInk - lineInk) - TEXT.fontMetrics.ascent, TEXT)
-            currX += TEXT.measureText(weekday) + lineSize * 0.2f
-        }
-        TEXT.textSize = timeSize
-        TEXT.color = fg
-        c.drawText(time, currX, top - TEXT.fontMetrics.ascent, TEXT)
+        fun vectorWeather(): Boolean =
+            a.clockWeatherStyle == Prefs.WEATHER_STYLE_ICON || a.clockWeatherStyle == Prefs.WEATHER_STYLE_ICON_TEXT
 
-        // Bottom row
-        if (hasBottom) {
-            top += timeInk + gap
-            val botStartX = cx - botW / 2f + bottomOffsetX
-            var botX = botStartX
-            TEXT.textSize = lineSize
-            if (date.isNotEmpty()) {
-                TEXT.color = dtDrawColor
-                c.drawText(date, botX, top - TEXT.fontMetrics.ascent, TEXT)
-                botX += TEXT.measureText(date) + effectiveLunarGap
+        fun symbolWeather(): Boolean =
+            a.clockWeatherStyle == Prefs.WEATHER_STYLE_SYMBOL || a.clockWeatherStyle == Prefs.WEATHER_STYLE_SYMBOL_TEXT
+
+        fun weatherLabel(): String {
+            if (weather.isEmpty()) return ""
+            if (a.clockWeatherStyle == Prefs.WEATHER_STYLE_ICON || a.clockWeatherStyle == Prefs.WEATHER_STYLE_SYMBOL) {
+                return previewTemp.ifEmpty { weather }
             }
+            return weather
+        }
+
+        fun weatherWidth(sz: Float): Float {
+            val txt = weatherLabel()
+            if (txt.isEmpty()) return 0f
+            TEXT.textSize = sz
+            val iconW = when {
+                vectorWeather() -> sz * TrioGeometry.WEATHER_ICON_SCALE + sz * 0.25f
+                symbolWeather() -> TEXT.measureText(WeatherIconDrawer.glyphFor(previewCondition)) + sz * 0.25f
+                else -> 0f
+            }
+            return iconW + TEXT.measureText(txt)
+        }
+
+        fun drawWeather(startX: Float, yBaseline: Float, sz: Float) {
+            val txt = weatherLabel()
+            if (txt.isEmpty()) return
+            var x = startX
+            TEXT.textSize = sz
+            TEXT.getTextBounds("0", 0, 1, inkBounds)
+            val inkCentre = yBaseline + (inkBounds.top + inkBounds.bottom) * 0.5f
+            when {
+                vectorWeather() -> {
+                    val iconSz = sz * TrioGeometry.WEATHER_ICON_SCALE
+                    WeatherIconDrawer.drawWeatherIcon(
+                        c, WeatherIconDrawer.parseWeatherType(previewCondition),
+                        x, inkCentre - iconSz * 0.5f, iconSz, wtDrawColor,
+                    )
+                    x += iconSz + sz * 0.25f
+                }
+                symbolWeather() -> {
+                    val glyph = WeatherIconDrawer.glyphFor(previewCondition)
+                    TEXT.color = wtDrawColor
+                    c.drawText(glyph, x, yBaseline, TEXT)
+                    x += TEXT.measureText(glyph) + sz * 0.25f
+                }
+            }
+            TEXT.color = wtDrawColor
+            c.drawText(txt, x, yBaseline, TEXT)
+        }
+
+        if (isBalanced) {
+            val step = lineSize * 0.28f
+            val wordStep = lineSize * 0.16f
+            val hasTop = date.isNotEmpty() || weekday.isNotEmpty() || weather.isNotEmpty()
+            TEXT.textSize = lineSize
+            val dtW = if (date.isEmpty()) 0f else TEXT.measureText(date)
+            val wkW = if (weekday.isEmpty()) 0f else TEXT.measureText(weekday)
+            val wtW = weatherWidth(lineSize)
+            val topW = rowWidth(floatArrayOf(dtW, wkW, wtW), wordStep)
+
+            val lnW = if (lunar.isEmpty()) 0f else TEXT.measureText(lunar)
+            TEXT.textSize = timeSize
+            val tmW = TEXT.measureText(time)
+            val botW = rowWidth(floatArrayOf(lnW, tmW), step)
+
+            val widest = max(topW, botW)
+            val clear = width * 0.9f
+            if (widest > clear) {
+                val scale = clear / widest
+                timeSize *= scale
+                lineSize *= scale
+            }
+            val gap = rowGap
+            TEXT.textSize = timeSize
+            val timeInk = TEXT.fontMetrics.let { it.descent - it.ascent }
+            TEXT.textSize = lineSize
+            val lineInk = TEXT.fontMetrics.let { it.descent - it.ascent }
+            val totalH = (if (hasTop) lineInk + gap else 0f) + timeInk
+            var rowTop = height / 2f - totalH / 2f
+            val cx = width / 2f
+
+            if (hasTop) {
+                TEXT.textAlign = Paint.Align.LEFT
+                val baseline = rowTop - TEXT.fontMetrics.ascent
+                var x = cx - topW / 2f + topOffsetX
+                if (date.isNotEmpty()) {
+                    TEXT.color = dtDrawColor
+                    c.drawText(date, x, baseline, TEXT)
+                    x += TEXT.measureText(date) + wordStep
+                }
+                if (weekday.isNotEmpty()) {
+                    TEXT.color = wkDrawColor
+                    c.drawText(weekday, x, baseline, TEXT)
+                    x += TEXT.measureText(weekday) + wordStep
+                }
+                drawWeather(x, baseline, lineSize)
+                rowTop += lineInk + gap
+            }
+
+            // Lunar then Time: one line, the time at its own size, the lunar centred on
+            // the time's digits.
+            TEXT.textSize = timeSize
+            val timeBaseline = rowTop - TEXT.fontMetrics.ascent
+            var botX = cx - botW / 2f + bottomOffsetX
             if (lunar.isNotEmpty()) {
+                TEXT.getTextBounds(time, 0, time.length, inkBounds)
+                val timeCentre = timeBaseline + (inkBounds.top + inkBounds.bottom) * 0.5f
+                TEXT.textSize = lineSize
+                TEXT.getTextBounds(lunar, 0, lunar.length, inkBounds)
+                val lunarBaseline = timeCentre - (inkBounds.top + inkBounds.bottom) * 0.5f
                 TEXT.color = lnDrawColor
-                c.drawText(lunar, botX, top - TEXT.fontMetrics.ascent, TEXT)
+                c.drawText(lunar, botX, lunarBaseline, TEXT)
+                botX += TEXT.measureText(lunar) + step
+            }
+            TEXT.textSize = timeSize
+            TEXT.color = fg
+            c.drawText(time, botX, timeBaseline, TEXT)
+        } else {
+            val step = lineSize * 0.2f
+            val wordStep = lineSize * 0.16f
+            TEXT.textSize = lineSize
+            val wkW = if (weekday.isEmpty()) 0f else TEXT.measureText(weekday)
+            val dtW = if (date.isEmpty()) 0f else TEXT.measureText(date)
+            val effectiveLunarGap = if (date.isNotEmpty() && lunar.isNotEmpty()) max(lunarGap, wordStep) else 0f
+            val lnW = if (lunar.isEmpty()) 0f else TEXT.measureText(lunar)
+            val wtW = weatherWidth(lineSize)
+            TEXT.textSize = timeSize
+            val tmW = TEXT.measureText(time)
+            val topW = rowWidth(floatArrayOf(tmW, wtW), step)
+            var botW = dtW
+            if (lnW > 0f) {
+                if (botW > 0f) botW += effectiveLunarGap
+                botW += lnW
+            }
+            if (wkW > 0f) {
+                if (botW > 0f) botW += wordStep
+                botW += wkW
+            }
+            val widest = max(topW, botW)
+            val clear = width * 0.9f
+            if (widest > clear) {
+                val scale = clear / widest
+                timeSize *= scale
+                lineSize *= scale
+            }
+            val gap = rowGap
+            TEXT.textSize = timeSize
+            val timeInk = TEXT.fontMetrics.let { it.descent - it.ascent }
+            TEXT.textSize = lineSize
+            val lineInk = TEXT.fontMetrics.let { it.descent - it.ascent }
+            val hasBottom = date.isNotEmpty() || lunar.isNotEmpty() || weekday.isNotEmpty()
+            val totalH = timeInk + (if (hasBottom) lineInk + gap else 0f)
+            var top = height / 2f - totalH / 2f
+            val cx = width / 2f
+
+            // Row 1: Time + Weather, the caption centred on the time's ink.
+            TEXT.textAlign = Paint.Align.LEFT
+            var currX = cx - topW / 2f + topOffsetX
+            val timeBaseline = top - TEXT.fontMetrics.ascent
+            TEXT.textSize = timeSize
+            TEXT.getTextBounds("0", 0, 1, inkBounds)
+            val timeInkCentre = timeBaseline + (inkBounds.top + inkBounds.bottom) * 0.5f
+            val label = weatherLabel()
+            var captionBaseline = timeBaseline
+            if (label.isNotEmpty()) {
+                TEXT.textSize = lineSize
+                TEXT.getTextBounds("0", 0, 1, inkBounds)
+                captionBaseline = timeInkCentre - (inkBounds.top + inkBounds.bottom) * 0.5f
+            }
+            TEXT.textSize = timeSize
+            TEXT.color = fg
+            c.drawText(time, currX, timeBaseline, TEXT)
+            currX += TEXT.measureText(time) + step
+            drawWeather(currX, captionBaseline, lineSize)
+
+            // Row 2: Date + Lunar + Weekday.
+            if (hasBottom) {
+                top += timeInk + gap
+                var botX = cx - botW / 2f + bottomOffsetX
+                val yBaseline = top - TEXT.fontMetrics.ascent
+                TEXT.textSize = lineSize
+                if (date.isNotEmpty()) {
+                    TEXT.color = dtDrawColor
+                    c.drawText(date, botX, yBaseline, TEXT)
+                    botX += TEXT.measureText(date) + (if (lunar.isNotEmpty()) effectiveLunarGap else wordStep)
+                }
+                if (lunar.isNotEmpty()) {
+                    TEXT.color = lnDrawColor
+                    c.drawText(lunar, botX, yBaseline, TEXT)
+                    botX += TEXT.measureText(lunar) + wordStep
+                }
+                if (weekday.isNotEmpty()) {
+                    TEXT.color = wkDrawColor
+                    c.drawText(weekday, botX, yBaseline, TEXT)
+                }
             }
         }
+    }
+
+    /** A row's ink width: measured parts plus one gap between each adjacent pair. */
+    private fun rowWidth(parts: FloatArray, step: Float): Float {
+        var sum = 0f
+        var drawn = 0
+        for (w in parts) {
+            if (w <= 0f) continue
+            if (drawn > 0) sum += step
+            sum += w
+            drawn++
+        }
+        return sum
     }
 
     /** The preview's date line, as a share of the time's size. */

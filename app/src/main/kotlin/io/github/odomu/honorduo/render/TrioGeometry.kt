@@ -321,6 +321,16 @@ object TrioGeometry {
     /** The compact style's individual row height, in design units. */
     const val STACK_ROW_H = 200f
 
+    /**
+     * The weather icon's box, as a share of the caption's text size.
+     *
+     * A little taller than a digit's cap height so the icon reads at the same weight
+     * as the numbers beside it. It stays under 1.0 on purpose: past that the lowest
+     * ink (a rain drop, a snow flake) reaches into the row below, which is what made
+     * the two-row clock look cramped.
+     */
+    const val WEATHER_ICON_SCALE = 0.85f
+
     /** Gap between a card's type label and its bars, in design units. */
     const val STACK_LABEL_GAP = 6f
 
