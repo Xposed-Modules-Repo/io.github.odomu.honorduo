@@ -30,6 +30,7 @@ import io.github.odomu.honorduo.hook.Refl
 import io.github.odomu.honorduo.hook.ScreenStateTracker
 import io.github.odomu.honorduo.hook.TrioHooks
 import io.github.odomu.honorduo.hook.WifiPresence
+import io.github.odomu.honorduo.hook.WeatherManager
 import io.github.odomu.honorduo.model.TrioState.Companion.SIMS_INTERVAL_MS
 import java.lang.reflect.Field
 import java.util.concurrent.ConcurrentHashMap
@@ -262,7 +263,6 @@ internal class TrioState(val host: View) {
         @Volatile
         @JvmField
         var sClockBarText = ""
-
         
         @Volatile
         @JvmField
@@ -271,6 +271,9 @@ internal class TrioState(val host: View) {
         @Volatile
         @JvmField
         var sClockLunar = ""
+        @Volatile
+        @JvmField
+        var sWeather = ""
 
         @Volatile
         @JvmField
@@ -417,6 +420,7 @@ internal class TrioState(val host: View) {
                 // The one reading with no event behind it: the clock is correct
                 // until the minute rolls over, so it has to wake itself up.
                 ClockTicker.start(app)
+                WeatherManager.start(app)
                 // The one reading with no event behind it either: the panel's refresh rate
                 // moves on its own schedule, so it is sampled rather than pushed. The
                 // ticker reports through this callback, so it never has to know what a new
