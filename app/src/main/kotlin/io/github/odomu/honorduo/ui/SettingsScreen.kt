@@ -210,6 +210,7 @@ internal enum class RoleColor(val labelRes: Int) {
     ClockWeekday(R.string.color_clock_weekday_title),
     ClockDate(R.string.color_clock_date_title),
     ClockLunar(R.string.color_clock_lunar_title),
+    ClockWeather(R.string.color_clock_weather_title),
 }
 
 /**
@@ -597,6 +598,9 @@ fun SettingsScreen(repository: SettingsRepository) {
                                 RoleColor.ClockLunar ->
                                     if (onDark) repo.setColorClockLunarOnDark(argb)
                                     else repo.setColorClockLunarOnLight(argb)
+                                RoleColor.ClockWeather ->
+                                    if (onDark) repo.setColorClockWeatherOnDark(argb)
+                                    else repo.setColorClockWeatherOnLight(argb)
                             }
                         }
                     },
@@ -1500,7 +1504,17 @@ private fun LazyListScope.settingsTab(
         )
     }
 
-    // Card 1: Battery & Value (Unified)
+    // Card 1: Notification shade & control center
+    item {
+        SettingPreviewCard(
+            title = stringResource(R.string.drawing_part_shade),
+            summary = stringResource(R.string.card_shade_summary),
+            icon = ImageVector.vectorResource(R.drawable.ic_lucide_sliders_horizontal),
+            onClick = { onOpenPart(TrioSettingsPart.Shade) },
+        )
+    }
+
+    // Card 2: Battery & Value (Unified)
     item {
         SettingPreviewCard(
             title = stringResource(R.string.card_battery_title),
@@ -1510,7 +1524,7 @@ private fun LazyListScope.settingsTab(
         )
     }
 
-    // Card 2: Wi-Fi Arcs
+    // Card 3: Wi-Fi Arcs
     item {
         SettingPreviewCard(
             title = stringResource(R.string.card_wifi_title),
@@ -1520,7 +1534,7 @@ private fun LazyListScope.settingsTab(
         )
     }
 
-    // Card 3: Mobile Network & Signal
+    // Card 4: Mobile Network & Signal
     item {
         SettingPreviewCard(
             title = stringResource(R.string.card_mobile_title),
@@ -1530,7 +1544,7 @@ private fun LazyListScope.settingsTab(
         )
     }
 
-    // Card 4: Network Type
+    // Card 5: Network Type
     item {
         SettingPreviewCard(
             title = stringResource(R.string.card_type_title),
@@ -1540,7 +1554,7 @@ private fun LazyListScope.settingsTab(
         )
     }
 
-    // Card 5: Readouts & Performance
+    // Card 6: Readouts & Performance
     item {
         SettingPreviewCard(
             title = stringResource(R.string.card_readouts_title),
@@ -1550,7 +1564,7 @@ private fun LazyListScope.settingsTab(
         )
     }
 
-    // Card 6: Clock & Date
+    // Card 7: Clock & Date
     item {
         SettingPreviewCard(
             title = stringResource(R.string.card_clock_title),
@@ -2395,6 +2409,7 @@ internal fun colorFor(settings: TrioSettings, role: RoleColor, onDark: Boolean):
         RoleColor.ClockDate -> if (onDark) settings.clockDateColorOnDark else settings.clockDateColorOnLight
         RoleColor.ClockLunar -> if (onDark) settings.clockLunarColorOnDark else settings.clockLunarColorOnLight
         RoleColor.HighTemp -> if (onDark) settings.highTempOnDark else settings.highTempOnLight
+        RoleColor.ClockWeather -> if (onDark) settings.clockWeatherColorOnDark else settings.clockWeatherColorOnLight
     }
 
 internal fun defaultColorFor(role: RoleColor, onDark: Boolean): Int =
@@ -2403,7 +2418,7 @@ internal fun defaultColorFor(role: RoleColor, onDark: Boolean): Int =
         RoleColor.Low -> if (onDark) Prefs.DEF_COLOR_LOW_ON_DARK else Prefs.DEF_COLOR_LOW_ON_LIGHT
         RoleColor.Charging -> if (onDark) Prefs.DEF_COLOR_CHARGING_ON_DARK else Prefs.DEF_COLOR_CHARGING_ON_LIGHT
         RoleColor.HighTemp -> if (onDark) Prefs.DEF_COLOR_HIGH_TEMP_ON_DARK else Prefs.DEF_COLOR_HIGH_TEMP_ON_LIGHT
-        RoleColor.ClockWeekday, RoleColor.ClockDate, RoleColor.ClockLunar -> Prefs.DEF_COLOR_CLOCK
+        RoleColor.ClockWeekday, RoleColor.ClockDate, RoleColor.ClockLunar, RoleColor.ClockWeather -> Prefs.DEF_COLOR_CLOCK
     }
 
 /** Palette for the activation card, sampled off the reference screenshot. */

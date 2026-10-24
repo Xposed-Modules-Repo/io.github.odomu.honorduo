@@ -69,6 +69,7 @@ internal enum class TrioSettingsPart(val part: TrioZones.Part?, val labelRes: In
     Bolt(TrioZones.Part.BOLT, R.string.show_bolt_title),
     Type(TrioZones.Part.TYPE, R.string.show_mobile_type_title),
     Clock(TrioZones.Part.CLOCK, R.string.drawing_occupant_clock),
+    Shade(null, R.string.drawing_part_shade),
     ;
 
     companion object {
@@ -671,7 +672,7 @@ internal fun slidersForEditor(part: TrioSettingsPart): List<SliderSpec> = when (
 internal fun roleColorsForPart(part: TrioZones.Part): List<RoleColor> = when (part) {
     TrioZones.Part.VALUE -> listOf(RoleColor.Low, RoleColor.Critical)
     TrioZones.Part.BOLT -> listOf(RoleColor.Charging)
-    TrioZones.Part.CLOCK -> listOf(RoleColor.ClockWeekday, RoleColor.ClockDate, RoleColor.ClockLunar)
+    TrioZones.Part.CLOCK -> listOf(RoleColor.ClockWeekday, RoleColor.ClockDate, RoleColor.ClockLunar, RoleColor.ClockWeather)
     else -> emptyList()
 }
 
