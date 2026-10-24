@@ -358,7 +358,11 @@ internal object StatusBarRowManager {
                 height = min(height, maxSafe)
             }
         }
-        size(signal, ViewGroup.LayoutParams.WRAP_CONTENT, height, a.outSignalMargin, 0, density)
+        val width = TrioRenderer.outSignalWidth(
+            height, a, signal.type, signal.type2, dual,
+        )
+        val marginDp = if (a.outSignalMargin in 0..16) a.outSignalMargin else Prefs.DEF_OUT_SIGNAL_MARGIN
+        size(signal, width, height, marginDp, 0, density)
         StatusBarIconManager.release(signal)
     }
 
@@ -570,13 +574,11 @@ internal object StatusBarRowManager {
     private fun insertBefore(row: Row, view: View) {
         val anchor: View = row.glyph ?: row.battery
         val at = row.container.indexOfChild(anchor)
-        row.container.addView(
-            view, if (at < 0) row.container.childCount else at,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-            ),
+        val lp = view.layoutParams ?: LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
         )
+        row.container.addView(view, if (at < 0) row.container.childCount else at, lp)
     }
 
     /**
@@ -976,6 +978,27 @@ internal object StatusBarRowManager {
         var type: String? = null
         var type2: String? = null
 
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            val a = TrioConfig.appearance()
+            val dual = dots >= 0
+            val density = resources.displayMetrics.density
+            val lp = layoutParams
+            val h = if (lp != null && lp.height > 0) {
+                lp.height
+            } else {
+                val specH = MeasureSpec.getSize(heightMeasureSpec)
+                if (specH > 0) specH else TrioRenderer.outSignalHeight(a, a.outSignalSize, density, dual)
+            }
+            val w = if (lp != null && lp.width > 0) {
+                lp.width
+            } else {
+                TrioRenderer.outSignalWidth(h, a, type, type2, dual)
+            }
+            setMeasuredDimension(
+                resolveSize(w, widthMeasureSpec),
+                resolveSize(h, heightMeasureSpec),
+            )
+        }
         override fun onDraw(canvas: Canvas) {
             val source = host ?: return
             TrioRenderer.drawOutSignal(
