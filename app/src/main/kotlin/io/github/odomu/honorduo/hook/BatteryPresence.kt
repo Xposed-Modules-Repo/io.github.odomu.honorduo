@@ -43,21 +43,64 @@ internal object BatteryPresence {
     private val main = Handler(Looper.getMainLooper())
 
     private var registered = false
-    private var watchdogStarted = false
+    private var watchdogRunning = false
     private var pendingRefresh: Runnable? = null
+    private var appContext: Context? = null
+
+    private val watchdogTick = object : Runnable {
+        override fun run() {
+            val ctx = appContext ?: return
+            if (!isWatchdogNeeded()) {
+                watchdogRunning = false
+                return
+            }
+            refresh(ctx)
+            main.postDelayed(this, WATCHDOG_MS)
+        }
+    }
+
+    private fun isWatchdogNeeded(): Boolean {
+        val a = io.github.odomu.honorduo.model.TrioConfig.appearance()
+        return ScreenStateTracker.isScreenOn && a.enabled && a.perfAnywhere()
+    }
+
+    private fun ensureWatchdog() {
+        if (isWatchdogNeeded()) {
+            if (!watchdogRunning) {
+                watchdogRunning = true
+                main.removeCallbacks(watchdogTick)
+                main.post(watchdogTick)
+            }
+        } else {
+            stopWatchdog()
+        }
+    }
+
+    private fun stopWatchdog() {
+        watchdogRunning = false
+        main.removeCallbacks(watchdogTick)
+        pendingRefresh?.let(main::removeCallbacks)
+    }
+
+    fun onConfigChanged() {
+        main.post { ensureWatchdog() }
+    }
 
     @Synchronized
     fun start(context: Context) {
-        if (!watchdogStarted) {
-            watchdogStarted = true
-            val tick = object : Runnable {
-                override fun run() {
-                    refresh(context)
-                    main.postDelayed(this, WATCHDOG_MS)
+        val app = context.applicationContext ?: context
+        appContext = app
+        ScreenStateTracker.addListener { screenOn ->
+            main.post {
+                if (screenOn) {
+                    refresh(app)
+                    ensureWatchdog()
+                } else {
+                    stopWatchdog()
                 }
             }
-            main.post(tick)
         }
+        ensureWatchdog()
         if (registered) return
 
         val receiver = object : BroadcastReceiver() {
@@ -187,6 +230,6 @@ internal object BatteryPresence {
         if (moved) TrioHooks.invalidateHosts()
     }
 
-    private const val WATCHDOG_MS = 3_000L
-    private const val RECHECK_MS = 1_000L
+    private const val WATCHDOG_MS = 10_000L
+    private const val RECHECK_MS = 2_000L
 }

@@ -54,6 +54,19 @@ internal object Refl {
         }
     }
 
+    @JvmStatic
+    fun methodDeep(c: Class<*>?, name: String, vararg sig: Class<*>): Method? {
+        var k: Class<*>? = c
+        while (k != null && k != Any::class.java) {
+            try {
+                return k.getDeclaredMethod(name, *sig).also { it.isAccessible = true }
+            } catch (_: Throwable) {
+                k = k.superclass
+            }
+        }
+        return null
+    }
+
     /** The declared method with this name and arity, whatever its signature. */
     @JvmStatic
     fun get(f: Field?, o: Any?): Any? {

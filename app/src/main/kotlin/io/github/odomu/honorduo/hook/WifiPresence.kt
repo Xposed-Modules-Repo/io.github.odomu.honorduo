@@ -42,7 +42,7 @@ internal object WifiPresence {
     private val main = Handler(Looper.getMainLooper())
 
     private var registered = false
-    private var watchdogStarted = false
+    private var appContext: Context? = null
 
     /** The live answer, or `null` while the framework has not said yet. */
     @Volatile
@@ -56,15 +56,14 @@ internal object WifiPresence {
 
     @Synchronized
     fun start(context: Context) {
-        if (!watchdogStarted) {
-            watchdogStarted = true
-            val tick = object : Runnable {
-                override fun run() {
-                    refresh(context)
-                    main.postDelayed(this, WATCHDOG_MS)
-                }
+        val app = context.applicationContext ?: context
+        appContext = app
+        ScreenStateTracker.addListener { screenOn ->
+            if (screenOn) {
+                main.post { scheduleRefresh(app) }
+            } else {
+                main.post { pendingRefresh?.let(main::removeCallbacks) }
             }
-            main.post(tick)
         }
         if (registered) return
 
@@ -169,9 +168,6 @@ internal object WifiPresence {
 
     /** Levels the glyph draws: five states, 0..4. */
     private const val WIFI_LEVELS = 5
-
-    /** How often the watchdog re-asks, in milliseconds. */
-    private const val WATCHDOG_MS = 3_000L
 
     /** How long after a broadcast the framework is asked again. */
     private const val RECHECK_MS = 1_000L

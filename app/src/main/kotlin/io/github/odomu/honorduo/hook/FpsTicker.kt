@@ -17,20 +17,15 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.Choreographer
+import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.TrioConfig
-import java.io.File
 import kotlin.math.roundToInt
 
 /**
- * Samples and publishes the real-time frame rate.
+ * Samples and publishes the real-time frame rate using Choreographer VSYNC
+ * frame counting, falling back to the display's native refresh rate.
  *
- * It combines two complementary sources:
- * 1. Hardware panel measured_fps sysfs node (instantaneous hardware refresh rate on
- *    Qualcomm/Honor devices);
- * 2. Choreographer VSYNC frame callbacks counting actual rendered frames per second.
- *
- * It runs only while `perfFps` is switched on: when off, the Choreographer callback
- * detaches completely to avoid unnecessary wakeups.
+ * Runs only while `perfFps` is active and the screen is on.
  */
 internal object FpsTicker {
 
@@ -43,22 +38,15 @@ internal object FpsTicker {
     private var displayId = -1
     private var last = 0
     private var started = false
+    private var pollScheduled = false
 
     private var frameCount = 0
     private var windowStartMs = 0L
     private var callbackRunning = false
 
-    private val SYSFS_FPS_NODES = arrayOf(
-        "/sys/class/drm/sde-crtc-0/measured_fps",
-        "/sys/class/graphics/fb0/measured_fps",
-        "/sys/class/drm/card0/sde-crtc-0/measured_fps",
-        "/sys/devices/platform/soc/ae00000.qcom,mdss_mdp/drm/card0/sde-crtc-0/measured_fps",
-        "/sys/devices/virtual/graphics/fb0/measured_fps",
-    )
-
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
-            if (!TrioConfig.appearance().perfFps) {
+            if (!isFpsActive()) {
                 callbackRunning = false
                 return
             }
@@ -77,78 +65,98 @@ internal object FpsTicker {
             displayId = manager?.getDisplay(android.view.Display.DEFAULT_DISPLAY)?.displayId ?: -1
             val handler = Handler(Looper.getMainLooper())
             main = handler
-            handler.post { poll() }
+            ScreenStateTracker.addListener { screenOn ->
+                handler.post { onScreenStateChanged(screenOn) }
+            }
+            schedulePoll(0L)
         } catch (_: Throwable) {
             main = null
         }
     }
 
-    private fun poll() {
+    private fun isFpsActive(): Boolean {
+        val a = TrioConfig.appearance()
+        return ScreenStateTracker.isScreenOn && a.enabled && (a.perfFps || (!a.glyph && a.hasRingPart(Prefs.PART_FPS)))
+    }
+
+    private fun onScreenStateChanged(screenOn: Boolean) {
+        if (!screenOn) {
+            stopSampling()
+        } else if (isFpsActive()) {
+            schedulePoll(0L)
+        }
+    }
+
+    fun onConfigChanged() {
         val handler = main ?: return
+        handler.post {
+            if (isFpsActive()) {
+                schedulePoll(0L)
+            } else {
+                stopSampling()
+            }
+        }
+    }
+
+    private fun stopSampling() {
+        callbackRunning = false
+        val handler = main ?: return
+        handler.removeCallbacks(pollRunnable)
+        pollScheduled = false
+    }
+
+    private val pollRunnable = Runnable { poll() }
+
+    private fun schedulePoll(delayMs: Long) {
+        val handler = main ?: return
+        handler.removeCallbacks(pollRunnable)
+        pollScheduled = true
+        if (delayMs <= 0L) {
+            handler.post(pollRunnable)
+        } else {
+            handler.postDelayed(pollRunnable, delayMs)
+        }
+    }
+    private fun poll() {
+        pollScheduled = false
+        if (!isFpsActive()) {
+            callbackRunning = false
+            return
+        }
         try {
-            val enabled = TrioConfig.appearance().perfFps
-            if (enabled) {
-                if (!callbackRunning) {
-                    callbackRunning = true
-                    windowStartMs = SystemClock.uptimeMillis()
-                    frameCount = 0
-                    Choreographer.getInstance().postFrameCallback(frameCallback)
-                }
-                sample()
+            if (!callbackRunning) {
+                callbackRunning = true
+                windowStartMs = SystemClock.uptimeMillis()
+                frameCount = 0
+                Choreographer.getInstance().postFrameCallback(frameCallback)
+            }
+            sample()
+        } catch (_: Throwable) {
+        } finally {
+            if (isFpsActive()) {
+                schedulePoll(INTERVAL_MS)
             } else {
                 callbackRunning = false
             }
-        } catch (_: Throwable) {
-            // keep ticking
-        } finally {
-            handler.postDelayed({ poll() }, INTERVAL_MS)
         }
     }
 
     private fun sample() {
-        // 1. Try sysfs hardware measured fps first
-        val sysfsFps = readSysfsFps()
-        val fps = if (sysfsFps != null && sysfsFps > 0) {
-            sysfsFps
+        val now = SystemClock.uptimeMillis()
+        val elapsed = now - windowStartMs
+        windowStartMs = now
+        val count = frameCount
+        frameCount = 0
+        val fps = if (elapsed >= 300L && count > 0) {
+            ((count * 1000f) / elapsed).roundToInt()
         } else {
-            // 2. Calculate real-time FPS from Choreographer frame count
-            val now = SystemClock.uptimeMillis()
-            val elapsed = now - windowStartMs
-            windowStartMs = now
-            val count = frameCount
-            frameCount = 0
-            if (elapsed >= 300L && count > 0) {
-                ((count * 1000f) / elapsed).roundToInt()
-            } else {
-                // 3. Fallback to display mode rate if no frames counted yet
-                val id = displayId
-                val dm = manager
-                dm?.getDisplay(id)?.refreshRate?.roundToInt() ?: 0
-            }
+            val id = displayId
+            val dm = manager
+            dm?.getDisplay(id)?.refreshRate?.roundToInt() ?: 0
         }
         if (fps <= 0 || fps == last) return
         last = fps
         onSample?.invoke(fps)
-    }
-
-    private fun readSysfsFps(): Int? {
-        for (path in SYSFS_FPS_NODES) {
-            try {
-                val file = File(path)
-                if (!file.canRead()) continue
-                val text = file.readText().trim()
-                // Format can be "fps: 120.0" or "120" or "fps: 60"
-                val num = text.substringAfter("fps:").substringAfter("fps").trim()
-                    .takeWhile { it.isDigit() || it == '.' }.toFloatOrNull()
-                    ?: text.takeWhile { it.isDigit() || it == '.' }.toFloatOrNull()
-                if (num != null && num > 0f) {
-                    return num.roundToInt()
-                }
-            } catch (_: Throwable) {
-                // try next
-            }
-        }
-        return null
     }
 
     private const val INTERVAL_MS = 1_000L
