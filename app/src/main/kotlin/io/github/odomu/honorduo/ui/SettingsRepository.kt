@@ -17,11 +17,11 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.core.content.edit
+import io.github.libxposed.service.XposedService
 import io.github.odomu.honorduo.HonorDuoApp
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.TrioSettings
 import io.github.odomu.honorduo.render.TrioZones
-import io.github.libxposed.service.XposedService
 
 /**
  * Reads and writes every setting, and mirrors each write to the Xposed
@@ -68,6 +68,7 @@ class SettingsRepository(context: Context) {
         TrioSettings.from(preferences(), density, Prefs.normalizeTrioStyle(style))
 
     fun setEnabled(value: Boolean) = writeBoolean(Prefs.KEY_ENABLED, value)
+    fun setMergeIcons(value: Boolean) = writeBoolean(Prefs.KEY_MERGE_ICONS, value)
     fun setShowWifi(value: Boolean) = writeStyled(style(), Prefs.KEY_SHOW_WIFI) { e, k ->
         e.putBoolean(k, value) }
     fun setShowMobile(value: Boolean) = writeStyled(style(), Prefs.KEY_SHOW_MOBILE) { e, k ->
@@ -129,6 +130,8 @@ class SettingsRepository(context: Context) {
         // show up in the other arrangement on the next style switch.
         val style = Prefs.normalizeTrioStyle(next.trioStyle)
         val write: (SharedPreferences.Editor) -> Unit = { e ->
+            e.putBoolean(Prefs.KEY_ENABLED, next.enabled)
+            e.putBoolean(Prefs.KEY_MERGE_ICONS, next.mergeIcons)
             e.putString(Prefs.styledKey(Prefs.KEY_RING_LAYOUT, style),
                 Prefs.encodeLayout(next.ringZones))
             e.putBoolean(Prefs.styledKey(Prefs.KEY_SHOW_WIFI, style), next.showWifi)
@@ -138,6 +141,7 @@ class SettingsRepository(context: Context) {
             e.putBoolean(Prefs.styledKey(Prefs.KEY_SHOW_SIM_1, style), next.showSim1)
             e.putBoolean(Prefs.styledKey(Prefs.KEY_SHOW_SIM_2, style), next.showSim2)
             e.putInt(Prefs.styledKey(Prefs.KEY_MOBILE_TYPE_MODE, style), next.mobileTypeMode)
+            e.putInt(Prefs.styledKey(Prefs.KEY_SIGNAL_MODE, style), next.signalMode)
         }
         preferences().edit {
             write(this)
@@ -232,6 +236,10 @@ class SettingsRepository(context: Context) {
     fun setCapsuleLeftDy(value: Int) = writeInt(Prefs.KEY_CAPSULE_LEFT_DY, value)
     fun setCapsuleRightDx(value: Int) = writeInt(Prefs.KEY_CAPSULE_RIGHT_DX, value)
     fun setCapsuleRightDy(value: Int) = writeInt(Prefs.KEY_CAPSULE_RIGHT_DY, value)
+    fun setRingSpacingX(value: Int) = writeInt(Prefs.KEY_RING_SPACING_X, value)
+    fun setRingSpacingY(value: Int) = writeInt(Prefs.KEY_RING_SPACING_Y, value)
+    fun setReplaceWifiIcon(value: Boolean) = writeBoolean(Prefs.KEY_REPLACE_WIFI_ICON, value)
+    fun setReplaceStatusIcon(value: Boolean) = writeBoolean(Prefs.KEY_REPLACE_STATUS_ICON, value)
 
     fun setPerfTempChargingOnly(value: Boolean) =
         writeBoolean(Prefs.KEY_PERF_TEMP_CHARGING_ONLY, value)
@@ -375,7 +383,7 @@ class SettingsRepository(context: Context) {
 
     /** Overall size of the trio glyph, in percent - see [Prefs.KEY_GLYPH_SCALE]. */
     fun setGlyphScale(value: Int) = writeInt(Prefs.KEY_GLYPH_SCALE, value)
-
+    fun setFontPath(value: String) = writeString(Prefs.KEY_FONT_PATH, value)
     fun setDebugLog(value: Boolean) = writeBoolean(Prefs.KEY_DEBUG_LOG, value)
 
     /**
@@ -394,6 +402,7 @@ class SettingsRepository(context: Context) {
         val style = Prefs.normalizeTrioStyle(snapshot.trioStyle)
         push { prefs ->
             prefs.putBoolean(Prefs.KEY_ENABLED, snapshot.enabled)
+            prefs.putBoolean(Prefs.KEY_MERGE_ICONS, snapshot.mergeIcons)
             prefs.putBoolean(Prefs.styledKey(Prefs.KEY_SHOW_WIFI, style), snapshot.showWifi)
             prefs.putBoolean(Prefs.styledKey(Prefs.KEY_SHOW_MOBILE, style), snapshot.showMobile)
             prefs.putBoolean(Prefs.styledKey(Prefs.KEY_SHOW_VALUE, style), snapshot.showValue)
@@ -464,6 +473,7 @@ class SettingsRepository(context: Context) {
             prefs.putInt(Prefs.KEY_TYPE_SUFFIX_SCALE, snapshot.typeSuffixScale)
             prefs.putInt(Prefs.KEY_TYPE_WEIGHT, snapshot.typeWeight)
             prefs.putInt(Prefs.KEY_TRACK_ALPHA, snapshot.trackAlpha)
+            prefs.putString(Prefs.KEY_FONT_PATH, snapshot.fontPath)
 
             // Sent on connect as well as on write, because both are drawing sizes the
             // hooked process cannot re-derive: a value changed while the framework was

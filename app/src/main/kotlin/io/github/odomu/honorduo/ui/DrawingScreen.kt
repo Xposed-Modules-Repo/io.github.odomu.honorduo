@@ -16,8 +16,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -117,7 +115,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  */
 
 /** Row rhythm inside the editor card, matching the rest of the settings screen. */
-private val DrawingItemMargin = PaddingValues(horizontal = 18.dp, vertical = 16.dp)
+private val DrawingItemMargin = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
 
 /**
  * The battery and signal states the preview can be put into.
@@ -286,13 +284,13 @@ private fun DrawingEditorCard(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        DrawingSection(R.string.section_appearance, PaddingValues(0.dp)) {
+        DrawingSection(R.string.section_feature_switches, PaddingValues(0.dp)) {
             ContentControlRow(ContentControl.Enabled, settings, update)
-            ContentControlRow(ContentControl.Style, settings, update)
+            ContentControlRow(ContentControl.MergeIcons, settings, update)
             ContentControlRow(ContentControl.AntiBurnIn, settings, update)
         }
 
-        DrawingSection(R.string.drawing_quick_edit_title) {
+        DrawingSection(R.string.section_merge_style) {
             DrawingStyleSelector(
                 settings = settings,
                 scene = scene,
@@ -331,7 +329,6 @@ private fun DrawingEditorCard(
                 pressed = pressed,
                 onPressChange = { pressed = it },
                 // A press on the glyph opens that zone's picker.
-                onPickZone = chooseZone,
                 onEditZone = { zone ->
                     val part = TrioZones.occupant(
                         zone, appearance, scene.level, scene.charging,
@@ -344,12 +341,20 @@ private fun DrawingEditorCard(
                     }
                 },
                 onEditBattery = { editing = TrioSettingsPart.Battery },
+                onEditAppearance = { editing = TrioSettingsPart.Appearance },
                 modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
             )
 
-            if (!appearance.glyph) {
+            if (!appearance.enabled) {
                 Text(
                     text = stringResource(R.string.drawing_master_off),
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
+            } else if (!appearance.mergeIcons) {
+                Text(
+                    text = stringResource(R.string.drawing_merge_off),
                     style = MiuixTheme.textStyles.footnote2,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.padding(top = 10.dp),
@@ -988,6 +993,9 @@ private fun applyZoneAssignment(
         repository.applyRingAssignment(next)
         return
     }
+    if (next.enabled != settings.enabled) repository.setEnabled(next.enabled)
+    if (next.mergeIcons != settings.mergeIcons) repository.setMergeIcons(next.mergeIcons)
+    if (next.signalMode != settings.signalMode) repository.setSignalMode(next.signalMode)
     if (next.showWifi != settings.showWifi) repository.setShowWifi(next.showWifi)
     if (next.showMobile != settings.showMobile) repository.setShowMobile(next.showMobile)
     if (next.showValue != settings.showValue) repository.setShowValue(next.showValue)
@@ -1289,28 +1297,7 @@ private fun PriorityPreferenceRow(
         Box(
             modifier = Modifier
                 .weight(1f)
-                // The library row offers onClick and nothing else, so the long press goes on this wrapper instead of changing the library.
-                .pointerInput(part, onEdit) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        // The block returns normally when the gesture ENDS (finger up, or a drag past touch slop) and is cancelled by the timeout when it does not.
-                        val endedEarly = withTimeoutOrNull(
-                                viewConfiguration.longPressTimeoutMillis) {
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull { it.id == down.id }
-                                    ?: continue
-                                if (!change.pressed ||
-                                    (change.position - down.position).getDistance() >
-                                    viewConfiguration.touchSlop) {
-                                    break
-                                }
-                            }
-                            true
-                        }
-                        if (endedEarly == null) onEdit()
-                    }
-                },
+                .clickable(onClick = onEdit),
         ) {
             RadioButtonPreference(
                 title = stringResource(occupantLabelRes(part)),
@@ -1322,7 +1309,7 @@ private fun PriorityPreferenceRow(
                 },
                 selected = index == 0,
                 insideMargin = SettingsItemMargin,
-                onClick = {},
+                onClick = onEdit,
             )
         }
         Row(
@@ -1403,15 +1390,15 @@ private fun DrawingGlyph(
     dark: Boolean,
     pressed: TrioZones.Zone?,
     onPressChange: (TrioZones.Zone?) -> Unit,
-    onPickZone: (TrioZones.Zone) -> Unit,
     onEditZone: (TrioZones.Zone) -> Unit,
     onEditBattery: () -> Unit,
+    onEditAppearance: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val currentPress = rememberUpdatedState(onPressChange)
-    val currentPick = rememberUpdatedState(onPickZone)
     val currentEdit = rememberUpdatedState(onEditZone)
     val currentBattery = rememberUpdatedState(onEditBattery)
+    val currentAppearance = rememberUpdatedState(onEditAppearance)
 
     // The view the gestures interrogate. A plain holder rather than a MutableState.
     val holder = remember { arrayOfNulls<TrioPreviewView>(1) }
@@ -1436,9 +1423,8 @@ private fun DrawingGlyph(
                         tryAwaitRelease()
                         currentPress.value(null)
                     },
-                    onTap = { offset ->
-                        if (holder[0]?.isBatteryRingAt(offset.x, offset.y) == true) currentBattery.value()
-                        else zoneAt(offset)?.let { currentPick.value(it) }
+                    onTap = { _ ->
+                        currentAppearance.value()
                     },
                     onLongPress = { offset ->
                         if (holder[0]?.isBatteryRingAt(offset.x, offset.y) == true) currentBattery.value()

@@ -30,13 +30,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import io.github.odomu.honorduo.R
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.TrioAppearance
 import io.github.odomu.honorduo.model.TrioSettings
 import io.github.odomu.honorduo.render.TrioZones
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -180,7 +180,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setClockSize(v) },
             titleRes = { R.string.clock_size_title },
             summaryRes = { R.string.clock_size_summary },
-            enabled = { it.glyph },
+            enabled = { true },
         ),
         SliderSpec(
             group = GeometryGroup.Text,
@@ -192,7 +192,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setClockWeight(v) },
             titleRes = { R.string.clock_weight_title },
             summaryRes = { R.string.clock_weight_summary },
-            enabled = { it.glyph },
+            enabled = { true },
         ),
         SliderSpec(
             group = GeometryGroup.Text,
@@ -203,7 +203,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setClockTopOffsetX(v) },
             titleRes = { R.string.clock_top_offset_x_title },
             summaryRes = { R.string.clock_top_offset_x_summary },
-            enabled = { it.glyph },
+            enabled = { true },
             suffix = "dp",
         ),
         SliderSpec(
@@ -215,7 +215,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setClockBottomOffsetX(v) },
             titleRes = { R.string.clock_bottom_offset_x_title },
             summaryRes = { R.string.clock_bottom_offset_x_summary },
-            enabled = { it.glyph },
+            enabled = { true },
             suffix = "dp",
         ),
         SliderSpec(
@@ -227,7 +227,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setClockRowGap(v) },
             titleRes = { R.string.clock_row_gap_title },
             summaryRes = { R.string.clock_row_gap_summary },
-            enabled = { it.glyph },
+            enabled = { true },
             suffix = "dp",
         ),
         SliderSpec(
@@ -239,7 +239,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setClockLunarGap(v) },
             titleRes = { R.string.clock_lunar_gap_title },
             summaryRes = { R.string.clock_lunar_gap_summary },
-            enabled = { it.glyph && it.clockLunar },
+            enabled = { it.clockLunar },
             suffix = "dp",
         ),
         SliderSpec(
@@ -252,7 +252,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             titleRes = { R.string.glyph_scale_title },
             summaryRes = { R.string.glyph_scale_summary },
             // Gated on the master switch and nothing else: it sizes the glyph itself, so with the glyph off there is nothing for it to act on.
-            enabled = { it.glyph },
+            enabled = { true },
             suffix = "%",
         ),
         SliderSpec(
@@ -266,7 +266,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             titleRes = { R.string.perf_scale_title },
             summaryRes = { R.string.perf_scale_summary },
             // Gated on the two readout switches rather than on their own values: a reading that is not drawn has no size to set.
-            enabled = { it.glyph && it.perfPairShown() },
+            enabled = { it.perfPairShown() },
             suffix = "%",
         ),
         SliderSpec(
@@ -280,7 +280,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setPerfWeight(v) },
             titleRes = { R.string.perf_weight_title },
             summaryRes = { R.string.perf_weight_summary },
-            enabled = { it.glyph && it.perfPairShown() },
+            enabled = { it.perfPairShown() },
         ),
         SliderSpec(
             group = GeometryGroup.Text,
@@ -292,7 +292,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setPerfLineGap(v) },
             titleRes = { R.string.perf_line_gap_title },
             summaryRes = { R.string.perf_line_gap_summary },
-            enabled = { it.glyph && it.perfPairShown() },
+            enabled = { it.perfPairShown() },
             suffix = "dp",
         ),
         SliderSpec(
@@ -307,7 +307,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             // thickness, the ring on the outline's width.
             titleRes = { if (it.rect) R.string.stroke_title_rect else R.string.stroke_title },
             summaryRes = { if (it.rect) R.string.stroke_summary_rect else R.string.stroke_summary },
-            enabled = { it.glyph },
+            enabled = { true },
         ),
         SliderSpec(
             group = GeometryGroup.Scale,
@@ -318,7 +318,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setWifiScale(v) },
             titleRes = { R.string.wifi_scale_title },
             summaryRes = { R.string.wifi_scale_summary },
-            enabled = { it.glyph },
+            enabled = { true },
             suffix = "%",
         ),
         SliderSpec(
@@ -334,7 +334,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             summaryRes = {
                 if (it.rect) R.string.arc_stroke_summary_rect else R.string.arc_stroke_summary
             },
-            enabled = { it.glyph },
+            enabled = { true },
         ),
         SliderSpec(
             group = GeometryGroup.Text,
@@ -353,7 +353,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setValueSize(v) },
             titleRes = { R.string.value_size_title },
             summaryRes = { R.string.value_size_summary },
-            enabled = { it.glyph },
+            enabled = { true },
         ),
         SliderSpec(
             group = GeometryGroup.Text,
@@ -366,7 +366,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             titleRes = { R.string.value_weight_title },
             summaryRes = { R.string.value_weight_summary },
             // Gated on the percentage switch, deliberately not on drawsBolt() or any rule that folds this row's own value in.
-            enabled = { it.glyph && it.value },
+            enabled = { it.value },
         ),
         SliderSpec(
             group = GeometryGroup.Type,
@@ -378,7 +378,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             titleRes = { R.string.bolt_scale_title },
             summaryRes = { R.string.bolt_scale_summary },
             // Gated on the bolt's own switch ("show a bolt while charging"), not on drawsBolt().
-            enabled = { it.glyph && it.boltWanted },
+            enabled = { it.boltWanted },
             suffix = "%",
         ),
         SliderSpec(
@@ -393,7 +393,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             summaryRes = { R.string.bolt_speed_summary },
             // Only while there is an animation to speed up: a speed for a motion that is
             // switched off is not a choice, so the row is absent rather than greyed out.
-            enabled = { it.glyph && it.boltAnimates() },
+            enabled = { it.boltAnimates() },
             suffix = "%",
         ),
         /**
@@ -421,7 +421,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setDotScale(v) },
             titleRes = { R.string.dot_scale_title },
             summaryRes = { R.string.dot_scale_summary },
-            enabled = { it.glyph && it.ring },
+            enabled = { it.ring },
             suffix = "%",
         ),
         SliderSpec(
@@ -434,7 +434,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setTypeSize(v) },
             titleRes = { R.string.type_size_title },
             summaryRes = { R.string.type_size_summary },
-            enabled = { it.glyph && it.typeInRing },
+            enabled = { it.typeInRing },
         ),
         SliderSpec(
             group = GeometryGroup.Type,
@@ -445,7 +445,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setOutTypeSize(v) },
             titleRes = { R.string.out_type_size_title },
             summaryRes = { R.string.out_type_size_summary },
-            enabled = { it.glyph && it.typeOutOfRing },
+            enabled = { it.typeOutOfRing },
             suffix = "dp",
         ),
         SliderSpec(
@@ -460,7 +460,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             // Both the standalone label and the caption inside the reading shrink it.
             // A property of the label itself rather than of either position, so
             // "a network type is drawn somewhere" is the right gate.
-            enabled = { it.glyph && it.typeAnywhere() },
+            enabled = { it.typeAnywhere() },
         ),
         SliderSpec(
             group = GeometryGroup.Type,
@@ -473,7 +473,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             summaryRes = { R.string.out_type_margin_left_summary },
             // Only the standalone label has margins to set; in "above" mode the caption
             // is drawn inside the reading and these do nothing.
-            enabled = { it.glyph && it.typeOutOfRing && it.stackLabel == Prefs.STACK_LABEL_ALONE },
+            enabled = { it.typeOutOfRing && it.stackLabel == Prefs.STACK_LABEL_ALONE },
             suffix = "dp",
         ),
         SliderSpec(
@@ -485,7 +485,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setOutTypeMarginRight(v) },
             titleRes = { R.string.out_type_margin_right_title },
             summaryRes = { R.string.out_type_margin_right_summary },
-            enabled = { it.glyph && it.typeOutOfRing && it.stackLabel == Prefs.STACK_LABEL_ALONE },
+            enabled = { it.typeOutOfRing && it.stackLabel == Prefs.STACK_LABEL_ALONE },
             suffix = "dp",
         ),
         SliderSpec(
@@ -498,7 +498,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setTypeWeight(v) },
             titleRes = { R.string.type_weight_title },
             summaryRes = { R.string.type_weight_summary },
-            enabled = { it.glyph && it.typeAnywhere() },
+            enabled = { it.typeAnywhere() },
         ),
         SliderSpec(
             group = GeometryGroup.OutSignal,
@@ -511,7 +511,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             summaryRes = { R.string.out_signal_size_summary },
             // The size of the out-of-ring reading only exists while that reading does, so
             // both halves of the choice gate the row: the position and the stacked switch.
-            enabled = { it.glyph && it.stackedOut() },
+            enabled = { it.stackedOut() },
             suffix = "dp",
         ),
         SliderSpec(
@@ -523,7 +523,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setOutDotSize(v) },
             titleRes = { R.string.out_dot_size_title },
             summaryRes = { R.string.out_dot_size_summary },
-            enabled = { it.glyph && it.stackedOut() },
+            enabled = { it.stackedOut() },
             suffix = "%",
         ),
         SliderSpec(
@@ -535,7 +535,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setOutSignalMargin(v) },
             titleRes = { R.string.out_signal_margin_title },
             summaryRes = { R.string.out_signal_margin_summary },
-            enabled = { it.glyph && it.stackedOut() },
+            enabled = { it.stackedOut() },
             suffix = "dp",
         ),
         SliderSpec(
@@ -548,7 +548,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             titleRes = { R.string.cap_gap_title },
             summaryRes = { R.string.cap_gap_summary },
             // Only the capsule has cells to separate.
-            enabled = { it.glyph && it.capsule },
+            enabled = { it.capsule },
             suffix = "%",
         ),
         SliderSpec(
@@ -560,7 +560,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setCapsuleLength(v) },
             titleRes = { R.string.capsule_length_title },
             summaryRes = { R.string.capsule_length_summary },
-            enabled = { it.glyph && it.capsule },
+            enabled = { it.capsule },
         ),
         SliderSpec(
             group = GeometryGroup.Layout,
@@ -571,7 +571,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setCapsuleLeftDx(v) },
             titleRes = { R.string.capsule_nudge_left_dx_title },
             summaryRes = { R.string.capsule_nudge_left_dx_summary },
-            enabled = { it.glyph && it.capsule },
+            enabled = { it.capsule },
         ),
         SliderSpec(
             group = GeometryGroup.Layout,
@@ -582,7 +582,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setCapsuleLeftDy(v) },
             titleRes = { R.string.capsule_nudge_left_dy_title },
             summaryRes = { R.string.capsule_nudge_left_dy_summary },
-            enabled = { it.glyph && it.capsule },
+            enabled = { it.capsule },
         ),
         SliderSpec(
             group = GeometryGroup.Layout,
@@ -593,7 +593,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setCapsuleRightDx(v) },
             titleRes = { R.string.capsule_nudge_right_dx_title },
             summaryRes = { R.string.capsule_nudge_right_dx_summary },
-            enabled = { it.glyph && it.capsule },
+            enabled = { it.capsule },
         ),
         SliderSpec(
             group = GeometryGroup.Layout,
@@ -604,7 +604,33 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setCapsuleRightDy(v) },
             titleRes = { R.string.capsule_nudge_right_dy_title },
             summaryRes = { R.string.capsule_nudge_right_dy_summary },
-            enabled = { it.glyph && it.capsule },
+            enabled = { it.capsule },
+        ),
+        SliderSpec(
+            group = GeometryGroup.Layout,
+            part = null,
+            min = Prefs.MIN_RING_SPACING_X,
+            max = Prefs.MAX_RING_SPACING_X,
+            read = { it.ringSpacingX },
+            editorOwner = TrioSettingsPart.Appearance,
+            write = { r, v -> r.setRingSpacingX(v) },
+            titleRes = { R.string.ring_spacing_x_title },
+            summaryRes = { R.string.ring_spacing_x_summary },
+            enabled = { it.ring },
+            suffix = "px",
+        ),
+        SliderSpec(
+            group = GeometryGroup.Layout,
+            part = null,
+            min = Prefs.MIN_RING_SPACING_Y,
+            max = Prefs.MAX_RING_SPACING_Y,
+            read = { it.ringSpacingY },
+            editorOwner = TrioSettingsPart.Appearance,
+            write = { r, v -> r.setRingSpacingY(v) },
+            titleRes = { R.string.ring_spacing_y_title },
+            summaryRes = { R.string.ring_spacing_y_summary },
+            enabled = { it.ring },
+            suffix = "px",
         ),
         SliderSpec(
             group = GeometryGroup.Track,
@@ -616,7 +642,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             write = { r, v -> r.setTrackAlpha(v) },
             titleRes = { R.string.track_alpha_title },
             summaryRes = { R.string.track_alpha_summary },
-            enabled = { it.glyph },
+            enabled = { true },
         ),
     )
 }
@@ -727,7 +753,7 @@ internal fun PartSettingsSheet(
 
                 // Colour rows follow the same rule as everything else: no master
                 // switch, no rows at all.
-                if (colors.isNotEmpty() && a.glyph && part == TrioSettingsPart.Battery) {
+                if (colors.isNotEmpty() && part == TrioSettingsPart.Battery) {
                     SwitchPreference(
                         checked = a.roleColors,
                         title = stringResource(R.string.color_role_title),
@@ -768,7 +794,7 @@ internal fun PartSettingsSheet(
                     }
                 }
 
-                if (a.glyph && (a.roleColors || part == TrioSettingsPart.Clock || part == TrioSettingsPart.Readouts)) colors.forEach { role ->
+                if ((a.glyph && a.roleColors) || part == TrioSettingsPart.Clock || part == TrioSettingsPart.Readouts || part == TrioSettingsPart.Bolt) colors.forEach { role ->
                     ArrowPreference(
                         title = stringResource(role.labelRes),
                         summary = stringResource(R.string.color_field_summary),
@@ -783,9 +809,7 @@ internal fun PartSettingsSheet(
                     )
                 }
 
-                if ((part == TrioSettingsPart.Battery || part == TrioSettingsPart.Clock) &&
-                    a.glyph && (a.roleColors || part == TrioSettingsPart.Clock)
-                ) {
+                if (part == TrioSettingsPart.Battery || part == TrioSettingsPart.Clock || part == TrioSettingsPart.Bolt) {
                     ArrowPreference(
                         title = stringResource(R.string.color_reset),
                         summary = stringResource(R.string.color_reset_summary),

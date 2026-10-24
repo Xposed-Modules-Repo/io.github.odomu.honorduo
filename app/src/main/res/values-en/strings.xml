@@ -28,7 +28,7 @@
     <string name="card_clock_title">Clock &amp; Date</string>
     <string name="card_clock_summary">Seconds, 4 date formats, lunar calendar, weekday format and offset</string>
     <string name="section_appearance">Appearance</string>
-    <string name="card_appearance_summary">Master switch, ring/capsule style, burn-in protection and overall scaling</string>
+    <string name="card_appearance_summary">Overall icon scale, capsule padding, length and position nudges</string>
 
 
     <string name="drawing_priority_empty_summary">Nothing placed here yet. Use "Add component" below.</string>
@@ -84,7 +84,8 @@
     <string name="drawing_occupant_sim_1">SIM 1 dots</string>
     <string name="drawing_occupant_sim_2">SIM 2 dots</string>
     <string name="drawing_occupant_type">Network type</string>
-    <string name="drawing_master_off">The master switch is off: the preview still draws the style you pick, but the status bar will not.</string>
+    <string name="drawing_master_off">The module master switch is off: status bar enhancements are paused.</string>
+    <string name="drawing_merge_off">Trio merge is off; in-glyph components will appear as individual outside items.</string>
     <string name="drawing_settings_title">Settings for “%1$s”</string>
     <string name="drawing_settings_none">This part has no size or colour of its own.</string>
     <string name="drawing_close">Close</string>
@@ -102,13 +103,17 @@
     <string name="drawing_theme_light">Light background</string>
     <string name="drawing_theme_dark">Dark background</string>
 
+    <string name="section_feature_switches">Feature Switches</string>
+    <string name="section_merge_style">Merge Style</string>
+    <string name="master_module_title">Module master switch</string>
     <string name="master_title">Enable trio glyph</string>
+    <string name="merge_icons_summary">Turn off to show native battery with components outside</string>
 
     <string name="trio_style_title">Glyph style</string>
     <string name="trio_style_ring">Ring</string>
     <string name="trio_style_capsule">Capsule</string>
     <string name="anti_burn_in_title">Smart burn-in protection</string>
-    <string name="anti_burn_in_summary">Periodically shifts views by ±1dp every 30s to prevent OLED burn-in.</string>
+    <string name="anti_burn_in_summary">Periodic micro-shifts to protect OLED from burn-in</string>
     <string name="show_wifi_title">Wi-Fi arcs</string>
     <string name="show_wifi_summary">Draw the Wi-Fi arcs; the number of arcs follows the real signal level.</string>
 
@@ -134,6 +139,8 @@
     <string name="bolt_scale_summary" formatted="false">The default is 100% and the slider covers 60–160%.</string>
     <string name="show_bolt_summary">Show a bolt in the ring while charging.</string>
     <string name="bolt_anim_title">Charging animation</string>
+    <string name="bolt_anim_enabled_title">Enable charging animation</string>
+    <string name="bolt_anim_style_title">Animation style</string>
     <string name="bolt_speed_title">Animation speed</string>
     <string name="bolt_speed_summary" formatted="false">The default is 100% and the slider covers 50–200%. Shown only while the charging animation is on.</string>
     <string name="bolt_anim_summary">The bolt in the ring, capsule and rectangle loops through the chosen style while charging, twice as fast on a fast charger, and stops when the battery is full or unplugged. Off by default.</string>
@@ -309,6 +316,10 @@
 
     <string name="update_title">Check for updates</string>
     <string name="update_summary_idle">Fetches the newest release from GitHub.</string>
+    <string name="release_notes_title">Changelog</string>
+    <string name="release_notes_summary">View release notes and feature changes</string>
+    <string name="release_notes_loading">Loading changelog…</string>
+    <string name="release_notes_close">Close</string>
     <string name="update_checking">Checking…</string>
     <string name="update_uptodate">Up to date — %1$s</string>
     <string name="update_available">Version %1$s is available</string>
@@ -321,6 +332,7 @@
     <string name="update_download">Download</string>
     <string name="update_downloading">Downloading %1$d%%</string>
     <string name="update_ready">The new version has been downloaded.</string>
+    <string name="update_download_completed">Download completed, opening installer…</string>
     <string name="update_ready_summary">Android will ask you to confirm before installing.</string>
     <string name="update_install">Install</string>
     <string name="update_retry">Retry</string>
@@ -399,4 +411,26 @@
     <string name="capsule_nudge_right_dx_summary">Positive moves right, negative left.</string>
     <string name="capsule_nudge_right_dy_title">Right cell vertical</string>
     <string name="capsule_nudge_right_dy_summary">Positive moves down, negative up.</string>
+    <string name="ring_spacing_x_title">Ring horizontal spacing</string>
+    <string name="ring_spacing_x_summary">Adjust horizontal clearance between ring arcs and center content.</string>
+    <string name="ring_spacing_y_title">Ring vertical spacing</string>
+    <string name="ring_spacing_y_summary">Adjust vertical clearance between ring top/bottom openings and center content.</string>
+
+    <string name="group_update">Update</string>
+    <string name="group_launcher_icon">Launcher icon</string>
+    <string name="group_debug">Debug</string>
+    <string name="group_font">Font</string>
+    <string name="replace_wifi_icon_title">Replace Wi-Fi icon</string>
+    <string name="replace_wifi_icon_summary">Replace status bar Wi-Fi icon with built-in style (supports Wi-Fi 5/6/7)</string>
+    <string name="replace_status_icon_title">Replace status icons</string>
+    <string name="replace_status_icon_summary">Replace alarm, NFC, hotspot, VPN, Bluetooth, silent, vibrate, DND, etc. with built-in style</string>
+    <string name="font_title">Custom font</string>
+    <string name="font_summary_system">The system font. Tap to pick a font file (.ttf / .otf).</string>
+    <string name="font_installing">Installing…</string>
+    <string name="font_clear_title">Back to the system font</string>
+    <string name="font_clear_summary">Removes the installed font file; the trio text goes back to the system face.</string>
+    <string name="font_clear_summary_idle">The system font is already in use.</string>
+    <string name="font_applied">Applied %1$s</string>
+    <string name="font_not_a_font">That file is not a font (only .ttf / .otf), ignored</string>
+    <string name="font_failed">Could not install the font, please try again</string>
 </resources>

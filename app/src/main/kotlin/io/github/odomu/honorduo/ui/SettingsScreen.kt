@@ -15,9 +15,12 @@ package io.github.odomu.honorduo.ui
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -113,11 +116,6 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.pm.PackageInfoCompat
-import io.github.odomu.honorduo.HonorDuoApp
-import io.github.odomu.honorduo.R
-import io.github.odomu.honorduo.model.Prefs
-import io.github.odomu.honorduo.model.TrioAppearance
-import io.github.odomu.honorduo.model.TrioSettings
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.drawPlainBackdrop
@@ -128,6 +126,11 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightStyle
 import io.github.libxposed.service.XposedService
+import io.github.odomu.honorduo.HonorDuoApp
+import io.github.odomu.honorduo.R
+import io.github.odomu.honorduo.model.Prefs
+import io.github.odomu.honorduo.model.TrioAppearance
+import io.github.odomu.honorduo.model.TrioSettings
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import top.yukonga.miuix.kmp.basic.Button
@@ -161,6 +164,7 @@ import top.yukonga.miuix.kmp.shader.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import java.io.File
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
@@ -174,7 +178,7 @@ import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
  * from `PartControls.kt`, and the two pages have to agree about the
  * rhythm or a shared row would sit differently depending on who drew it.
  */
-internal val SettingsItemMargin = PaddingValues(horizontal = 18.dp, vertical = 14.dp)
+internal val SettingsItemMargin = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
 
 /**
  * Group heading. Miuix's [SmallTitle] defaults to a 28.dp vertical margin, which
@@ -301,6 +305,14 @@ fun SettingsScreen(repository: SettingsRepository) {
     // different version string, so its notes open again, which is the point: it is different
     // news.
     var dismissedUpdateVersion by rememberSaveable { mutableStateOf<String?>(null) }
+    var showingReleaseNotes by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        if (HAS_REPO) {
+            updater.check()
+        }
+    }
+
 
     // Same reasoning as the updater: the dialog can be dismissed mid-kill, and a
     // root prompt that outlives the dialog still has to land somewhere.
@@ -347,6 +359,51 @@ fun SettingsScreen(repository: SettingsRepository) {
             scope.launch {
                 snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
             }
+        }
+    }
+    var lastInstalledPath by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(updater.state) {
+        val ready = updater.state as? UpdateState.Ready ?: return@LaunchedEffect
+        val path = ready.file.absolutePath
+        if (path == lastInstalledPath) return@LaunchedEffect
+        lastInstalledPath = path
+        showMessage(context.getString(R.string.update_download_completed))
+        when (updater.install(ready.file)) {
+            InstallResult.Started -> Unit
+            InstallResult.NeedsPermission -> {
+                showMessage(context.getString(R.string.update_permission_needed))
+                updater.openInstallPermissionScreen()
+            }
+            InstallResult.NoInstaller -> {
+                showMessage(context.getString(R.string.update_install_failed))
+            }
+        }
+    }
+
+    var installingFont by rememberSaveable { mutableStateOf(false) }
+    val fontContext = LocalContext.current
+    val fontPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        installingFont = true
+        scope.launch {
+            when (val result = FontInstaller.install(fontContext, uri)) {
+                is FontInstaller.Result.Installed -> {
+                    val previous = settingsState.value.fontPath
+                    if (previous.isNotEmpty() && previous != result.path) {
+                        FontInstaller.remove(previous)
+                    }
+                    update { it.setFontPath(result.path) }
+                    showMessage(fontContext.getString(R.string.font_applied, result.name))
+                }
+                FontInstaller.Result.NotAFont ->
+                    showMessage(fontContext.getString(R.string.font_not_a_font))
+                is FontInstaller.Result.Failed -> {
+                    showMessage(fontContext.getString(R.string.font_failed))
+                }
+            }
+            installingFont = false
         }
     }
 
@@ -483,6 +540,18 @@ fun SettingsScreen(repository: SettingsRepository) {
 
                                 SettingsTab.About -> aboutTab(
                                     settingsState.value, serviceState.value, updater, showMessage,
+                                    installingFont = installingFont,
+                                    onChooseFont = { fontPicker.launch(arrayOf("*/*")) },
+                                    onClearFont = { fontPath ->
+                                        update { it.setFontPath("") }
+                                        scope.launch { FontInstaller.remove(fontPath) }
+                                    },
+                                    onCheck = {
+                                        dismissedUpdateVersion = null
+                                        lastInstalledPath = null
+                                        updater.check()
+                                    },
+                                    onOpenReleaseNotes = { showingReleaseNotes = true },
                                 ) { block -> update(block) }
                             }
                         }
@@ -577,12 +646,22 @@ fun SettingsScreen(repository: SettingsRepository) {
             // recycled. It reads the state the check already produced, so it opens by itself
             // the moment a release turns up.
             val available = updater.state as? UpdateState.Available
-            UpdateNotesDialog(
-                info = available?.info?.takeIf { it.version != dismissedUpdateVersion },
-                current = available?.current.orEmpty(),
-                onDismiss = { dismissedUpdateVersion = available?.info?.version },
+            val downloadingInfo = (updater.state as? UpdateState.Downloading)?.info
+            val currentInfo = available?.info ?: downloadingInfo
+            val downloadProgress = (updater.state as? UpdateState.Downloading)?.progress
+            val autoShowUpdate = currentInfo?.takeIf { it.version != dismissedUpdateVersion }
+            ReleaseNotesDialog(
+                show = showingReleaseNotes || autoShowUpdate != null,
+                info = currentInfo,
+                currentVersion = available?.current,
+                downloadProgress = downloadProgress,
+                onDismiss = {
+                    showingReleaseNotes = false
+                    if (autoShowUpdate != null) {
+                        dismissedUpdateVersion = autoShowUpdate.version
+                    }
+                },
                 onDownload = { info ->
-                    dismissedUpdateVersion = info.version
                     updater.download(info)
                 },
             )
@@ -1351,7 +1430,7 @@ private fun SectionList(
             // Match the reference's opaque page surface while both pages animate.
             .background(MiuixTheme.colorScheme.surface),
         contentPadding = contentPadding,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         content()
     }
@@ -1367,11 +1446,11 @@ private fun SettingPreviewCard(
     onClick: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
         onClick = onClick,
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -1488,12 +1567,20 @@ private fun LazyListScope.aboutTab(
     service: XposedService?,
     updater: UpdateController,
     showMessage: (String) -> Unit,
+    installingFont: Boolean,
+    onChooseFont: () -> Unit,
+    onClearFont: (String) -> Unit,
+    onCheck: () -> Unit,
+    onOpenReleaseNotes: () -> Unit,
     update: ((SettingsRepository) -> Unit) -> Unit,
 ) {
     item { ActivatedRow(settings = settings, service = service) }
     item { InfoCard(service = service) }
-    item { UpdateCard(updater, showMessage) }
+    item { SectionTitle(stringResource(R.string.group_update)) }
+    item { UpdateCard(updater, showMessage, onCheck, onOpenReleaseNotes) }
+    item { SectionTitle(stringResource(R.string.group_launcher_icon)) }
     item { LauncherIconCard() }
+    item { SectionTitle(stringResource(R.string.group_debug)) }
     item {
         Card {
             SwitchPreference(
@@ -1502,6 +1589,35 @@ private fun LazyListScope.aboutTab(
                 title = stringResource(R.string.debug_title),
                 summary = stringResource(R.string.debug_summary),
                 insideMargin = SettingsItemMargin,
+            )
+        }
+    }
+    item { SectionTitle(stringResource(R.string.group_font)) }
+    item {
+        Card {
+            val chosen = settings.fontPath
+            ArrowPreference(
+                title = stringResource(R.string.font_title),
+                summary = when {
+                    installingFont -> stringResource(R.string.font_installing)
+                    chosen.isEmpty() -> stringResource(R.string.font_summary_system)
+                    else -> File(chosen).name
+                },
+                insideMargin = SettingsItemMargin,
+                enabled = !installingFont,
+                onClick = onChooseFont,
+            )
+            val nothingToClear = chosen.isEmpty()
+            ArrowPreference(
+                title = stringResource(R.string.font_clear_title),
+                summary = if (nothingToClear) {
+                    stringResource(R.string.font_clear_summary_idle)
+                } else {
+                    stringResource(R.string.font_clear_summary)
+                },
+                insideMargin = SettingsItemMargin,
+                enabled = !nothingToClear && !installingFont,
+                onClick = { onClearFont(chosen) },
             )
         }
     }
@@ -1537,83 +1653,6 @@ private fun LazyListScope.aboutTab(
 }
 
 /**
- * The release notes in full, after a check turns one up.
- *
- * The card can only show one elided line, and a release's notes are the only thing a user
- * can weigh before committing to an install - so they get a dialog of their own rather than a
- * two-line excerpt. Opened by the check itself, not by a second tap: the answer to "is there a
- * new version" is the notes, and asking the user to go find them is the interruption, not the
- * dialog.
- *
- * @param info the release that was found, or null when there is nothing to show. Passing null
- *   rather than a separate `show` flag keeps the two from disagreeing.
- */
-@Composable
-private fun UpdateNotesDialog(
-    info: UpdateInfo?,
-    current: String,
-    onDismiss: () -> Unit,
-    onDownload: (UpdateInfo) -> Unit,
-) {
-    if (info == null) {
-        return
-    }
-    OverlayDialog(
-        show = true,
-        title = stringResource(R.string.update_dialog_title, info.version),
-        summary = stringResource(
-            R.string.update_dialog_summary,
-            current,
-            formatSize(info.apkSize),
-        ),
-        onDismissRequest = onDismiss,
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = stringResource(R.string.update_dialog_notes_title),
-                style = MiuixTheme.textStyles.subtitle,
-                modifier = Modifier.padding(bottom = 6.dp),
-            )
-            // Scrollable and height-capped: release notes run to paragraphs, and an unbounded
-            // body would push the buttons off the bottom of the dialog.
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 260.dp)
-                    .verticalScroll(rememberScrollState()),
-            ) {
-                val notes = info.notes.trim()
-                Text(
-                    text = notes.ifEmpty { stringResource(R.string.update_dialog_no_notes) },
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                )
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                TextButton(
-                    text = stringResource(R.string.update_dialog_later),
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f),
-                )
-                Button(
-                    onClick = { onDownload(info) },
-                    colors = ButtonDefaults.buttonColorsPrimary(),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(text = stringResource(R.string.update_download))
-                }
-            }
-        }
-    }
-}
-
-/**
  * The in-app updater.
  *
  * The card is a short stack of Miuix preference rows, one per action the
@@ -1629,25 +1668,36 @@ private fun UpdateNotesDialog(
  * card out of view and back does not restart a download in flight.
  */
 @Composable
-private fun UpdateCard(updater: UpdateController, showMessage: (String) -> Unit) {
+private fun UpdateCard(
+    updater: UpdateController,
+    showMessage: (String) -> Unit,
+    onCheck: () -> Unit,
+    onOpenReleaseNotes: () -> Unit,
+) {
     val state = updater.state
+    val isDownloading = state is UpdateState.Downloading
+    val isChecking = state is UpdateState.Checking
+    val isAvailable = state is UpdateState.Available
+    val context = LocalContext.current
+    val currentVersion = remember(context) {
+        runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName
+        }.getOrNull()?.takeIf { it.isNotBlank() } ?: "1.0.1"
+    }
+    val scope = rememberCoroutineScope()
+    var isFetchingNotes by remember { mutableStateOf(false) }
 
-    // Null only for Ready, where the row's own title is already the whole status
-    // and a summary would print the same sentence a second time.
     val status: String? = when (state) {
         is UpdateState.Idle -> stringResource(R.string.update_summary_idle)
         is UpdateState.Checking -> stringResource(R.string.update_checking)
         is UpdateState.UpToDate -> stringResource(R.string.update_uptodate, state.current)
         is UpdateState.NoRelease -> stringResource(R.string.update_no_release)
-        is UpdateState.Available -> stringResource(R.string.update_available, state.info.version)
+        is UpdateState.Available -> null
         is UpdateState.Downloading -> stringResource(
             R.string.update_downloading,
             (state.progress * 100f).toInt(),
         )
-
-        is UpdateState.Ready -> null
-        
-        // would lose its meaning if it were run through a string resource.
+        is UpdateState.Ready -> stringResource(R.string.update_download_completed)
         is UpdateState.Failed -> listOfNotNull(
             stringResource(
                 if (HAS_REPO) R.string.update_failed else R.string.update_unconfigured,
@@ -1656,53 +1706,48 @@ private fun UpdateCard(updater: UpdateController, showMessage: (String) -> Unit)
         ).joinToString(" · ")
     }
 
-    // A download reports itself under the row it belongs to, where the bar spans
-    // the same width as the text instead of sitting in a slot of its own.
-    val progressBar: (@Composable () -> Unit)? = if (state is UpdateState.Downloading) {
-        {
-            LinearProgressIndicator(
-                // Null means the server never declared a length: the bar then
-                // animates instead of claiming a progress it does not have.
-                progress = state.progress.takeIf { it > 0f },
-                modifier = Modifier.fillMaxWidth(),
-            )
+    val updateNotice: (@Composable () -> Unit)? = when {
+        isDownloading -> {
+            {
+                LinearProgressIndicator(
+                    progress = (state as? UpdateState.Downloading)?.progress?.takeIf { it > 0f },
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                )
+            }
         }
-    } else {
-        null
-    }
-
-    // Both states that are waiting on the network replace the row's arrow with a
-    // spinner, so the row still says "working" once the summary word has stopped
-    // being the thing the eye lands on. The branches are written out one by one
-    // because the arrow is the default and cannot be restored by passing null.
-    val busy = state is UpdateState.Checking || state is UpdateState.Downloading
-
-    // Each row is titled with the verb it performs, so a failure offers "retry"
-    // and a download in flight says "download", instead of both calling
-    // themselves "check for updates" while doing something else.
-    val rowTitle = when (state) {
-        is UpdateState.Downloading -> stringResource(R.string.update_download)
-        is UpdateState.Failed ->
-            stringResource(if (HAS_REPO) R.string.update_retry else R.string.update_title)
-        // Not "check for updates": this row no longer offers a check, because a
-        // fresh check would drop the download the next row is about to install.
-        is UpdateState.Ready -> stringResource(R.string.update_ready)
-        else -> stringResource(R.string.update_title)
+        isAvailable -> {
+            {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 2.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFE53935)),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = stringResource(R.string.update_available, (state as UpdateState.Available).info.version),
+                        fontSize = 13.sp,
+                        color = Color(0xFFE53935),
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+            }
+        }
+        else -> null
     }
 
     Card {
-        // The one row that is always there: it reports the state and, whenever
-        // nothing is in flight and nothing is waiting to be installed, offers
-        // another look at the release feed. It is also the retry action after a
-        
-        // second row called "retry" to find that out would be one row too many.
-        if (busy) {
-            ArrowPreference(
-                title = rowTitle,
-                summary = status,
-                insideMargin = SettingsItemMargin,
-                enabled = false,
-                endActions = {
+        ArrowPreference(
+            title = stringResource(R.string.update_title),
+            summary = status,
+            insideMargin = SettingsItemMargin,
+            enabled = !isDownloading,
+            endActions = {
+                if (isChecking) {
                     Box(
                         modifier = Modifier
                             .padding(end = 8.dp)
@@ -1711,116 +1756,38 @@ private fun UpdateCard(updater: UpdateController, showMessage: (String) -> Unit)
                     ) {
                         CircularProgressIndicator(size = 20.dp)
                     }
-                },
-                bottomAction = progressBar,
-            )
-        } else if (state is UpdateState.Ready) {
-            // Reporting only, and deliberately not tappable: checking again would
-            // replace "downloaded" with "up to date" and take the install row down
-            // with it, costing the user a second download of a file already on
-            // disk. The empty endActions removes the arrow, which would otherwise
-            // promise an action this row does not have.
-            ArrowPreference(
-                title = rowTitle,
-                summary = null,
-                insideMargin = SettingsItemMargin,
-                endActions = {},
-            )
-        } else if (!HAS_REPO) {
-            // No repository in this build: the row states that instead of offering a
-            // check that could only ever fail. Still a row rather than nothing, so the
-            // card does not silently disappear from the About page.
-            ArrowPreference(
-                title = stringResource(R.string.update_title),
-                summary = stringResource(R.string.update_unconfigured),
-                insideMargin = SettingsItemMargin,
-                enabled = false,
-                endActions = {},
-            )
-        } else {
-            ArrowPreference(
-                title = rowTitle,
-                summary = status,
-                insideMargin = SettingsItemMargin,
-                onClick = { updater.check() },
-            )
-        }
-
-        if (state is UpdateState.Available) {
-            // What the install would cost: the version being replaced and the
-            // download size, so the choice can be made before tapping.
-            val notes = state.info.notes.lines().firstOrNull { it.isNotBlank() }
-            // The release notes are the only thing the user can weigh before
-            // committing to an install, so a short excerpt earns its place.
-            val noteExcerpt: (@Composable () -> Unit)? = if (notes == null) {
-                null
-            } else {
-                {
-                    Text(
-                        text = notes,
-                        fontSize = 13.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
                 }
-            }
+            },
+            bottomAction = updateNotice,
+            onClick = onCheck,
+        )
 
-            ArrowPreference(
-                title = stringResource(R.string.update_download),
-                summary = stringResource(
-                    R.string.update_available_summary,
-                    state.current,
-                    formatSize(state.info.apkSize),
-                ),
-                insideMargin = SettingsItemMargin,
-                bottomAction = noteExcerpt,
-                onClick = { updater.download(state.info) },
-            )
-        }
-
-        if (state is UpdateState.Ready) {
-            // Resolved before the click, not inside it: a string resource needs a
-            // composable context, and the snackbar is raised from a lambda.
-            val refusedHint = stringResource(R.string.update_permission_needed)
-            val failedHint = stringResource(R.string.update_install_failed)
-            ArrowPreference(
-                title = stringResource(R.string.update_install),
-                summary = stringResource(R.string.update_ready_summary),
-                insideMargin = SettingsItemMargin,
-                onClick = {
-                    when (updater.install(state.file)) {
-                        InstallResult.Started -> Unit
-
-                        // Only this case is the user's to fix, and only the system
-                        // settings page can hand over the grant. The message says why
-                        // the screen changed under the finger.
-                        InstallResult.NeedsPermission -> {
-                            showMessage(refusedHint)
-                            updater.openInstallPermissionScreen()
-                        }
-
-                        // Granting a permission the app already holds would lead to
-                        // a settings page with nothing to change.
-                        InstallResult.NoInstaller -> showMessage(failedHint)
+        ArrowPreference(
+            title = stringResource(R.string.release_notes_title),
+            summary = stringResource(R.string.release_notes_summary),
+            insideMargin = SettingsItemMargin,
+            endActions = {
+                if (isFetchingNotes) {
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .size(26.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(size = 20.dp)
                     }
-                },
-            )
-        }
+                }
+            },
+            onClick = {
+                scope.launch {
+                    isFetchingNotes = true
+                    ReleaseNotesLoader.fetch(targetVersion = currentVersion, forceRefresh = true)
+                    isFetchingNotes = false
+                    onOpenReleaseNotes()
+                }
+            },
+        )
 
-        // Both states where the user may want to read more than the card can
-        // hold get a way out, and only those states need one.
-        if (HAS_REPO && (state is UpdateState.Available || state is UpdateState.Failed)) {
-            ArrowPreference(
-                title = stringResource(R.string.update_release_page),
-                insideMargin = SettingsItemMargin,
-                onClick = {
-                    updater.openInBrowser(
-                        (state as? UpdateState.Available)?.info?.pageUrl ?: RELEASES_PAGE,
-                    )
-                },
-            )
-        }
 
         // Last, and unlike every row above it, always present: the repository is
         

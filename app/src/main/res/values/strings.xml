@@ -14,7 +14,7 @@
     <string name="tab_layout">排布</string>
     <string name="tab_settings">设置</string>
     <string name="section_appearance">基础外观</string>
-    <string name="card_appearance_summary">三合一总开关、圆环与胶囊样式选择、智能防烧屏及整体尺寸微调</string>
+    <string name="card_appearance_summary">图标整体尺寸、胶囊内边距、胶囊长度及位置微调</string>
     <string name="card_battery_title">电池电量</string>
     <string name="card_battery_summary">电量数字、百分比、充电显示、电量字号字重、低电量阈值与状态颜色</string>
         <string name="card_wifi_title">无线网络</string>
@@ -137,18 +137,23 @@
     <string name="perf_temp_summary">把电池温度作为一个独立组件绘制。</string>
     <string name="perf_running_summary">未充电时把瓦数作为一个独立组件绘制。</string>
     <string name="perf_fps_summary">把屏幕当前的刷新率作为一个独立组件绘制。</string>
-    <string name="drawing_master_off">已关闭总开关，预览按你选的样式照画，但状态栏不会显示。</string>
+    <string name="drawing_master_off">已关闭模块总开关，所有增强功能已暂停显示。</string>
+    <string name="drawing_merge_off">已关闭三合一图标合并，环内组件将在状态栏作为独立组件自动外显。</string>
     <string name="drawing_settings_title">「%1$s」的设置</string>
     <string name="drawing_settings_none">这一项没有可调的尺寸或颜色。</string>
     <string name="drawing_close">关闭</string>
 
+    <string name="section_feature_switches">功能开关</string>
+    <string name="section_merge_style">合并风格</string>
+    <string name="master_module_title">模块总开关</string>
     <string name="master_title">启用三合一图标</string>
+    <string name="merge_icons_summary">关闭后保留原生电池，组件自动外显</string>
 
     <string name="trio_style_title">三合一样式</string>
     <string name="trio_style_ring">圆环</string>
     <string name="trio_style_capsule">胶囊</string>
     <string name="anti_burn_in_title">智能防烧屏</string>
-    <string name="anti_burn_in_summary">每隔 30 秒在微米级像素网格（±1dp）内循环位移，避免 OLED 屏幕长时间常驻显示产生残影。</string>
+    <string name="anti_burn_in_summary">周期性微幅位移，保护 OLED 屏幕防残影</string>
     <string name="show_wifi_title">显示 Wi-Fi 弧</string>
     <string name="show_wifi_summary">最外层绘制 Wi-Fi 弧，弧数跟随信号强度。</string>
 
@@ -169,6 +174,8 @@
     <string name="bolt_scale_summary" formatted="false">默认 100%，可调 60–160%。</string>
     <string name="show_bolt_summary">充电时环内改为闪电图标。</string>
     <string name="bolt_anim_title">充电动画</string>
+    <string name="bolt_anim_enabled_title">启用充电动画</string>
+    <string name="bolt_anim_style_title">动画风格</string>
     <string name="bolt_speed_title">动画速度</string>
     <string name="bolt_speed_summary" formatted="false">默认 100%，可调 50–200%。只在开启充电动画后出现。</string>
     <string name="bolt_anim_summary">圆环、胶囊与矩形里的闪电按所选样式循环播放，充满电或拔掉充电器即停；快充时速度快一倍。默认关闭。</string>
@@ -344,6 +351,10 @@
 
     <string name="update_title">检查更新</string>
     <string name="update_summary_idle">从 GitHub Releases 获取最新版本。</string>
+    <string name="release_notes_title">更新日志</string>
+    <string name="release_notes_summary">查看详细版本更新说明与功能变动</string>
+    <string name="release_notes_loading">正在加载最新更新文档…</string>
+    <string name="release_notes_close">关闭</string>
     <string name="update_checking">正在检查…</string>
     <string name="update_uptodate">已是最新版本 %1$s</string>
     <string name="update_available">发现新版本 %1$s</string>
@@ -356,6 +367,7 @@
     <string name="update_download">下载更新</string>
     <string name="update_downloading">正在下载 %1$d%%</string>
     <string name="update_ready">新版本已下载完成。</string>
+    <string name="update_download_completed">下载完成，正在跳转安装…</string>
     <string name="update_ready_summary">系统会弹出安装确认，确认后生效。</string>
     <string name="update_install">安装</string>
     <string name="update_retry">重试</string>
@@ -397,4 +409,26 @@
     <string name="capsule_nudge_right_dx_summary">正值右移，负值左移。</string>
     <string name="capsule_nudge_right_dy_title">右格垂直位置</string>
     <string name="capsule_nudge_right_dy_summary">正值下移，负值上移。</string>
+    <string name="ring_spacing_x_title">圆环左右间距</string>
+    <string name="ring_spacing_x_summary">调整圆环左右两段圆弧与中间内容的水平间距，正值向外展开，负值向内收拢。</string>
+    <string name="ring_spacing_y_title">圆环上下间距</string>
+    <string name="ring_spacing_y_summary">调整圆环顶部和底部内容与中间内容的垂直间距，正值向外扩大，负值向内紧凑。</string>
+
+    <string name="group_update">更新</string>
+    <string name="group_launcher_icon">桌面图标</string>
+    <string name="group_debug">调试</string>
+    <string name="group_font">字体</string>
+    <string name="replace_wifi_icon_title">替换 WiFi 图标</string>
+    <string name="replace_wifi_icon_summary">状态栏 WiFi 图标换成内置风格（支持 WiFi 5 / 6 / 7 等）</string>
+    <string name="replace_status_icon_title">替换状态图标</string>
+    <string name="replace_status_icon_summary">闹钟、NFC、热点、VPN、蓝牙、静音、振动、勿扰、护眼、定位等状态图标换成内置风格</string>
+    <string name="font_title">自定义字体</string>
+    <string name="font_summary_system">系统默认字体。点按选择字体文件（.ttf / .otf）。</string>
+    <string name="font_installing">正在安装…</string>
+    <string name="font_clear_title">恢复系统字体</string>
+    <string name="font_clear_summary">移除已安装的字体文件，三合一文字回到系统字体。</string>
+    <string name="font_clear_summary_idle">当前就是系统字体，无需恢复。</string>
+    <string name="font_applied">已应用字体 %1$s</string>
+    <string name="font_not_a_font">这个文件不是字体（只支持 .ttf / .otf），已忽略</string>
+    <string name="font_failed">字体安装失败，请重试</string>
 </resources>

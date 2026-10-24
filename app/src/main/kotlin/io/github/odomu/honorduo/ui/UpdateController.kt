@@ -241,17 +241,17 @@ internal class UpdateController(private val context: Context) {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
                     val dir = File(context.cacheDir, "updates").apply { mkdirs() }
-                    // A name that changes with the release, so a stale download
-                    // from a previous check can never be installed by accident.
                     val file = File(dir, sanitise(info.apkName, info.version))
                     downloadFrom(info, file) { fraction ->
-                        state = UpdateState.Downloading(info, fraction)
+                        scope.launch(Dispatchers.Main.immediate) {
+                            state = UpdateState.Downloading(info, fraction)
+                        }
                     }
                     file
                 }
             }
             state = result.fold(
-                onSuccess = { UpdateState.Ready(info, it) },
+                onSuccess = { file -> UpdateState.Ready(info, file) },
                 onFailure = { UpdateState.Failed(it.message ?: it.javaClass.simpleName) },
             )
         }

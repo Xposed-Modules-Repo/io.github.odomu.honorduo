@@ -39,12 +39,14 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
  * user to choose between states the layout already decides.
  */
 internal enum class ContentControl(val owner: TrioSettingsPart) {
-    /** Master switch, then layout: both decide what exists at all. */
     Enabled(TrioSettingsPart.Appearance),
+    MergeIcons(TrioSettingsPart.Appearance),
     Style(TrioSettingsPart.Appearance),
     AntiBurnIn(TrioSettingsPart.Appearance),
     SignalColumns(TrioSettingsPart.Mobile),
     Wifi(TrioSettingsPart.Wifi),
+    ReplaceWifiIcon(TrioSettingsPart.Wifi),
+    ReplaceStatusIcon(TrioSettingsPart.Appearance),
     /**
      * The signal card: one switch for the aggregate meter, then one per card.
      *
@@ -76,15 +78,9 @@ internal enum class ContentControl(val owner: TrioSettingsPart) {
      * of content. Resolved per frame, so nothing stored changes when the cable moves.
      */
     ChargingShowsValue(TrioSettingsPart.Battery),
-    Bolt(TrioSettingsPart.Battery),
-    /**
-     * How the charging bolt moves.
-     *
-     * Owned by the bolt: it is a property of that piece, not a reading of its own. Off
-     * by default - every style loops for as long as the charger is attached, and an
-     * always-running animation is not every user's idea of a status bar.
-     */
-    BoltAnim(TrioSettingsPart.Battery),
+    Bolt(TrioSettingsPart.Bolt),
+    BoltAnimEnabled(TrioSettingsPart.Bolt),
+    BoltAnim(TrioSettingsPart.Bolt),
     /**
      * Network type, and the ONE piece that has a position choice of its own.
      *
@@ -131,10 +127,9 @@ internal enum class ContentControl(val owner: TrioSettingsPart) {
 
 internal fun contentControlsFor(part: TrioSettingsPart): List<ContentControl> =
     ContentControl.entries.filter {
-        // Exclude controls already placed prominently on the Layout tab (Enabled, Style, AntiBurnIn)
-        // and redundant in-ring/out-of-ring position dropdown (Type) to prevent duplicate UI.
-        it.owner == part && it != ContentControl.Type && it != ContentControl.Wifi &&
-            !(part == TrioSettingsPart.Appearance && (it == ContentControl.Enabled || it == ContentControl.Style || it == ContentControl.AntiBurnIn))
+        val matchesOwner = it.owner == part || (part == TrioSettingsPart.Battery && it == ContentControl.Bolt)
+        matchesOwner && !(part == TrioSettingsPart.Appearance &&
+            (it == ContentControl.Enabled || it == ContentControl.MergeIcons || it == ContentControl.Style || it == ContentControl.AntiBurnIn))
     }
 
 @Composable
@@ -147,9 +142,40 @@ internal fun ContentControlRow(
     val a = TrioAppearance.of(settings)
     val master = listOf(a.glyph to R.string.master_title)
 
+    val positioned = when (control) {
+        ContentControl.Value -> TrioZones.Part.VALUE
+        ContentControl.Bolt -> TrioZones.Part.BOLT
+        ContentControl.Type -> TrioZones.Part.TYPE
+        ContentControl.Clock -> TrioZones.Part.CLOCK
+        ContentControl.Fps -> TrioZones.Part.FPS
+        ContentControl.Power -> TrioZones.Part.POWER
+        ContentControl.RunningPower -> TrioZones.Part.RUNNING
+        ContentControl.Temperature -> TrioZones.Part.TEMP
+        else -> null
+    }
+    if (control == ContentControl.Type) {
+        TypePositionControl(settings, update, zonesAllowed = a.slotted)
+        return
+    }
+    if ((a.ring || a.capsule) && positioned != null && !a.rect) {
+        RingPositionControl(positioned, ringSettings, update)
+        if (control == ContentControl.Clock) return
+    }
+    if (control == ContentControl.Mobile) {
+        SignalPositionControl(settings, update)
+    }
+    if (control == ContentControl.Sim1 && a.slotted) {
+        SignalCardPositionControl(TrioZones.Part.SIM_1, settings, update, visible = signalInsideRing(a))
+    }
+    if (control == ContentControl.Sim2 && a.slotted) {
+        SignalCardPositionControl(TrioZones.Part.SIM_2, settings, update, visible = signalInsideRing(a))
+    }
+
     when (control) {
-        ContentControl.Enabled -> ContentToggle(settings.enabled, R.string.master_title,
+        ContentControl.Enabled -> ContentToggle(settings.enabled, R.string.master_module_title,
             null, emptyList()) { value -> update { it.setEnabled(value) } }
+        ContentControl.MergeIcons -> ContentToggle(settings.mergeIcons, R.string.master_title,
+            R.string.merge_icons_summary, listOf(settings.enabled to R.string.master_module_title)) { value -> update { it.setMergeIcons(value) } }
         ContentControl.Style -> {
             val styles = listOf(Prefs.STYLE_RING, Prefs.STYLE_CAPSULE)
             ContentChoice(styles.indexOf(a.style).coerceAtLeast(0), R.string.trio_style_title,
@@ -161,7 +187,7 @@ internal fun ContentControlRow(
             checked = settings.antiBurnIn,
             title = R.string.anti_burn_in_title,
             summaryRes = R.string.anti_burn_in_summary,
-            dependencies = master,
+            dependencies = emptyList(),
         ) { value -> update { it.setAntiBurnIn(value) } }
         ContentControl.SignalColumns -> if (a.stackedOut()) {
             val columns = listOf(4, 5)
@@ -170,51 +196,59 @@ internal fun ContentControlRow(
                 title = R.string.signal_columns_title,
                 summaryRes = R.string.signal_columns_summary,
                 options = listOf(R.string.signal_columns_4, R.string.signal_columns_5),
-                dependencies = master + (a.mobile to R.string.show_mobile_title),
+                dependencies = listOf(a.mobile to R.string.show_mobile_title),
             ) { index -> update { it.setSignalColumns(columns[index]) } }
         } else Unit
-        // Wi-Fi is a position row rather than a switch plus a position row: "off" and
-        // "nowhere in the ring" are the same intention, so the row writes both at once.
-        ContentControl.Wifi -> Unit
+        ContentControl.Wifi -> WifiPositionControl(settings, ringSettings, update)
+        ContentControl.ReplaceWifiIcon -> ContentToggle(
+            checked = settings.replaceWifiIcon,
+            title = R.string.replace_wifi_icon_title,
+            summaryRes = R.string.replace_wifi_icon_summary,
+            dependencies = emptyList(),
+        ) { value -> update { it.setReplaceWifiIcon(value) } }
+        ContentControl.ReplaceStatusIcon -> ContentToggle(
+            checked = settings.replaceStatusIcon,
+            title = R.string.replace_status_icon_title,
+            summaryRes = R.string.replace_status_icon_summary,
+            dependencies = emptyList(),
+        ) { value -> update { it.setReplaceStatusIcon(value) } }
         ContentControl.Mobile -> Unit
         ContentControl.DataSim -> ContentToggle(a.dataSimOnly, R.string.data_sim_only_title,
-            null, master) { value -> update { it.setDataSimOnly(value) } }
+            null, emptyList()) { value -> update { it.setDataSimOnly(value) } }
         ContentControl.Stacked -> ContentToggle(
             checked = a.stackedSignal,
             title = R.string.stacked_signal_title,
             summaryRes = R.string.stacked_signal_summary,
-            dependencies = master + (a.signalOutOfRing to R.string.ring_position_mobile),
+            dependencies = listOf(a.signalOutOfRing to R.string.ring_position_mobile),
         ) { value -> update { it.setStackedSignal(value) } }
         ContentControl.MobileActivity -> if (a.signalOutOfRing) {
             ContentToggle(
                 checked = settings.showMobileActivity,
                 title = R.string.show_mobile_activity_title,
                 summaryRes = R.string.show_mobile_activity_summary,
-                dependencies = master + (true to R.string.ring_position_mobile),
+                dependencies = listOf(true to R.string.ring_position_mobile),
             ) { value -> update { it.setShowMobileActivity(value) } }
         } else Unit
         ContentControl.Sim1 -> ContentToggle(
             checked = a.showSim1,
             title = R.string.show_sim_1_title,
             summaryRes = null,
-            dependencies = master + (a.mobile to R.string.show_mobile_title) +
+            dependencies = listOf(a.mobile to R.string.show_mobile_title) +
                 (signalInsideRing(a) to R.string.ring_position_mobile),
         ) { value -> update { it.setShowSim1(value) } }
         ContentControl.Sim2 -> ContentToggle(
             checked = a.showSim2,
             title = R.string.show_sim_2_title,
             summaryRes = null,
-            dependencies = master + (a.mobile to R.string.show_mobile_title) +
+            dependencies = listOf(a.mobile to R.string.show_mobile_title) +
                 (signalInsideRing(a) to R.string.ring_position_mobile),
         ) { value -> update { it.setShowSim2(value) } }
-        ContentControl.Value -> ContentToggle(a.value, R.string.show_value_title,
-            null,
-            master) { value -> update { it.setShowValue(value) } }
+        ContentControl.Value -> ContentToggle(a.value, R.string.show_value_title, null, emptyList()) { value -> update { it.setShowValue(value) } }
         ContentControl.Percent -> ContentToggle(
             checked = settings.showPercent,
             title = R.string.show_percent_title,
             summaryRes = null,
-            dependencies = master + (a.value to R.string.show_value_title),
+            dependencies = listOf(a.value to R.string.show_value_title),
         ) { value -> update { it.setShowPercent(value) } }
         ContentControl.ChargingShowsValue -> ContentToggle(
             checked = settings.chargingShowsValue,
@@ -222,37 +256,44 @@ internal fun ContentControlRow(
             summaryRes = R.string.charging_shows_value_summary,
             // The ring is the only arrangement with a centre; the capsule and the
             // rectangle have no zone this could occupy.
-            dependencies = master + (!a.ring to R.string.trio_style_title),
+            dependencies = listOf(!a.ring to R.string.trio_style_title),
         ) { value -> update { it.setChargingShowsValue(value) } }
-        ContentControl.Bolt -> ContentToggle(a.boltWanted, R.string.show_bolt_title,
-            null,
-            master) { value -> update { it.setShowBolt(value) } }
-        ContentControl.BoltAnim -> ContentChoice(
-            settings.boltAnim, R.string.bolt_anim_title, R.string.bolt_anim_summary,
-            listOf(
-                R.string.bolt_anim_off, R.string.bolt_anim_pulse,
-                R.string.bolt_anim_flow, R.string.bolt_anim_spark,
-            ),
-            master + (a.boltWanted to R.string.show_bolt_title),
-        ) { value -> update { it.setBoltAnim(value) } }
-        ContentControl.Type -> ContentChoice(a.typeMode, R.string.show_mobile_type_title,
-            null,
-            listOf(R.string.mobile_type_off, R.string.mobile_type_inside, R.string.mobile_type_outside),
-            master) { value -> update { it.setMobileTypeMode(value) } }
+        ContentControl.Bolt -> ContentToggle(a.boltWanted, R.string.show_bolt_title, null, emptyList()) { value -> update { it.setShowBolt(value) } }
+        ContentControl.BoltAnimEnabled -> ContentToggle(
+            checked = settings.boltAnim != Prefs.BOLT_ANIM_OFF,
+            title = R.string.bolt_anim_enabled_title,
+            summaryRes = null,
+            dependencies = listOf(a.boltWanted to R.string.show_bolt_title),
+        ) { enabled ->
+            update {
+                it.setBoltAnim(if (enabled) Prefs.BOLT_ANIM_PULSE else Prefs.BOLT_ANIM_OFF)
+            }
+        }
+        ContentControl.BoltAnim -> if (settings.boltAnim != Prefs.BOLT_ANIM_OFF) {
+            val styles = listOf(Prefs.BOLT_ANIM_PULSE, Prefs.BOLT_ANIM_FLOW, Prefs.BOLT_ANIM_SPARK)
+            val selectedIndex = styles.indexOf(settings.boltAnim).coerceAtLeast(0)
+            ContentChoice(
+                selected = selectedIndex,
+                title = R.string.bolt_anim_style_title,
+                summaryRes = R.string.bolt_anim_summary,
+                options = listOf(
+                    R.string.bolt_anim_pulse,
+                    R.string.bolt_anim_flow,
+                    R.string.bolt_anim_spark,
+                ),
+                dependencies = listOf(a.boltWanted to R.string.show_bolt_title),
+            ) { index -> update { it.setBoltAnim(styles[index]) } }
+        } else Unit
+        ContentControl.Type -> TypePositionControl(settings, update, zonesAllowed = a.slotted)
         ContentControl.TypeHideOnWifi -> ContentToggle(
             checked = settings.typeHideOnWifi,
             title = R.string.type_hide_on_wifi_title,
             summaryRes = R.string.type_hide_on_wifi_summary,
-            dependencies = master + (!a.typeAnywhere() to R.string.show_mobile_type_title),
+            dependencies = listOf(!a.typeAnywhere() to R.string.show_mobile_type_title),
         ) { value -> update { it.setTypeHideOnWifi(value) } }
-        ContentControl.Power -> ContentToggle(settings.perfPower, R.string.perf_power_title,
-            null, master) { value -> update { it.setPerfPower(value) } }
-        ContentControl.RunningPower -> ContentToggle(
-            checked = settings.perfRunning,
-            title = R.string.perf_running_title,
-            summaryRes = null,
-            dependencies = master + (settings.perfPower to R.string.perf_power_title),
-        ) { value -> update { it.setPerfRunning(value) } }
+        ContentControl.Power -> ContentToggle(settings.perfPower, R.string.perf_power_title, null, emptyList()) { value -> update { it.setPerfPower(value) } }
+        ContentControl.RunningPower -> ContentToggle(checked = settings.perfRunning, title = R.string.perf_running_title, summaryRes = null,
+            dependencies = listOf(settings.perfPower to R.string.perf_power_title)) { value -> update { it.setPerfRunning(value) } }
         // Absent (not greyed) when the caption has nowhere to sit: type inside the
         // glyph, or the stacked reading off.
         ContentControl.StackLabel ->
@@ -260,7 +301,7 @@ internal fun ContentControlRow(
             ContentChoice(
                 settings.stackLabel, R.string.stack_label_title, null,
                 listOf(R.string.stack_label_left, R.string.stack_label_above),
-                master,
+                emptyList(),
             ) { value -> update { it.setStackLabel(value) } }
         }
         // With one card both styles draw the same row, so the choice changes nothing.
@@ -269,41 +310,36 @@ internal fun ContentControlRow(
                 ContentChoice(
                     settings.stackStyle, R.string.stack_style_title, null,
                     listOf(R.string.stack_style_dots, R.string.stack_style_rows),
-                    master + (a.stackedOut() to R.string.stacked_signal_title),
+                    listOf(a.stackedOut() to R.string.stacked_signal_title),
                 ) { value -> update { it.setStackStyle(value) } }
             }
         ContentControl.TempChargingOnly -> ContentToggle(
             checked = settings.perfTempChargingOnly,
             title = R.string.perf_temp_charging_only_title,
             summaryRes = R.string.perf_temp_charging_only_summary,
-            dependencies = master + (settings.perfTemp to R.string.perf_temp_title),
+            dependencies = listOf(settings.perfTemp to R.string.perf_temp_title),
         ) { value -> update { it.setPerfTempChargingOnly(value) } }
-        ContentControl.Temperature -> ContentToggle(settings.perfTemp, R.string.perf_temp_title,
-            null, master) { value -> update { it.setPerfTemp(value) } }
-        ContentControl.Fps -> ContentToggle(
-            checked = settings.perfFps,
-            title = R.string.perf_fps_title,
-            summaryRes = R.string.perf_fps_summary,
-            dependencies = master,
-        ) { value -> update { it.setPerfFps(value) } }
-        ContentControl.Clock -> Unit // Capsule time has a fixed slot.
+        ContentControl.Temperature -> ContentToggle(settings.perfTemp, R.string.perf_temp_title, null, emptyList()) { value -> update { it.setPerfTemp(value) } }
+        ContentControl.Fps -> ContentToggle(checked = settings.perfFps, title = R.string.perf_fps_title, summaryRes = R.string.perf_fps_summary,
+            dependencies = emptyList()) { value -> update { it.setPerfFps(value) } }
+        ContentControl.Clock -> Unit
         ContentControl.ClockLunar -> ContentToggle(
             checked = settings.clockLunar,
             title = R.string.clock_lunar_title,
             summaryRes = R.string.clock_lunar_summary,
-            dependencies = master + (!a.hasRingPart(Prefs.PART_CLOCK) to R.string.ring_position_clock),
+            dependencies = listOf(!a.hasRingPart(Prefs.PART_CLOCK) to R.string.ring_position_clock),
         ) { value -> update { it.setClockLunar(value) } }
         ContentControl.ClockSeconds -> ContentToggle(
             checked = settings.clockSeconds,
             title = R.string.clock_seconds_title,
             summaryRes = R.string.clock_seconds_summary,
-            dependencies = master + (!a.hasRingPart(Prefs.PART_CLOCK) to R.string.ring_position_clock),
+            dependencies = listOf(!a.hasRingPart(Prefs.PART_CLOCK) to R.string.ring_position_clock),
         ) { value -> update { it.setClockSeconds(value) } }
         ContentControl.ClockDate -> ContentToggle(
             checked = settings.clockDate,
             title = R.string.clock_date_title,
             summaryRes = R.string.clock_date_summary,
-            dependencies = master + (!a.hasRingPart(Prefs.PART_CLOCK) to R.string.ring_position_clock),
+            dependencies = listOf(!a.hasRingPart(Prefs.PART_CLOCK) to R.string.ring_position_clock),
         ) { value -> update { it.setClockDate(value) } }
         ContentControl.ClockDateFormat -> if (settings.clockDate) {
             ContentChoice(
@@ -316,7 +352,7 @@ internal fun ContentControlRow(
                     R.string.clock_date_format_zh_md,
                     R.string.clock_date_format_zh_ymd,
                 ),
-                dependencies = master + (!a.hasRingPart(Prefs.PART_CLOCK) to R.string.ring_position_clock),
+                dependencies = listOf(!a.hasRingPart(Prefs.PART_CLOCK) to R.string.ring_position_clock),
                 onChange = { value -> update { it.setClockDateFormat(value) } },
             )
         } else Unit
@@ -324,7 +360,7 @@ internal fun ContentControlRow(
             checked = settings.clockWeekday,
             title = R.string.clock_weekday_title,
             summaryRes = R.string.clock_weekday_summary,
-            dependencies = master + (!a.hasRingPart(Prefs.PART_CLOCK) to R.string.ring_position_clock),
+            dependencies = listOf(!a.hasRingPart(Prefs.PART_CLOCK) to R.string.ring_position_clock),
         ) { value -> update { it.setClockWeekday(value) } }
         ContentControl.ClockWeekdayFormat -> if (settings.clockWeekday) {
             ContentChoice(
@@ -336,7 +372,7 @@ internal fun ContentControlRow(
                     R.string.clock_weekday_format_zh_full,
                     R.string.clock_weekday_format_en_short,
                 ),
-                dependencies = master + (!a.hasRingPart(Prefs.PART_CLOCK) to R.string.ring_position_clock),
+                dependencies = listOf(!a.hasRingPart(Prefs.PART_CLOCK) to R.string.ring_position_clock),
                 onChange = { value -> update { it.setClockWeekdayFormat(value) } },
             )
         } else Unit
