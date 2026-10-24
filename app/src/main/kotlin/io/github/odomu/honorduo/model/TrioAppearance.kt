@@ -147,7 +147,7 @@ class TrioAppearance(c: TrioSettings) {
      * ring, and the type would otherwise vanish instead of moving to the place the layout
      * has for it.
      */
-    @JvmField val typeOutOfRing: Boolean = !glyph || c.ringZones.none { it.contains(Prefs.PART_TYPE) }
+    @JvmField val typeOutOfRing: Boolean = !typeInRing && c.mobileTypeMode == Prefs.MOBILE_TYPE_OUT_RING
 
     /** The charging power is drawn in the out-of-ring strip; see [perfAnywhere]. */
     @JvmField val perfPower: Boolean = c.perfPower
@@ -155,6 +155,20 @@ class TrioAppearance(c: TrioSettings) {
     @JvmField val fontPath: String = c.fontPath
     @JvmField val replaceWifiIcon: Boolean = c.replaceWifiIcon
     @JvmField val replaceStatusIcon: Boolean = c.replaceStatusIcon
+
+    /**
+     * The bar's own clock is hidden outright, with nothing drawn in its place.
+     *
+     * Separate from [hidesStatusClock], which answers "does the glyph need the slot
+     * free" - this one is the user's own switch and works with the glyph off.
+     */
+    @JvmField val barClockHidden: Boolean = c.hideStatusClock
+
+    /** The bar's alarm icon is hidden; see [Prefs.KEY_HIDE_ALARM_ICON]. */
+    @JvmField val hideAlarmIcon: Boolean = c.hideAlarmIcon
+
+    /** The bar's Bluetooth icon is hidden; see [Prefs.KEY_HIDE_BLUETOOTH_ICON]. */
+    @JvmField val hideBluetoothIcon: Boolean = c.hideBluetoothIcon
     @JvmField val clockSeconds: Boolean = c.clockSeconds
 
     /** The date is drawn on its own line above the time. */
@@ -176,6 +190,26 @@ class TrioAppearance(c: TrioSettings) {
     @JvmField val clockDateColorOnLight: Int = c.clockDateColorOnLight
     @JvmField val clockLunarColorOnDark: Int = c.clockLunarColorOnDark
     @JvmField val clockLunarColorOnLight: Int = c.clockLunarColorOnLight
+    @JvmField val clockWeather: Boolean = c.clockWeather
+    @JvmField val clockWeatherStyle: Int = c.clockWeatherStyle
+    @JvmField val clockStyle: Int = c.clockStyle
+    @JvmField val clockWeatherColorOnDark: Int = c.clockWeatherColorOnDark
+    @JvmField val clockWeatherColorOnLight: Int = c.clockWeatherColorOnLight
+
+    /** Control center: the header's power button is hidden. */
+    @JvmField val shadeHidePower: Boolean = c.shadeHidePower
+
+    /** Notification shade: the notification-management bell is hidden. */
+    @JvmField val shadeHideBell: Boolean = c.shadeHideBell
+
+    /** Notification shade: the date line carries the lunar date. */
+    @JvmField val shadeLunar: Boolean = c.shadeLunar
+
+    /** Notification shade: the date line carries the weather. */
+    @JvmField val shadeWeather: Boolean = c.shadeWeather
+
+    /** Notification shade: text, glyph or both for that weather. */
+    @JvmField val shadeWeatherStyle: Int = c.shadeWeatherStyle
 
     /** The battery temperature is drawn in the same strip. */
     @JvmField val perfTemp: Boolean = c.perfTemp
@@ -460,6 +494,9 @@ class TrioAppearance(c: TrioSettings) {
         mobileType: String?,
         sims: Int,
     ): Boolean {
+        // "Hide clock" is the clock's master switch: it also empties the slot inside
+        // the glyph, so hiding can never leave a band that says nothing.
+        if (id == Prefs.PART_CLOCK && barClockHidden) return false
         if (rect) {
             return false
         }
@@ -522,7 +559,8 @@ class TrioAppearance(c: TrioSettings) {
         clockSize != Prefs.DEF_CLOCK_SIZE || clockWeight != Prefs.DEF_CLOCK_WEIGHT ||
         clockWeekdayColorOnDark != 0 || clockWeekdayColorOnLight != 0 ||
         clockDateColorOnDark != 0 || clockDateColorOnLight != 0 ||
-        clockLunarColorOnDark != 0 || clockLunarColorOnLight != 0
+        clockLunarColorOnDark != 0 || clockLunarColorOnLight != 0 ||
+        clockWeather || clockWeatherColorOnDark != 0 || clockWeatherColorOnLight != 0
 
     /**
      * Whether the bar's own clock has to step aside for this appearance.

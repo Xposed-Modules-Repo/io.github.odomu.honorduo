@@ -126,6 +126,23 @@ object Prefs {
     const val DEF_REPLACE_STATUS_ICON = false
 
     /**
+     * Hides the status bar's own clock, with no replacement.
+     *
+     * Independent of the glyph on purpose: a user who wants a bare bar should not have
+     * to enable icon merging first, which is what the placement rule required before.
+     */
+    const val KEY_HIDE_STATUS_CLOCK = "hide_status_clock"
+    const val DEF_HIDE_STATUS_CLOCK = false
+
+    /** Hides the status bar's alarm icon; the alarm itself still fires. */
+    const val KEY_HIDE_ALARM_ICON = "hide_alarm_icon"
+    const val DEF_HIDE_ALARM_ICON = false
+
+    /** Hides the status bar's Bluetooth icon; the connection itself is unaffected. */
+    const val KEY_HIDE_BLUETOOTH_ICON = "hide_bluetooth_icon"
+    const val DEF_HIDE_BLUETOOTH_ICON = false
+
+    /**
      * Size of the Wi-Fi arcs, as a percentage of the size the arrangement fits them to.
      *
      * One key for every arrangement: the arcs are one drawing, so a user who finds them
@@ -624,6 +641,37 @@ object Prefs {
     const val KEY_COLOR_CLOCK_DATE_ON_LIGHT = "color_clock_date_on_light"
     const val KEY_COLOR_CLOCK_LUNAR_ON_DARK = "color_clock_lunar_on_dark"
     const val KEY_COLOR_CLOCK_LUNAR_ON_LIGHT = "color_clock_lunar_on_light"
+    const val KEY_CLOCK_WEATHER = "clock_weather"
+    const val KEY_CLOCK_WEATHER_STYLE = "clock_weather_style"
+    const val KEY_CLOCK_STYLE = "clock_style"
+    const val KEY_COLOR_CLOCK_WEATHER_ON_DARK = "color_clock_weather_on_dark"
+    const val KEY_COLOR_CLOCK_WEATHER_ON_LIGHT = "color_clock_weather_on_light"
+    /** Plain text: the condition and the temperature. */
+    const val WEATHER_STYLE_TEXT = 0
+
+    /** The module's vector icon, with the temperature beside it. */
+    const val WEATHER_STYLE_ICON = 1
+
+    /** The same vector icon, with the condition and the temperature. */
+    const val WEATHER_STYLE_ICON_TEXT = 2
+
+    /**
+     * The system's weather glyph, with the temperature beside it.
+     *
+     * A symbol rather than drawn ink, so it can sit where only text can - the
+     * notification center's date line - and so the two places can be made to look
+     * the same when the ROM's symbol font is preferred over the module's drawing.
+     */
+    const val WEATHER_STYLE_SYMBOL = 3
+
+    /** That glyph, with the condition and the temperature. */
+    const val WEATHER_STYLE_SYMBOL_TEXT = 4
+
+    /** Style ids are a contiguous 0..[WEATHER_STYLE_SYMBOL_TEXT] range. */
+    const val WEATHER_STYLE_COUNT = 5
+
+    const val CLOCK_STYLE_CLASSIC = 0
+    const val CLOCK_STYLE_BALANCED = 1
     const val CLOCK_DATE_SLASH_MD = 0
     const val CLOCK_DATE_SLASH_YMD = 1
     const val CLOCK_DATE_ZH_MD = 2
@@ -742,6 +790,21 @@ object Prefs {
 
 
     const val KEY_OUT_SIGNAL_MARGIN = "out_signal_margin_dp"
+
+    /** Hides the power button in the control center's header. */
+    const val KEY_SHADE_HIDE_POWER = "shade_hide_cc_power"
+
+    /** Hides the notification-management bell beside the shade's clock. */
+    const val KEY_SHADE_HIDE_BELL = "shade_hide_notif_bell"
+
+    /** Appends the lunar date to the shade's date line. */
+    const val KEY_SHADE_LUNAR = "shade_lunar"
+
+    /** Appends the current weather to the shade's date line. */
+    const val KEY_SHADE_WEATHER = "shade_weather"
+
+    /** How the shade weather reads: text, glyph or both - same ids as the clock's. */
+    const val KEY_SHADE_WEATHER_STYLE = "shade_weather_style"
 
     /**
      * The order of the three out-of-ring pieces, from the battery outwards.
@@ -882,7 +945,7 @@ object Prefs {
     const val MOBILE_TYPE_OUT_RING = 2
 
     /** Off by default: the shipped look keeps the number in the centre only without Wi-Fi. */
-    const val DEF_MOBILE_TYPE_MODE = MOBILE_TYPE_OFF
+    const val DEF_MOBILE_TYPE_MODE = MOBILE_TYPE_OUT_RING
 
     /** Off by default: the arcs stay in the middle and the reading sits in the notch. */
     const val DEF_VALUE_CENTRED = false
@@ -1030,10 +1093,21 @@ object Prefs {
     const val DEF_CLOCK_TOP_OFFSET_X = 0
     const val DEF_CLOCK_BOTTOM_OFFSET_X = 0
     const val DEF_CLOCK_LUNAR_GAP = 2
-    const val DEF_CLOCK_ROW_GAP = 2
+    /** Zero: the two lines are separated by their own line boxes and nothing else. */
+    const val DEF_CLOCK_ROW_GAP = 0
     const val DEF_CLOCK_DATE_FORMAT = CLOCK_DATE_MONTH_DAY
     const val DEF_CLOCK_WEEKDAY_FORMAT = CLOCK_WEEKDAY_ZH_SHORT
     const val DEF_COLOR_CLOCK = 0
+    const val DEF_CLOCK_WEATHER = true
+    const val DEF_CLOCK_WEATHER_STYLE = WEATHER_STYLE_TEXT
+    const val DEF_CLOCK_STYLE = CLOCK_STYLE_BALANCED
+
+    /** Off by default: the host's own shade and control center are left untouched. */
+    const val DEF_SHADE_HIDE_POWER = false
+    const val DEF_SHADE_HIDE_BELL = false
+    const val DEF_SHADE_LUNAR = false
+    const val DEF_SHADE_WEATHER = false
+    const val DEF_SHADE_WEATHER_STYLE = WEATHER_STYLE_TEXT
 
     const val DEF_RING_SPACING_X = 0
     const val DEF_RING_SPACING_Y = 0

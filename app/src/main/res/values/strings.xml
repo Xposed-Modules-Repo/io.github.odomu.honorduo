@@ -193,6 +193,19 @@
     <string name="mobile_type_off">关闭</string>
     <string name="mobile_type_inside">环内</string>
     <string name="mobile_type_outside">环外</string>
+    <string name="show_out_type_title">显示环外网络类型</string>
+    <string name="show_out_type_summary">关闭后不在状态栏环外及堆叠信号上显示 5G/4G 等网络制式。</string>
+    <string name="drawing_part_shade">通知面板</string>
+    <string name="card_shade_summary">隐藏关机与铃铛按钮，日期上方显示农历、天气。</string>
+    <string name="shade_hide_power_title">隐藏关机</string>
+    <string name="shade_hide_power_summary">收起控制中心右上角的电源按钮，需要关机时仍可长按电源键。</string>
+    <string name="shade_hide_bell_title">隐藏铃铛</string>
+    <string name="shade_hide_bell_summary">移除通知中心大时间右侧的通知管理入口。</string>
+    <string name="shade_lunar_title">显示农历</string>
+    <string name="shade_lunar_summary">在通知中心日期行后追加农历，不影响原日期显示。</string>
+    <string name="shade_weather_title">显示天气</string>
+    <string name="shade_weather_summary">在通知中心日期行后追加实时天气与气温，不影响原日期显示。</string>
+    <string name="weather_style_title">天气样式</string>
 
 
 
@@ -282,6 +295,23 @@
     <string name="clock_weekday_format_zh_full">中文全写（星期xx）</string>
     <string name="clock_weekday_format_en_short">英文简写（如 Thu）</string>
 
+    <string name="clock_weather_title">显示天气</string>
+    <string name="clock_weather_summary">在状态栏时钟显示实时天气与气温。</string>
+    <string name="hide_status_clock_title">隐藏时钟</string>
+    <string name="hide_status_clock_summary">时钟显示总开关：开启后系统时钟与三合一自绘时钟都不显示。</string>
+    <string name="hide_alarm_icon_title">隐藏闹钟</string>
+    <string name="hide_alarm_icon_summary">不在状态栏显示闹钟图标；闹钟本身仍会正常响铃。</string>
+    <string name="hide_bluetooth_icon_title">隐藏蓝牙</string>
+    <string name="hide_bluetooth_icon_summary">不在状态栏显示蓝牙图标；蓝牙连接与音频不受影响。</string>
+    <string name="clock_weather_style_title">天气显示风格</string>
+    <string name="weather_style_text">纯文本</string>
+    <string name="weather_style_icon">矢量图标</string>
+    <string name="weather_style_icon_text">矢量+文本</string>
+    <string name="weather_style_symbol">字体符号</string>
+    <string name="weather_style_symbol_text">符号+文本</string>
+    <string name="clock_layout_style_title">行显示顺序</string>
+    <string name="clock_layout_style_classic">时间在上</string>
+    <string name="clock_layout_style_balanced">日期在上</string>
     <string name="clock_weight_title">整体字重</string>
     <string name="clock_weight_summary">默认 600，可调 100–900。</string>
 
@@ -297,6 +327,7 @@
     <string name="color_clock_weekday_title">星期颜色</string>
     <string name="color_clock_date_title">日期颜色</string>
     <string name="color_clock_lunar_title">农历颜色</string>
+    <string name="color_clock_weather_title">天气颜色</string>
     <string name="color_reset_default">恢复默认</string>
 
     <string name="type_size_title">网络类型字号</string>

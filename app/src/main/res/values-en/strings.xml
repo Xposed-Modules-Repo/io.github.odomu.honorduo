@@ -158,6 +158,19 @@
     <string name="mobile_type_off">Off</string>
     <string name="mobile_type_inside">In the ring</string>
     <string name="mobile_type_outside">Outside the ring</string>
+    <string name="show_out_type_title">Show out-of-ring network type</string>
+    <string name="show_out_type_summary">Hide 5G/4G network type beside signal bars when disabled.</string>
+    <string name="drawing_part_shade">Shade panel</string>
+    <string name="card_shade_summary">Hide the power and bell buttons and put the lunar date and weather above the date.</string>
+    <string name="shade_hide_power_title">Hide power</string>
+    <string name="shade_hide_power_summary">Removes the control center\'s power button; long-pressing the hardware key still opens it.</string>
+    <string name="shade_hide_bell_title">Hide bell</string>
+    <string name="shade_hide_bell_summary">Removes the notification-management entry beside the shade clock.</string>
+    <string name="shade_lunar_title">Show lunar</string>
+    <string name="shade_lunar_summary">Appends the lunar date to the shade\'s date line; the date itself stays intact.</string>
+    <string name="shade_weather_title">Show weather</string>
+    <string name="shade_weather_summary">Appends the live weather and temperature to the shade\'s date line; the date itself stays intact.</string>
+    <string name="weather_style_title">Weather style</string>
 
 
 
@@ -247,6 +260,23 @@
     <string name="clock_weekday_format_zh_full">Chinese full (星期xx)</string>
     <string name="clock_weekday_format_en_short">English short (e.g. Thu)</string>
 
+    <string name="clock_weather_title">Show weather</string>
+    <string name="clock_weather_summary">Show real-time weather and temperature in status bar clock.</string>
+    <string name="hide_status_clock_title">Hide clock</string>
+    <string name="hide_status_clock_summary">Master switch: with it on, neither the system clock nor the module\'s own clock is shown.</string>
+    <string name="hide_alarm_icon_title">Hide alarm</string>
+    <string name="hide_alarm_icon_summary">Hides the alarm icon in the status bar; the alarm still rings as usual.</string>
+    <string name="hide_bluetooth_icon_title">Hide Bluetooth</string>
+    <string name="hide_bluetooth_icon_summary">Hides the Bluetooth icon in the status bar; the connection and audio are unaffected.</string>
+    <string name="clock_weather_style_title">Weather style</string>
+    <string name="weather_style_text">Text only</string>
+    <string name="weather_style_icon">Vector icon</string>
+    <string name="weather_style_icon_text">Vector + text</string>
+    <string name="weather_style_symbol">Font symbol</string>
+    <string name="weather_style_symbol_text">Symbol + text</string>
+    <string name="clock_layout_style_title">Row order</string>
+    <string name="clock_layout_style_classic">Time on top</string>
+    <string name="clock_layout_style_balanced">Date on top</string>
     <string name="clock_top_offset_x_title">Top row offset</string>
     <string name="clock_top_offset_x_summary">Horizontal offset for weekday and time.</string>
     <string name="clock_bottom_offset_x_title">Bottom row offset</string>
@@ -262,6 +292,7 @@
     <string name="color_clock_weekday_title">Weekday color</string>
     <string name="color_clock_date_title">Date color</string>
     <string name="color_clock_lunar_title">Lunar calendar color</string>
+    <string name="color_clock_weather_title">Weather color</string>
     <string name="color_reset_default">Reset to default</string>
 
     <string name="type_size_title">Network type size</string>

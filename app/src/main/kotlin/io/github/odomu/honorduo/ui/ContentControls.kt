@@ -91,6 +91,7 @@ internal enum class ContentControl(val owner: TrioSettingsPart) {
      * rather than a way of expressing the same thing twice.
      */
     Type(TrioSettingsPart.Type),
+    ShowOutType(TrioSettingsPart.Type),
     Power(TrioSettingsPart.Readouts),
     StackStyle(TrioSettingsPart.Mobile),
     StackLabel(TrioSettingsPart.Type),
@@ -117,12 +118,23 @@ internal enum class ContentControl(val owner: TrioSettingsPart) {
      */
     Fps(TrioSettingsPart.Readouts),
     Clock(TrioSettingsPart.Clock),
+    HideStatusClock(TrioSettingsPart.Clock),
     ClockLunar(TrioSettingsPart.Clock),
     ClockSeconds(TrioSettingsPart.Clock),
     ClockDate(TrioSettingsPart.Clock),
     ClockDateFormat(TrioSettingsPart.Clock),
     ClockWeekday(TrioSettingsPart.Clock),
     ClockWeekdayFormat(TrioSettingsPart.Clock),
+    ClockWeather(TrioSettingsPart.Clock),
+    ClockWeatherStyle(TrioSettingsPart.Clock),
+    ClockStyle(TrioSettingsPart.Clock),
+    HideAlarmIcon(TrioSettingsPart.Appearance),
+    HideBluetoothIcon(TrioSettingsPart.Appearance),
+    ShadeHidePower(TrioSettingsPart.Shade),
+    ShadeHideBell(TrioSettingsPart.Shade),
+    ShadeLunar(TrioSettingsPart.Shade),
+    ShadeWeather(TrioSettingsPart.Shade),
+    ShadeWeatherStyle(TrioSettingsPart.Shade),
 }
 
 internal fun contentControlsFor(part: TrioSettingsPart): List<ContentControl> =
@@ -291,6 +303,95 @@ internal fun ContentControlRow(
             summaryRes = R.string.type_hide_on_wifi_summary,
             dependencies = listOf(!a.typeAnywhere() to R.string.show_mobile_type_title),
         ) { value -> update { it.setTypeHideOnWifi(value) } }
+        ContentControl.ShowOutType -> if (!a.typeInRing) {
+            ContentToggle(
+                checked = settings.mobileTypeMode == Prefs.MOBILE_TYPE_OUT_RING,
+                title = R.string.show_out_type_title,
+                summaryRes = R.string.show_out_type_summary,
+                dependencies = listOf(settings.enabled to R.string.master_title),
+            ) { value ->
+                update {
+                    it.setMobileTypeMode(if (value) Prefs.MOBILE_TYPE_OUT_RING else Prefs.MOBILE_TYPE_OFF)
+                }
+            }
+        } else Unit
+        ContentControl.ClockWeather -> ContentToggle(
+            checked = settings.clockWeather,
+            title = R.string.clock_weather_title,
+            summaryRes = R.string.clock_weather_summary,
+            dependencies = emptyList(),
+        ) { value -> update { it.setClockWeather(value) } }
+        ContentControl.ClockWeatherStyle -> if (settings.clockWeather) {
+            ContentChoice(
+                selected = settings.clockWeatherStyle.coerceIn(0, Prefs.WEATHER_STYLE_COUNT - 1),
+                title = R.string.clock_weather_style_title,
+                summaryRes = null,
+                options = listOf(
+                    R.string.weather_style_text,
+                    R.string.weather_style_icon,
+                    R.string.weather_style_icon_text,
+                    R.string.weather_style_symbol,
+                    R.string.weather_style_symbol_text,
+                ),
+                dependencies = listOf(settings.clockWeather to R.string.clock_weather_title),
+            ) { value -> update { it.setClockWeatherStyle(value) } }
+        } else Unit
+        ContentControl.ClockStyle -> ContentChoice(
+            selected = settings.clockStyle.coerceIn(0, 1),
+            title = R.string.clock_layout_style_title,
+            summaryRes = null,
+            options = listOf(R.string.clock_layout_style_classic, R.string.clock_layout_style_balanced),
+            dependencies = emptyList(),
+        ) { value -> update { it.setClockStyle(value) } }
+        ContentControl.HideAlarmIcon -> ContentToggle(
+            checked = settings.hideAlarmIcon,
+            title = R.string.hide_alarm_icon_title,
+            summaryRes = R.string.hide_alarm_icon_summary,
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { value -> update { it.setHideAlarmIcon(value) } }
+        ContentControl.HideBluetoothIcon -> ContentToggle(
+            checked = settings.hideBluetoothIcon,
+            title = R.string.hide_bluetooth_icon_title,
+            summaryRes = R.string.hide_bluetooth_icon_summary,
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { value -> update { it.setHideBluetoothIcon(value) } }
+        ContentControl.ShadeHidePower -> ContentToggle(
+            checked = settings.shadeHidePower,
+            title = R.string.shade_hide_power_title,
+            summaryRes = R.string.shade_hide_power_summary,
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { value -> update { it.setShadeHidePower(value) } }
+        ContentControl.ShadeHideBell -> ContentToggle(
+            checked = settings.shadeHideBell,
+            title = R.string.shade_hide_bell_title,
+            summaryRes = R.string.shade_hide_bell_summary,
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { value -> update { it.setShadeHideBell(value) } }
+        ContentControl.ShadeLunar -> ContentToggle(
+            checked = settings.shadeLunar,
+            title = R.string.shade_lunar_title,
+            summaryRes = R.string.shade_lunar_summary,
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { value -> update { it.setShadeLunar(value) } }
+        ContentControl.ShadeWeather -> ContentToggle(
+            checked = settings.shadeWeather,
+            title = R.string.shade_weather_title,
+            summaryRes = R.string.shade_weather_summary,
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { value -> update { it.setShadeWeather(value) } }
+        ContentControl.ShadeWeatherStyle -> if (settings.shadeWeather) {
+            ContentChoice(
+                selected = settings.shadeWeatherStyle.coerceIn(0, 2),
+                title = R.string.weather_style_title,
+                summaryRes = null,
+                options = listOf(
+                    R.string.weather_style_text,
+                    R.string.weather_style_icon,
+                    R.string.weather_style_icon_text,
+                ),
+                dependencies = listOf(settings.shadeWeather to R.string.shade_weather_title),
+            ) { value -> update { it.setShadeWeatherStyle(value) } }
+        } else Unit
         ContentControl.Power -> ContentToggle(settings.perfPower, R.string.perf_power_title, null, emptyList()) { value -> update { it.setPerfPower(value) } }
         ContentControl.RunningPower -> ContentToggle(checked = settings.perfRunning, title = R.string.perf_running_title, summaryRes = null,
             dependencies = listOf(settings.perfPower to R.string.perf_power_title)) { value -> update { it.setPerfRunning(value) } }
@@ -323,6 +424,12 @@ internal fun ContentControlRow(
         ContentControl.Fps -> ContentToggle(checked = settings.perfFps, title = R.string.perf_fps_title, summaryRes = R.string.perf_fps_summary,
             dependencies = emptyList()) { value -> update { it.setPerfFps(value) } }
         ContentControl.Clock -> Unit
+        ContentControl.HideStatusClock -> ContentToggle(
+            checked = settings.hideStatusClock,
+            title = R.string.hide_status_clock_title,
+            summaryRes = R.string.hide_status_clock_summary,
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { value -> update { it.setHideStatusClock(value) } }
         ContentControl.ClockLunar -> ContentToggle(
             checked = settings.clockLunar,
             title = R.string.clock_lunar_title,
@@ -526,19 +633,27 @@ private fun TypePositionControl(
 ) {
     val id = TrioZones.encodePart(TrioZones.Part.TYPE)
     val placedAt = settings.ringZones.indexOfFirst { it.contains(id) } + 1
-    // No "hand back" entry: outside IS the released position for the type.
     val selected = if (placedAt in 1..3) placedAt else 0
-    ContentChoice(selected, R.string.ring_position_type, null,
-        listOf(R.string.mobile_type_outside, R.string.drawing_hint_top,
-            R.string.drawing_hint_centre, R.string.drawing_hint_bottom),
-        listOf(settings.enabled to R.string.master_title),
+    ContentChoice(
+        selected = selected,
+        title = R.string.ring_position_type,
+        summaryRes = null,
+        options = listOf(
+            R.string.mobile_type_outside,
+            R.string.drawing_hint_top,
+            R.string.drawing_hint_centre,
+            R.string.drawing_hint_bottom,
+        ),
+        dependencies = listOf(settings.enabled to R.string.master_title),
         blockedIndices = if (zonesAllowed) emptySet() else setOf(1, 2, 3),
     ) { value ->
         update {
             when (value) {
                 0 -> {
-                    it.setMobileTypeMode(Prefs.MOBILE_TYPE_OUT_RING)
                     it.setRingPartPosition(TrioZones.Part.TYPE, 0)
+                    if (settings.mobileTypeMode == Prefs.MOBILE_TYPE_IN_RING) {
+                        it.setMobileTypeMode(Prefs.MOBILE_TYPE_OUT_RING)
+                    }
                 }
                 else -> {
                     it.setRingPartPosition(TrioZones.Part.TYPE, value)

@@ -84,6 +84,18 @@ class TrioSettings {
     @JvmField
     var replaceStatusIcon = Prefs.DEF_REPLACE_STATUS_ICON
 
+    /** Hides the bar's own clock outright; see [Prefs.KEY_HIDE_STATUS_CLOCK]. */
+    @JvmField
+    var hideStatusClock = Prefs.DEF_HIDE_STATUS_CLOCK
+
+    /** Hides the bar's alarm icon; see [Prefs.KEY_HIDE_ALARM_ICON]. */
+    @JvmField
+    var hideAlarmIcon = Prefs.DEF_HIDE_ALARM_ICON
+
+    /** Hides the bar's Bluetooth icon; see [Prefs.KEY_HIDE_BLUETOOTH_ICON]. */
+    @JvmField
+    var hideBluetoothIcon = Prefs.DEF_HIDE_BLUETOOTH_ICON
+
     /** Where the network type is drawn: [Prefs.MOBILE_TYPE_OFF] / `_IN_RING` / `_OUT_RING`. */
     @JvmField
     var mobileTypeMode = Prefs.MOBILE_TYPE_OFF
@@ -311,6 +323,26 @@ class TrioSettings {
     @JvmField var clockDateColorOnLight = Prefs.DEF_COLOR_CLOCK
     @JvmField var clockLunarColorOnDark = Prefs.DEF_COLOR_CLOCK
     @JvmField var clockLunarColorOnLight = Prefs.DEF_COLOR_CLOCK
+    @JvmField var clockWeather = Prefs.DEF_CLOCK_WEATHER
+    @JvmField var clockWeatherStyle = Prefs.DEF_CLOCK_WEATHER_STYLE
+    @JvmField var clockStyle = Prefs.DEF_CLOCK_STYLE
+    @JvmField var clockWeatherColorOnDark = Prefs.DEF_COLOR_CLOCK
+    @JvmField var clockWeatherColorOnLight = Prefs.DEF_COLOR_CLOCK
+
+    /** Control center: hide the header's power button. */
+    @JvmField var shadeHidePower = Prefs.DEF_SHADE_HIDE_POWER
+
+    /** Notification shade: hide the bell that opens notification management. */
+    @JvmField var shadeHideBell = Prefs.DEF_SHADE_HIDE_BELL
+
+    /** Notification shade: append the lunar date to the date line. */
+    @JvmField var shadeLunar = Prefs.DEF_SHADE_LUNAR
+
+    /** Notification shade: append the current weather to the date line. */
+    @JvmField var shadeWeather = Prefs.DEF_SHADE_WEATHER
+
+    /** Notification shade: text, glyph or both for that weather. */
+    @JvmField var shadeWeatherStyle = Prefs.DEF_SHADE_WEATHER_STYLE
 
     /** Draws the battery temperature in the same view. */
     @JvmField
@@ -365,6 +397,9 @@ class TrioSettings {
             ringSpacingY = Prefs.DEF_RING_SPACING_Y
             replaceWifiIcon = Prefs.DEF_REPLACE_WIFI_ICON
             replaceStatusIcon = Prefs.DEF_REPLACE_STATUS_ICON
+            hideStatusClock = Prefs.DEF_HIDE_STATUS_CLOCK
+            hideAlarmIcon = Prefs.DEF_HIDE_ALARM_ICON
+            hideBluetoothIcon = Prefs.DEF_HIDE_BLUETOOTH_ICON
             mobileTypeMode = Prefs.DEF_MOBILE_TYPE_MODE
             valueCentred = Prefs.DEF_VALUE_CENTRED
             navStyle = Prefs.DEF_NAV_STYLE
@@ -396,6 +431,16 @@ class TrioSettings {
             clockDateColorOnLight = Prefs.DEF_COLOR_CLOCK
             clockLunarColorOnDark = Prefs.DEF_COLOR_CLOCK
             clockLunarColorOnLight = Prefs.DEF_COLOR_CLOCK
+            clockWeather = Prefs.DEF_CLOCK_WEATHER
+            clockWeatherStyle = Prefs.DEF_CLOCK_WEATHER_STYLE
+            clockStyle = Prefs.DEF_CLOCK_STYLE
+            clockWeatherColorOnDark = Prefs.DEF_COLOR_CLOCK
+            clockWeatherColorOnLight = Prefs.DEF_COLOR_CLOCK
+            shadeHidePower = Prefs.DEF_SHADE_HIDE_POWER
+            shadeHideBell = Prefs.DEF_SHADE_HIDE_BELL
+            shadeLunar = Prefs.DEF_SHADE_LUNAR
+            shadeWeather = Prefs.DEF_SHADE_WEATHER
+            shadeWeatherStyle = Prefs.DEF_SHADE_WEATHER_STYLE
             perfTemp = Prefs.DEF_PERF_TEMP
             perfFps = Prefs.DEF_PERF_FPS
             perfScale = Prefs.DEF_PERF_SCALE
@@ -536,6 +581,9 @@ class TrioSettings {
             )
             s.replaceWifiIcon = p.getBoolean(Prefs.KEY_REPLACE_WIFI_ICON, Prefs.DEF_REPLACE_WIFI_ICON)
             s.replaceStatusIcon = p.getBoolean(Prefs.KEY_REPLACE_STATUS_ICON, Prefs.DEF_REPLACE_STATUS_ICON)
+            s.hideStatusClock = p.getBoolean(Prefs.KEY_HIDE_STATUS_CLOCK, Prefs.DEF_HIDE_STATUS_CLOCK)
+            s.hideAlarmIcon = p.getBoolean(Prefs.KEY_HIDE_ALARM_ICON, Prefs.DEF_HIDE_ALARM_ICON)
+            s.hideBluetoothIcon = p.getBoolean(Prefs.KEY_HIDE_BLUETOOTH_ICON, Prefs.DEF_HIDE_BLUETOOTH_ICON)
             s.mobileTypeMode = readMobileTypeMode(p, s.trioStyle)
             s.valueCentred = readStyledBoolean(
                 p, Prefs.KEY_VALUE_CENTRED, Prefs.DEF_VALUE_CENTRED, s.trioStyle,
@@ -583,6 +631,16 @@ class TrioSettings {
             s.clockDateColorOnLight = p.getInt(Prefs.KEY_COLOR_CLOCK_DATE_ON_LIGHT, Prefs.DEF_COLOR_CLOCK)
             s.clockLunarColorOnDark = p.getInt(Prefs.KEY_COLOR_CLOCK_LUNAR_ON_DARK, Prefs.DEF_COLOR_CLOCK)
             s.clockLunarColorOnLight = p.getInt(Prefs.KEY_COLOR_CLOCK_LUNAR_ON_LIGHT, Prefs.DEF_COLOR_CLOCK)
+            s.clockWeather = p.getBoolean(Prefs.KEY_CLOCK_WEATHER, Prefs.DEF_CLOCK_WEATHER)
+            s.clockWeatherStyle = p.getInt(Prefs.KEY_CLOCK_WEATHER_STYLE, Prefs.DEF_CLOCK_WEATHER_STYLE)
+            s.clockStyle = p.getInt(Prefs.KEY_CLOCK_STYLE, Prefs.DEF_CLOCK_STYLE)
+            s.clockWeatherColorOnDark = p.getInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_DARK, Prefs.DEF_COLOR_CLOCK)
+            s.clockWeatherColorOnLight = p.getInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_LIGHT, Prefs.DEF_COLOR_CLOCK)
+            s.shadeHidePower = p.getBoolean(Prefs.KEY_SHADE_HIDE_POWER, Prefs.DEF_SHADE_HIDE_POWER)
+            s.shadeHideBell = p.getBoolean(Prefs.KEY_SHADE_HIDE_BELL, Prefs.DEF_SHADE_HIDE_BELL)
+            s.shadeLunar = p.getBoolean(Prefs.KEY_SHADE_LUNAR, Prefs.DEF_SHADE_LUNAR)
+            s.shadeWeather = p.getBoolean(Prefs.KEY_SHADE_WEATHER, Prefs.DEF_SHADE_WEATHER)
+            s.shadeWeatherStyle = p.getInt(Prefs.KEY_SHADE_WEATHER_STYLE, Prefs.DEF_SHADE_WEATHER_STYLE)
             s.perfTemp = p.getBoolean(Prefs.KEY_PERF_TEMP, Prefs.DEF_PERF_TEMP)
             s.perfFps = p.getBoolean(Prefs.KEY_PERF_FPS, Prefs.DEF_PERF_FPS)
             s.perfScale = Prefs.clamp(
@@ -827,6 +885,9 @@ class TrioSettings {
             )
             s.replaceWifiIcon = bundle.getBoolean(Prefs.KEY_REPLACE_WIFI_ICON, Prefs.DEF_REPLACE_WIFI_ICON)
             s.replaceStatusIcon = bundle.getBoolean(Prefs.KEY_REPLACE_STATUS_ICON, Prefs.DEF_REPLACE_STATUS_ICON)
+            s.hideStatusClock = bundle.getBoolean(Prefs.KEY_HIDE_STATUS_CLOCK, Prefs.DEF_HIDE_STATUS_CLOCK)
+            s.hideAlarmIcon = bundle.getBoolean(Prefs.KEY_HIDE_ALARM_ICON, Prefs.DEF_HIDE_ALARM_ICON)
+            s.hideBluetoothIcon = bundle.getBoolean(Prefs.KEY_HIDE_BLUETOOTH_ICON, Prefs.DEF_HIDE_BLUETOOTH_ICON)
             s.mobileTypeMode = readMobileTypeMode(bundle, s.trioStyle)
             s.valueCentred = readStyledBoolean(
                 bundle, Prefs.KEY_VALUE_CENTRED, Prefs.DEF_VALUE_CENTRED, s.trioStyle,
@@ -871,6 +932,16 @@ class TrioSettings {
             s.clockDateColorOnLight = bundle.getInt(Prefs.KEY_COLOR_CLOCK_DATE_ON_LIGHT, Prefs.DEF_COLOR_CLOCK)
             s.clockLunarColorOnDark = bundle.getInt(Prefs.KEY_COLOR_CLOCK_LUNAR_ON_DARK, Prefs.DEF_COLOR_CLOCK)
             s.clockLunarColorOnLight = bundle.getInt(Prefs.KEY_COLOR_CLOCK_LUNAR_ON_LIGHT, Prefs.DEF_COLOR_CLOCK)
+            s.clockWeather = bundle.getBoolean(Prefs.KEY_CLOCK_WEATHER, Prefs.DEF_CLOCK_WEATHER)
+            s.clockWeatherStyle = bundle.getInt(Prefs.KEY_CLOCK_WEATHER_STYLE, Prefs.DEF_CLOCK_WEATHER_STYLE)
+            s.clockStyle = bundle.getInt(Prefs.KEY_CLOCK_STYLE, Prefs.DEF_CLOCK_STYLE)
+            s.clockWeatherColorOnDark = bundle.getInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_DARK, Prefs.DEF_COLOR_CLOCK)
+            s.clockWeatherColorOnLight = bundle.getInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_LIGHT, Prefs.DEF_COLOR_CLOCK)
+            s.shadeHidePower = bundle.getBoolean(Prefs.KEY_SHADE_HIDE_POWER, Prefs.DEF_SHADE_HIDE_POWER)
+            s.shadeHideBell = bundle.getBoolean(Prefs.KEY_SHADE_HIDE_BELL, Prefs.DEF_SHADE_HIDE_BELL)
+            s.shadeLunar = bundle.getBoolean(Prefs.KEY_SHADE_LUNAR, Prefs.DEF_SHADE_LUNAR)
+            s.shadeWeather = bundle.getBoolean(Prefs.KEY_SHADE_WEATHER, Prefs.DEF_SHADE_WEATHER)
+            s.shadeWeatherStyle = bundle.getInt(Prefs.KEY_SHADE_WEATHER_STYLE, Prefs.DEF_SHADE_WEATHER_STYLE)
             s.perfTemp = bundle.getBoolean(Prefs.KEY_PERF_TEMP, Prefs.DEF_PERF_TEMP)
             s.perfFps = bundle.getBoolean(Prefs.KEY_PERF_FPS, Prefs.DEF_PERF_FPS)
             s.perfScale = Prefs.clamp(
@@ -1296,6 +1367,16 @@ class TrioSettings {
         s.clockDateColorOnLight = clockDateColorOnLight
         s.clockLunarColorOnDark = clockLunarColorOnDark
         s.clockLunarColorOnLight = clockLunarColorOnLight
+        s.clockWeather = clockWeather
+        s.clockWeatherStyle = clockWeatherStyle
+        s.clockStyle = clockStyle
+        s.clockWeatherColorOnDark = clockWeatherColorOnDark
+        s.clockWeatherColorOnLight = clockWeatherColorOnLight
+        s.shadeHidePower = shadeHidePower
+        s.shadeHideBell = shadeHideBell
+        s.shadeLunar = shadeLunar
+        s.shadeWeather = shadeWeather
+        s.shadeWeatherStyle = shadeWeatherStyle
         s.perfTemp = perfTemp
         s.perfFps = perfFps
         s.perfScale = perfScale
@@ -1439,6 +1520,16 @@ class TrioSettings {
             Prefs.KEY_COLOR_CLOCK_DATE_ON_LIGHT -> clockDateColorOnLight = src.clockDateColorOnLight
             Prefs.KEY_COLOR_CLOCK_LUNAR_ON_DARK -> clockLunarColorOnDark = src.clockLunarColorOnDark
             Prefs.KEY_COLOR_CLOCK_LUNAR_ON_LIGHT -> clockLunarColorOnLight = src.clockLunarColorOnLight
+            Prefs.KEY_CLOCK_WEATHER -> clockWeather = src.clockWeather
+            Prefs.KEY_CLOCK_WEATHER_STYLE -> clockWeatherStyle = src.clockWeatherStyle
+            Prefs.KEY_CLOCK_STYLE -> clockStyle = src.clockStyle
+            Prefs.KEY_COLOR_CLOCK_WEATHER_ON_DARK -> clockWeatherColorOnDark = src.clockWeatherColorOnDark
+            Prefs.KEY_COLOR_CLOCK_WEATHER_ON_LIGHT -> clockWeatherColorOnLight = src.clockWeatherColorOnLight
+            Prefs.KEY_SHADE_HIDE_POWER -> shadeHidePower = src.shadeHidePower
+            Prefs.KEY_SHADE_HIDE_BELL -> shadeHideBell = src.shadeHideBell
+            Prefs.KEY_SHADE_LUNAR -> shadeLunar = src.shadeLunar
+            Prefs.KEY_SHADE_WEATHER -> shadeWeather = src.shadeWeather
+            Prefs.KEY_SHADE_WEATHER_STYLE -> shadeWeatherStyle = src.shadeWeatherStyle
             Prefs.KEY_PERF_TEMP -> perfTemp = src.perfTemp
             Prefs.KEY_PERF_FPS -> perfFps = src.perfFps
             Prefs.KEY_PERF_SCALE -> perfScale = src.perfScale
@@ -1486,6 +1577,9 @@ class TrioSettings {
             Prefs.KEY_DEBUG_LOG -> debugLog = src.debugLog
             Prefs.KEY_REPLACE_WIFI_ICON -> replaceWifiIcon = src.replaceWifiIcon
             Prefs.KEY_REPLACE_STATUS_ICON -> replaceStatusIcon = src.replaceStatusIcon
+            Prefs.KEY_HIDE_STATUS_CLOCK -> hideStatusClock = src.hideStatusClock
+            Prefs.KEY_HIDE_ALARM_ICON -> hideAlarmIcon = src.hideAlarmIcon
+            Prefs.KEY_HIDE_BLUETOOTH_ICON -> hideBluetoothIcon = src.hideBluetoothIcon
             else -> return false
         }
         return true
@@ -1553,6 +1647,16 @@ class TrioSettings {
         putInt(Prefs.KEY_COLOR_CLOCK_DATE_ON_LIGHT, clockDateColorOnLight)
         putInt(Prefs.KEY_COLOR_CLOCK_LUNAR_ON_DARK, clockLunarColorOnDark)
         putInt(Prefs.KEY_COLOR_CLOCK_LUNAR_ON_LIGHT, clockLunarColorOnLight)
+        putBoolean(Prefs.KEY_CLOCK_WEATHER, clockWeather)
+        putInt(Prefs.KEY_CLOCK_WEATHER_STYLE, clockWeatherStyle)
+        putInt(Prefs.KEY_CLOCK_STYLE, clockStyle)
+        putInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_DARK, clockWeatherColorOnDark)
+        putInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_LIGHT, clockWeatherColorOnLight)
+        putBoolean(Prefs.KEY_SHADE_HIDE_POWER, shadeHidePower)
+        putBoolean(Prefs.KEY_SHADE_HIDE_BELL, shadeHideBell)
+        putBoolean(Prefs.KEY_SHADE_LUNAR, shadeLunar)
+        putBoolean(Prefs.KEY_SHADE_WEATHER, shadeWeather)
+        putInt(Prefs.KEY_SHADE_WEATHER_STYLE, shadeWeatherStyle)
         putBoolean(Prefs.KEY_PERF_TEMP, perfTemp)
         putBoolean(Prefs.KEY_PERF_FPS, perfFps)
         putInt(Prefs.KEY_PERF_SCALE, perfScale)
@@ -1600,6 +1704,9 @@ class TrioSettings {
         putBoolean(Prefs.KEY_DEBUG_LOG, debugLog)
         putBoolean(Prefs.KEY_REPLACE_WIFI_ICON, replaceWifiIcon)
         putBoolean(Prefs.KEY_REPLACE_STATUS_ICON, replaceStatusIcon)
+        putBoolean(Prefs.KEY_HIDE_STATUS_CLOCK, hideStatusClock)
+        putBoolean(Prefs.KEY_HIDE_ALARM_ICON, hideAlarmIcon)
+        putBoolean(Prefs.KEY_HIDE_BLUETOOTH_ICON, hideBluetoothIcon)
     }
 
     /**
@@ -1658,6 +1765,16 @@ class TrioSettings {
             clockDateColorOnLight == other.clockDateColorOnLight &&
             clockLunarColorOnDark == other.clockLunarColorOnDark &&
             clockLunarColorOnLight == other.clockLunarColorOnLight &&
+            clockWeather == other.clockWeather &&
+            clockWeatherStyle == other.clockWeatherStyle &&
+            clockStyle == other.clockStyle &&
+            clockWeatherColorOnDark == other.clockWeatherColorOnDark &&
+            clockWeatherColorOnLight == other.clockWeatherColorOnLight &&
+            shadeHidePower == other.shadeHidePower &&
+            shadeHideBell == other.shadeHideBell &&
+            shadeLunar == other.shadeLunar &&
+            shadeWeather == other.shadeWeather &&
+            shadeWeatherStyle == other.shadeWeatherStyle &&
             perfTemp == other.perfTemp &&
             perfFps == other.perfFps &&
             perfScale == other.perfScale &&
@@ -1704,6 +1821,9 @@ class TrioSettings {
             trackAlpha == other.trackAlpha &&
             replaceWifiIcon == other.replaceWifiIcon &&
             replaceStatusIcon == other.replaceStatusIcon &&
+            hideStatusClock == other.hideStatusClock &&
+            hideAlarmIcon == other.hideAlarmIcon &&
+            hideBluetoothIcon == other.hideBluetoothIcon &&
             debugLog == other.debugLog
     }
 
