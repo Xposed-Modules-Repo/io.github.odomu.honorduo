@@ -46,8 +46,14 @@ class TrioAppearance(c: TrioSettings) {
     /** True when the arrangement places pieces in bands - the ring and the capsule. */
     @JvmField val slotted: Boolean = !rect
 
-    /** The master switch. False hands every slot back to the system. */
-    @JvmField val glyph: Boolean = c.enabled
+    /** The master switch. Controls all component displays. False hands everything back to system. */
+    @JvmField val enabled: Boolean = c.enabled
+
+    /** The merge-icons switch (original trio 3-in-1 switch). */
+    @JvmField val mergeIcons: Boolean = c.mergeIcons
+
+    /** True when both master switch and icon-merging are enabled. */
+    @JvmField val glyph: Boolean = enabled && mergeIcons
 
     /** The Wi-Fi arcs are wanted; ink also needs a signal - see [wifiInk]. */
     @JvmField val wifi: Boolean = c.showWifi
@@ -83,6 +89,8 @@ class TrioAppearance(c: TrioSettings) {
     @JvmField val capsuleLeftDy: Float = c.capsuleLeftDy.toFloat()
     @JvmField val capsuleRightDx: Float = c.capsuleRightDx.toFloat()
     @JvmField val capsuleRightDy: Float = c.capsuleRightDy.toFloat()
+    @JvmField val ringSpacingX: Int = c.ringSpacingX
+    @JvmField val ringSpacingY: Int = c.ringSpacingY
 
     /** The same setting as a multiplier, clamped so a stale store cannot distort it. */
     fun wifiScaleFactor(): Float =
@@ -139,11 +147,14 @@ class TrioAppearance(c: TrioSettings) {
      * ring, and the type would otherwise vanish instead of moving to the place the layout
      * has for it.
      */
-    @JvmField val typeOutOfRing: Boolean = c.ringZones.none { it.contains(Prefs.PART_TYPE) }
+    @JvmField val typeOutOfRing: Boolean = !glyph || c.ringZones.none { it.contains(Prefs.PART_TYPE) }
 
     /** The charging power is drawn in the out-of-ring strip; see [perfAnywhere]. */
     @JvmField val perfPower: Boolean = c.perfPower
     @JvmField val perfRunning: Boolean = c.perfRunning
+    @JvmField val fontPath: String = c.fontPath
+    @JvmField val replaceWifiIcon: Boolean = c.replaceWifiIcon
+    @JvmField val replaceStatusIcon: Boolean = c.replaceStatusIcon
     @JvmField val clockSeconds: Boolean = c.clockSeconds
 
     /** The date is drawn on its own line above the time. */
@@ -291,10 +302,9 @@ class TrioAppearance(c: TrioSettings) {
      * Only the ring is slot-based; the capsule and the rectangle arbitrate their
      * single reading from the switches, so there the switch alone answers.
      */
-    fun ownsWifi(): Boolean = glyph && hasRingPart(Prefs.PART_WIFI)
+    fun ownsWifi(): Boolean = hasRingPart(Prefs.PART_WIFI)
 
-
-    fun ownsValue(): Boolean = glyph && hasRingPart(Prefs.PART_VALUE)
+    fun ownsValue(): Boolean = hasRingPart(Prefs.PART_VALUE)
 
     fun ownsType(): Boolean =
         typeOutOfRing || (typeInRing && (!ring || hasRingPart(Prefs.PART_TYPE)))
@@ -312,7 +322,7 @@ class TrioAppearance(c: TrioSettings) {
      * the single row falls back to the current data SIM.
      */
     fun dualSimRows(wifiInk: Boolean, charging: Boolean, sims: Int): Boolean =
-        dualSim && signalDots() && sims >= 2 && !wifiInk && !charging
+        !dataSimOnly && dualSim && signalDots() && sims >= 2 && !wifiInk && !charging
 
     /**
      * Whether the glyph itself draws the mobile level dots.
@@ -328,11 +338,13 @@ class TrioAppearance(c: TrioSettings) {
 
     /** Whether the glyph draws SIM 1's own row this frame. */
     fun drawsSim1(): Boolean =
-        showSim1 && mobile && slotted && !signalOutOfRing && hasRingPart(Prefs.PART_SIM_1)
+        showSim1 && mobile && slotted && !signalOutOfRing && hasRingPart(Prefs.PART_SIM_1) &&
+            (!dataSimOnly || TrioState.sDataSlot != 1)
 
     /** Whether the glyph draws SIM 2's own row this frame; see [drawsSim1]. */
     fun drawsSim2(): Boolean =
-        showSim2 && mobile && slotted && !signalOutOfRing && hasRingPart(Prefs.PART_SIM_2)
+        showSim2 && mobile && slotted && !signalOutOfRing && hasRingPart(Prefs.PART_SIM_2) &&
+            (!dataSimOnly || TrioState.sDataSlot == 1)
 
     /** Whether either per-card row is drawn, which is what the hooks must ask. */
     fun drawsAnySimRow(): Boolean = drawsSim1() || drawsSim2()
@@ -341,7 +353,8 @@ class TrioAppearance(c: TrioSettings) {
      * Whether the module is drawing the signal outside the glyph as its own stacked
      * reading, rather than leaving the native icon alone.
      */
-    fun stackedOut(): Boolean = signalOutOfRing && stackedSignal
+    fun stackedOut(): Boolean = (signalOutOfRing && stackedSignal) ||
+        (!glyph && (hasRingPart(Prefs.PART_MOBILE) || hasRingPart(Prefs.PART_SIM_1) || hasRingPart(Prefs.PART_SIM_2)))
 
     /**
      * Whether the stacked reading draws the per-card network type.
@@ -414,7 +427,8 @@ class TrioAppearance(c: TrioSettings) {
      * every caller that mounts or measures that view has to ask - never [perfPower] or
      * [perfTemp] alone.
      */
-    fun perfAnywhere(): Boolean = perfPower || perfTemp
+    fun perfAnywhere(): Boolean = perfPower || perfTemp ||
+        (!glyph && (hasRingPart(Prefs.PART_POWER) || hasRingPart(Prefs.PART_TEMP) || hasRingPart(Prefs.PART_RUNNING)))
 
     /**
      * Whether any performance reading is switched on, the frame rate included.
@@ -423,7 +437,7 @@ class TrioAppearance(c: TrioSettings) {
      * every reading the module draws, so gating them on the watt and the temperature
      * would grey out a frame rate that is the only one switched on.
      */
-    fun perfPairShown(): Boolean = perfAnywhere() || perfFps
+    fun perfPairShown(): Boolean = perfAnywhere() || perfFps || (!glyph && hasRingPart(Prefs.PART_FPS))
 
     /** Whether `id` is placed in any of the glyph's bands. */
     fun placed(id: Int): Boolean = ringZones.any { it.contains(id) }
@@ -727,8 +741,6 @@ class TrioAppearance(c: TrioSettings) {
                 dotBands[TrioZones.Zone.TOP.ordinal] = legacyDots
                 dotBands[TrioZones.Zone.BOTTOM.ordinal] = legacyDots
             }
-            // A band that holds a dot row draws the row, not a reading: the row IS that
-            // band's piece. Clearing `parts` keeps the two answers from both claiming it.
             for (band in zones) {
                 if (dotBands[band.ordinal]) parts[band.ordinal] = Prefs.PART_NONE
             }
@@ -786,8 +798,10 @@ class TrioAppearance(c: TrioSettings) {
             Prefs.PART_MOBILE -> a.mobile && !a.signalOutOfRing &&
                 (!a.ring || a.hasRingPart(Prefs.PART_MOBILE))
             // The per-card rows are placeable in BOTH slot-based arrangements: the ring threads them onto its openings and the capsule lays them across its two.
-            Prefs.PART_SIM_1 -> a.mobile && a.showSim1 && !a.signalOutOfRing && !a.rect
-            Prefs.PART_SIM_2 -> a.mobile && a.showSim2 && !a.signalOutOfRing && !a.rect
+            Prefs.PART_SIM_1 -> a.mobile && a.showSim1 && !a.signalOutOfRing && !a.rect &&
+                (!a.dataSimOnly || TrioState.sDataSlot != 1)
+            Prefs.PART_SIM_2 -> a.mobile && a.showSim2 && !a.signalOutOfRing && !a.rect &&
+                (!a.dataSimOnly || TrioState.sDataSlot == 1)
             // The clock always has something to say; whether the arrangement shows it is
             // the renderer's business.
             Prefs.PART_CLOCK -> true

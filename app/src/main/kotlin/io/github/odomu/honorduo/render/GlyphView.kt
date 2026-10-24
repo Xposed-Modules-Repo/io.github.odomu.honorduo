@@ -15,6 +15,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.PorterDuff
 import android.view.View
+import io.github.odomu.honorduo.hook.ScreenStateTracker
 import io.github.odomu.honorduo.model.TrioConfig
 import io.github.odomu.honorduo.model.TrioState
 import kotlin.math.roundToInt
@@ -60,16 +61,23 @@ internal class GlyphView(context: Context) : View(context) {
         val density = resources.displayMetrics.density
         val offered = MeasureSpec.getSize(heightMeasureSpec)
         val nominal = (NOMINAL_HEIGHT_DP * density).roundToInt()
-        // The capsule is taller than the battery box by one band at each end, which is
-        // where its two opening readings live; the body itself stays the nominal height.
-        val wanted = if (TrioConfig.appearance().capsule) {
+        val a = TrioConfig.appearance()
+        val hasBottomStacked = !a.capsule && !a.rect && !a.dataSimOnly && (
+            (a.ringZones.getOrNull(2)?.size ?: 0) > 1 ||
+            (a.ringZones.getOrNull(2)?.contains(io.github.odomu.honorduo.model.Prefs.PART_MOBILE) == true && a.dualSim)
+        )
+        // Reserve clearance for stacked signal 2 at bottom
+        val extraStackH = if (hasBottomStacked) 1.5f * density else 0f
+        val wanted = if (a.capsule) {
             nominal + (2f * TrioGeometry.CAP_BAND_H * nominal / TrioGeometry.CAP_INK_H).roundToInt()
         } else {
-            nominal
+            ((20.5f * density) + extraStackH).roundToInt()
         }
         val height = if (offered > 0) minOf(offered, wanted) else wanted
-        val width =
-            1.coerceAtLeast((height * TrioGeometry.hostAspect(TrioConfig.appearance())).roundToInt())
+        val baseWidth = (height * TrioGeometry.hostAspect(a)).roundToInt()
+        // Dynamically widen view as ring spacing widens to push sibling views and avoid clipping
+        val extraSpacingW = if (a.ring && a.ringSpacingX > 0) (2f * a.ringSpacingX * density).roundToInt() else 0
+        val width = 1.coerceAtLeast(baseWidth + extraSpacingW)
         setMeasuredDimension(
             resolveSize(width, widthMeasureSpec),
             resolveSize(height, heightMeasureSpec),
@@ -97,7 +105,7 @@ internal class GlyphView(context: Context) : View(context) {
         )
         // One frame asks for the next only while the bolt is actually moving: a still
         // bolt, or an unplugged one, costs nothing.
-        if (TrioConfig.appearance().animatesOutline(state.charging, state.level)) {
+        if (ScreenStateTracker.isScreenOn && TrioConfig.appearance().animatesOutline(state.charging, state.level)) {
             postInvalidateOnAnimation()
         }
     }

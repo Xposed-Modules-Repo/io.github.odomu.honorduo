@@ -32,7 +32,9 @@ import kotlin.math.roundToInt
 class TrioSettings {
 
     @JvmField
-    var enabled = false
+    var enabled = Prefs.DEF_ENABLED
+    @JvmField
+    var mergeIcons = Prefs.DEF_MERGE_ICONS
     @JvmField
     var showWifi = false
     @JvmField
@@ -73,6 +75,14 @@ class TrioSettings {
     var capsuleRightDx = Prefs.DEF_CAPSULE_NUDGE
     @JvmField
     var capsuleRightDy = Prefs.DEF_CAPSULE_NUDGE
+    @JvmField
+    var ringSpacingX = Prefs.DEF_RING_SPACING_X
+    @JvmField
+    var ringSpacingY = Prefs.DEF_RING_SPACING_Y
+    @JvmField
+    var replaceWifiIcon = Prefs.DEF_REPLACE_WIFI_ICON
+    @JvmField
+    var replaceStatusIcon = Prefs.DEF_REPLACE_STATUS_ICON
 
     /** Where the network type is drawn: [Prefs.MOBILE_TYPE_OFF] / `_IN_RING` / `_OUT_RING`. */
     @JvmField
@@ -212,6 +222,7 @@ class TrioSettings {
     var stackLabel = Prefs.DEF_STACK_LABEL
     var antiBurnIn = Prefs.DEF_ANTI_BURN_IN
     var signalColumns = Prefs.DEF_SIGNAL_COLUMNS
+    var fontPath: String = Prefs.DEF_FONT_PATH
 
 
 
@@ -330,6 +341,7 @@ class TrioSettings {
         @JvmStatic
         fun defaults(): TrioSettings = TrioSettings().apply {
             enabled = Prefs.DEF_ENABLED
+            mergeIcons = Prefs.DEF_MERGE_ICONS
             showWifi = Prefs.DEF_SHOW_WIFI
             showMobile = Prefs.DEF_SHOW_MOBILE
             showValue = Prefs.DEF_SHOW_VALUE
@@ -344,6 +356,10 @@ class TrioSettings {
             capsuleLeftDy = Prefs.DEF_CAPSULE_NUDGE
             capsuleRightDx = Prefs.DEF_CAPSULE_NUDGE
             capsuleRightDy = Prefs.DEF_CAPSULE_NUDGE
+            ringSpacingX = Prefs.DEF_RING_SPACING_X
+            ringSpacingY = Prefs.DEF_RING_SPACING_Y
+            replaceWifiIcon = Prefs.DEF_REPLACE_WIFI_ICON
+            replaceStatusIcon = Prefs.DEF_REPLACE_STATUS_ICON
             mobileTypeMode = Prefs.DEF_MOBILE_TYPE_MODE
             valueCentred = Prefs.DEF_VALUE_CENTRED
             navStyle = Prefs.DEF_NAV_STYLE
@@ -412,6 +428,7 @@ class TrioSettings {
             outOrder = Prefs.OUT_DEFAULT_ORDER.clone()
             typeWeight = Prefs.DEF_TYPE_WEIGHT
             trackAlpha = Prefs.DEF_TRACK_ALPHA
+            fontPath = Prefs.DEF_FONT_PATH
             debugLog = Prefs.DEF_DEBUG_LOG
         }
 
@@ -442,6 +459,7 @@ class TrioSettings {
         fun from(p: SharedPreferences, density: Float, styleOverride: Int): TrioSettings {
             val s = TrioSettings()
             s.enabled = p.getBoolean(Prefs.KEY_ENABLED, Prefs.DEF_ENABLED)
+            s.mergeIcons = p.getBoolean(Prefs.KEY_MERGE_ICONS, Prefs.DEF_MERGE_ICONS)
             // The style first: the component switches below are stored per
             // arrangement, so which key to read depends on it.
             s.navStyle = Prefs.normalizeNavStyle(
@@ -499,6 +517,16 @@ class TrioSettings {
                 p.getInt(Prefs.KEY_CAPSULE_RIGHT_DY, Prefs.DEF_CAPSULE_NUDGE),
                 Prefs.MIN_CAPSULE_NUDGE_Y, Prefs.MAX_CAPSULE_NUDGE_Y,
             )
+            s.ringSpacingX = Prefs.clamp(
+                p.getInt(Prefs.KEY_RING_SPACING_X, Prefs.DEF_RING_SPACING_X),
+                Prefs.MIN_RING_SPACING_X, Prefs.MAX_RING_SPACING_X,
+            )
+            s.ringSpacingY = Prefs.clamp(
+                p.getInt(Prefs.KEY_RING_SPACING_Y, Prefs.DEF_RING_SPACING_Y),
+                Prefs.MIN_RING_SPACING_Y, Prefs.MAX_RING_SPACING_Y,
+            )
+            s.replaceWifiIcon = p.getBoolean(Prefs.KEY_REPLACE_WIFI_ICON, Prefs.DEF_REPLACE_WIFI_ICON)
+            s.replaceStatusIcon = p.getBoolean(Prefs.KEY_REPLACE_STATUS_ICON, Prefs.DEF_REPLACE_STATUS_ICON)
             s.mobileTypeMode = readMobileTypeMode(p, s.trioStyle)
             s.valueCentred = readStyledBoolean(
                 p, Prefs.KEY_VALUE_CENTRED, Prefs.DEF_VALUE_CENTRED, s.trioStyle,
@@ -647,6 +675,7 @@ class TrioSettings {
                 p.getInt(Prefs.KEY_SIGNAL_COLUMNS, Prefs.DEF_SIGNAL_COLUMNS),
                 Prefs.MIN_SIGNAL_COLUMNS, Prefs.MAX_SIGNAL_COLUMNS,
             )
+            s.fontPath = p.getString(Prefs.KEY_FONT_PATH, Prefs.DEF_FONT_PATH) ?: Prefs.DEF_FONT_PATH
             s.outSignalSize = Prefs.clamp(
                 p.getInt(Prefs.KEY_OUT_SIGNAL_SIZE, Prefs.DEF_OUT_SIGNAL_SIZE),
                 Prefs.MIN_OUT_SIGNAL_SIZE,
@@ -720,6 +749,7 @@ class TrioSettings {
             if (bundle == null) return defaults()
             val s = TrioSettings()
             s.enabled = bundle.getBoolean(Prefs.KEY_ENABLED, Prefs.DEF_ENABLED)
+            s.mergeIcons = bundle.getBoolean(Prefs.KEY_MERGE_ICONS, Prefs.DEF_MERGE_ICONS)
             // The style first, for the same reason as the stored read.
             s.navStyle = Prefs.normalizeNavStyle(
                 bundle.getInt(Prefs.KEY_NAV_STYLE, Prefs.DEF_NAV_STYLE),
@@ -777,6 +807,16 @@ class TrioSettings {
                 bundle.getInt(Prefs.KEY_CAPSULE_RIGHT_DY, Prefs.DEF_CAPSULE_NUDGE),
                 Prefs.MIN_CAPSULE_NUDGE_Y, Prefs.MAX_CAPSULE_NUDGE_Y,
             )
+            s.ringSpacingX = Prefs.clamp(
+                bundle.getInt(Prefs.KEY_RING_SPACING_X, Prefs.DEF_RING_SPACING_X),
+                Prefs.MIN_RING_SPACING_X, Prefs.MAX_RING_SPACING_X,
+            )
+            s.ringSpacingY = Prefs.clamp(
+                bundle.getInt(Prefs.KEY_RING_SPACING_Y, Prefs.DEF_RING_SPACING_Y),
+                Prefs.MIN_RING_SPACING_Y, Prefs.MAX_RING_SPACING_Y,
+            )
+            s.replaceWifiIcon = bundle.getBoolean(Prefs.KEY_REPLACE_WIFI_ICON, Prefs.DEF_REPLACE_WIFI_ICON)
+            s.replaceStatusIcon = bundle.getBoolean(Prefs.KEY_REPLACE_STATUS_ICON, Prefs.DEF_REPLACE_STATUS_ICON)
             s.mobileTypeMode = readMobileTypeMode(bundle, s.trioStyle)
             s.valueCentred = readStyledBoolean(
                 bundle, Prefs.KEY_VALUE_CENTRED, Prefs.DEF_VALUE_CENTRED, s.trioStyle,
@@ -923,6 +963,7 @@ class TrioSettings {
                 bundle.getInt(Prefs.KEY_SIGNAL_COLUMNS, Prefs.DEF_SIGNAL_COLUMNS),
                 Prefs.MIN_SIGNAL_COLUMNS, Prefs.MAX_SIGNAL_COLUMNS,
             )
+            s.fontPath = bundle.getString(Prefs.KEY_FONT_PATH, Prefs.DEF_FONT_PATH) ?: Prefs.DEF_FONT_PATH
             s.outSignalSize = Prefs.clamp(
                 bundle.getInt(Prefs.KEY_OUT_SIGNAL_SIZE, Prefs.DEF_OUT_SIGNAL_SIZE),
                 Prefs.MIN_OUT_SIGNAL_SIZE,
@@ -1195,6 +1236,7 @@ class TrioSettings {
      */
     fun copy(): TrioSettings = TrioSettings().also { s ->
         s.enabled = enabled
+        s.mergeIcons = mergeIcons
         s.showWifi = showWifi
         s.showMobile = showMobile
         s.showValue = showValue
@@ -1209,6 +1251,8 @@ class TrioSettings {
         s.capsuleLeftDy = capsuleLeftDy
         s.capsuleRightDx = capsuleRightDx
         s.capsuleRightDy = capsuleRightDy
+        s.ringSpacingX = ringSpacingX
+        s.ringSpacingY = ringSpacingY
         s.mobileTypeMode = mobileTypeMode
         s.valueCentred = valueCentred
         s.navStyle = navStyle
@@ -1272,6 +1316,7 @@ class TrioSettings {
         s.stackLabel = stackLabel
         s.antiBurnIn = antiBurnIn
         s.signalColumns = signalColumns
+        s.fontPath = fontPath
         s.outTypeMarginLeft = outTypeMarginLeft
         s.outTypeMarginRight = outTypeMarginRight
         s.outSignalMargin = outSignalMargin
@@ -1333,6 +1378,7 @@ class TrioSettings {
         val k = if (Prefs.isCapsuleKey(key)) Prefs.styledBase(key) else key
         when (k) {
             Prefs.KEY_ENABLED -> enabled = src.enabled
+            Prefs.KEY_MERGE_ICONS -> mergeIcons = src.mergeIcons
             Prefs.KEY_SHOW_WIFI -> showWifi = src.showWifi
             Prefs.KEY_SHOW_MOBILE -> showMobile = src.showMobile
             Prefs.KEY_SHOW_VALUE -> showValue = src.showValue
@@ -1346,6 +1392,8 @@ class TrioSettings {
             Prefs.KEY_CAPSULE_LEFT_DY -> capsuleLeftDy = src.capsuleLeftDy
             Prefs.KEY_CAPSULE_RIGHT_DX -> capsuleRightDx = src.capsuleRightDx
             Prefs.KEY_CAPSULE_RIGHT_DY -> capsuleRightDy = src.capsuleRightDy
+            Prefs.KEY_RING_SPACING_X -> ringSpacingX = src.ringSpacingX
+            Prefs.KEY_RING_SPACING_Y -> ringSpacingY = src.ringSpacingY
             Prefs.KEY_SHOW_MOBILE_ACTIVITY -> showMobileActivity = src.showMobileActivity
             Prefs.KEY_MOBILE_TYPE_MODE -> mobileTypeMode = src.mobileTypeMode
             Prefs.KEY_VALUE_CENTRED -> valueCentred = src.valueCentred
@@ -1407,6 +1455,7 @@ class TrioSettings {
             Prefs.KEY_STACK_LABEL -> stackLabel = src.stackLabel
             Prefs.KEY_SIGNAL_COLUMNS -> signalColumns = src.signalColumns
             Prefs.KEY_ANTI_BURN_IN -> antiBurnIn = src.antiBurnIn
+            Prefs.KEY_FONT_PATH -> fontPath = src.fontPath
             Prefs.KEY_OUT_TYPE_MARGIN_LEFT -> outTypeMarginLeft = src.outTypeMarginLeft
             Prefs.KEY_OUT_TYPE_MARGIN_RIGHT -> outTypeMarginRight = src.outTypeMarginRight
             Prefs.KEY_OUT_SIGNAL_MARGIN -> outSignalMargin = src.outSignalMargin
@@ -1419,6 +1468,8 @@ class TrioSettings {
             Prefs.KEY_TYPE_WEIGHT -> typeWeight = src.typeWeight
             Prefs.KEY_TRACK_ALPHA -> trackAlpha = src.trackAlpha
             Prefs.KEY_DEBUG_LOG -> debugLog = src.debugLog
+            Prefs.KEY_REPLACE_WIFI_ICON -> replaceWifiIcon = src.replaceWifiIcon
+            Prefs.KEY_REPLACE_STATUS_ICON -> replaceStatusIcon = src.replaceStatusIcon
             else -> return false
         }
         return true
@@ -1437,6 +1488,7 @@ class TrioSettings {
         putInt(Prefs.KEY_NAV_LABELS, Prefs.normalizeNavLabels(navLabels))
         putInt(Prefs.KEY_TRIO_STYLE, style)
         putBoolean(Prefs.KEY_ENABLED, enabled)
+        putBoolean(Prefs.KEY_MERGE_ICONS, mergeIcons)
         putBoolean(Prefs.styledKey(Prefs.KEY_SHOW_WIFI, style), showWifi)
         putBoolean(Prefs.styledKey(Prefs.KEY_SHOW_MOBILE, style), showMobile)
         putBoolean(Prefs.styledKey(Prefs.KEY_SHOW_VALUE, style), showValue)
@@ -1450,6 +1502,8 @@ class TrioSettings {
         putInt(Prefs.KEY_CAPSULE_LEFT_DY, capsuleLeftDy)
         putInt(Prefs.KEY_CAPSULE_RIGHT_DX, capsuleRightDx)
         putInt(Prefs.KEY_CAPSULE_RIGHT_DY, capsuleRightDy)
+        putInt(Prefs.KEY_RING_SPACING_X, ringSpacingX)
+        putInt(Prefs.KEY_RING_SPACING_Y, ringSpacingY)
         putInt(Prefs.styledKey(Prefs.KEY_MOBILE_TYPE_MODE, style), mobileTypeMode)
         putBoolean(Prefs.styledKey(Prefs.KEY_SHOW_MOBILE_ACTIVITY, style), showMobileActivity)
         putBoolean(Prefs.styledKey(Prefs.KEY_VALUE_CENTRED, style), valueCentred)
@@ -1511,6 +1565,7 @@ class TrioSettings {
         putInt(Prefs.KEY_STACK_LABEL, stackLabel)
         putBoolean(Prefs.KEY_ANTI_BURN_IN, antiBurnIn)
         putInt(Prefs.KEY_SIGNAL_COLUMNS, signalColumns)
+        putString(Prefs.KEY_FONT_PATH, fontPath)
         putInt(Prefs.KEY_OUT_TYPE_MARGIN_LEFT, outTypeMarginLeft)
         putInt(Prefs.KEY_OUT_TYPE_MARGIN_RIGHT, outTypeMarginRight)
         putInt(Prefs.KEY_OUT_SIGNAL_MARGIN, outSignalMargin)
@@ -1523,6 +1578,8 @@ class TrioSettings {
         putInt(Prefs.KEY_TYPE_WEIGHT, typeWeight)
         putInt(Prefs.KEY_TRACK_ALPHA, trackAlpha)
         putBoolean(Prefs.KEY_DEBUG_LOG, debugLog)
+        putBoolean(Prefs.KEY_REPLACE_WIFI_ICON, replaceWifiIcon)
+        putBoolean(Prefs.KEY_REPLACE_STATUS_ICON, replaceStatusIcon)
     }
 
     /**
@@ -1532,6 +1589,7 @@ class TrioSettings {
         if (this === other) return true
         if (other !is TrioSettings) return false
         return enabled == other.enabled &&
+            mergeIcons == other.mergeIcons &&
             showWifi == other.showWifi &&
             showMobile == other.showMobile &&
             showValue == other.showValue &&
@@ -1545,6 +1603,8 @@ class TrioSettings {
             capsuleLeftDy == other.capsuleLeftDy &&
             capsuleRightDx == other.capsuleRightDx &&
             capsuleRightDy == other.capsuleRightDy &&
+            ringSpacingX == other.ringSpacingX &&
+            ringSpacingY == other.ringSpacingY &&
             mobileTypeMode == other.mobileTypeMode &&
             showMobileActivity == other.showMobileActivity &&
             valueCentred == other.valueCentred &&
@@ -1609,6 +1669,7 @@ class TrioSettings {
             stackLabel == other.stackLabel &&
             antiBurnIn == other.antiBurnIn &&
             signalColumns == other.signalColumns &&
+            fontPath == other.fontPath &&
             outTypeMarginLeft == other.outTypeMarginLeft &&
             outTypeMarginRight == other.outTypeMarginRight &&
             outSignalMargin == other.outSignalMargin &&
@@ -1620,6 +1681,8 @@ class TrioSettings {
             outOrder.contentEquals(other.outOrder) &&
             typeWeight == other.typeWeight &&
             trackAlpha == other.trackAlpha &&
+            replaceWifiIcon == other.replaceWifiIcon &&
+            replaceStatusIcon == other.replaceStatusIcon &&
             debugLog == other.debugLog
     }
 

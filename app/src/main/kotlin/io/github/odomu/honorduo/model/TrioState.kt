@@ -27,6 +27,7 @@ import io.github.odomu.honorduo.hook.BatteryPresence
 import io.github.odomu.honorduo.hook.ClockTicker
 import io.github.odomu.honorduo.hook.FpsTicker
 import io.github.odomu.honorduo.hook.Refl
+import io.github.odomu.honorduo.hook.ScreenStateTracker
 import io.github.odomu.honorduo.hook.TrioHooks
 import io.github.odomu.honorduo.hook.WifiPresence
 import io.github.odomu.honorduo.model.TrioState.Companion.SIMS_INTERVAL_MS
@@ -131,10 +132,14 @@ internal class TrioState(val host: View) {
         mobileLevel = sMobileLevel
         wifiPresent = sWifiPresent
         mobileType = sMobileType
-        slotTypes = sSlotTypes.copyOf()
+        val types = sSlotTypes
+        if (!slotTypes.contentEquals(types)) {
+            slotTypes = types.copyOf()
+        }
 
         val slots = sSlotLevels
-        slotLevels = intArrayOf(slots[0], slots[1])
+        slotLevels[0] = slots[0]
+        slotLevels[1] = slots[1]
         sims = (if (slots[0] >= 0) 1 else 0) + (if (slots[1] >= 0) 1 else 0)
 
         // Single row, no answer from the icon chain: the row still means "the SIM
@@ -587,6 +592,7 @@ internal class TrioState(val host: View) {
          * per-frame call from becoming a per-frame IPC.
          */
         private fun sampleSimsIfDue() {
+            if (!ScreenStateTracker.isScreenOn) return
             val now = SystemClock.elapsedRealtime()
             if (now < sSimsDueAt) return
             sSimsDueAt = now + SIMS_INTERVAL_MS

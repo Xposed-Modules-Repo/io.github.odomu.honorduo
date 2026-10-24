@@ -60,7 +60,7 @@ object Prefs {
 
     // Keys.
     const val KEY_ENABLED = "enabled"
-
+    const val KEY_MERGE_ICONS = "merge_icons"
     /**
      * Overall size of the trio glyph, as a percentage of the size the host box
      * already implies.
@@ -115,6 +115,15 @@ object Prefs {
     const val KEY_CAPSULE_LEFT_DY = "capsule_left_dy"
     const val KEY_CAPSULE_RIGHT_DX = "capsule_right_dx"
     const val KEY_CAPSULE_RIGHT_DY = "capsule_right_dy"
+
+    const val KEY_RING_SPACING_X = "ring_spacing_x"
+    const val KEY_RING_SPACING_Y = "ring_spacing_y"
+
+    const val KEY_REPLACE_WIFI_ICON = "replace_wifi_icon"
+    const val DEF_REPLACE_WIFI_ICON = false
+
+    const val KEY_REPLACE_STATUS_ICON = "replace_status_icon"
+    const val DEF_REPLACE_STATUS_ICON = false
 
     /**
      * Size of the Wi-Fi arcs, as a percentage of the size the arrangement fits them to.
@@ -826,6 +835,7 @@ object Prefs {
 
     // Defaults.
     const val DEF_ENABLED = true
+    const val DEF_MERGE_ICONS = true
     const val DEF_SHOW_WIFI = false
     const val DEF_SHOW_MOBILE = true
     const val DEF_SHOW_MOBILE_ACTIVITY = false
@@ -905,7 +915,7 @@ object Prefs {
     const val NAV_LIQUID_GLASS = 2
     const val NAV_STYLE_MIN = NAV_HYPER_OS
     const val NAV_STYLE_MAX = NAV_LIQUID_GLASS
-    const val DEF_NAV_STYLE = NAV_HYPER_OS_FLOATING
+    const val DEF_NAV_STYLE = NAV_LIQUID_GLASS
 
     /** Clamps a stored nav style; anything unknown falls back to the default. */
     @JvmStatic
@@ -1023,6 +1033,13 @@ object Prefs {
     const val DEF_CLOCK_WEEKDAY_FORMAT = CLOCK_WEEKDAY_ZH_SHORT
     const val DEF_COLOR_CLOCK = 0
 
+    const val DEF_RING_SPACING_X = 0
+    const val DEF_RING_SPACING_Y = 0
+    const val MIN_RING_SPACING_X = -10
+    const val MAX_RING_SPACING_X = 20
+    const val MIN_RING_SPACING_Y = -10
+    const val MAX_RING_SPACING_Y = 20
+
     const val MIN_CLOCK_OFFSET = -50
     const val MAX_CLOCK_OFFSET = 50
     const val MIN_CLOCK_LUNAR_GAP = 0
@@ -1042,8 +1059,11 @@ object Prefs {
      */
     const val DEF_OUT_TYPE_SIZE_DP = 14
     const val KEY_ANTI_BURN_IN = "anti_burn_in"
-    const val DEF_ANTI_BURN_IN = false
+    const val DEF_ANTI_BURN_IN = true
     const val BURN_IN_INTERVAL_MS = 30_000L
+
+    const val KEY_FONT_PATH = "font_path"
+    const val DEF_FONT_PATH = ""
 
     const val KEY_SIGNAL_COLUMNS = "signal_columns"
     const val DEF_SIGNAL_COLUMNS = 4

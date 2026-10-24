@@ -902,14 +902,9 @@ object TrioGeometry {
     @JvmStatic
     fun zoneTextRoomH(z: Int): Float {
         if (z == 1) {
-            // The ring's interior, less a margin so the ink does not touch the arc.
-            // The interior is measured on the arc's inside edge; the extra two units
-            // clear the antialiased rim on both horizontal edges of the line, which is
-            // what turned "fits by measurement" into a two-pixel overlap.
             return 2f * (B_R - Prefs.DEF_RING_STROKE) - 2f * ZONE_TEXT_INSET - 2f * ZONE_TYPE_FRINGE
         }
-        // A signal-dot box, less the same margin.
-        return signalDotBoxH(z) - 2f * ZONE_TEXT_INSET
+        return if (z == 0) 32f else 26f
     }
 
     /**
@@ -1778,6 +1773,17 @@ object TrioGeometry {
     @JvmStatic
     fun capWifiOffsetY(stroke: Float): Float {
         return capInteriorCy(stroke) - W_INK_CY * capWifiScale(stroke)
+    }
+
+    @JvmStatic
+    fun capRightIconCx(stroke: Float, part: Int): Float {
+        val edge = capTextRight(stroke)
+        val half = when (part) {
+            Prefs.PART_WIFI -> W_INK_W * capWifiScale(stroke) * 0.5f
+            Prefs.PART_BOLT -> 6.25f * capBoltScale(stroke)
+            else -> 0f
+        }
+        return edge - half
     }
 
     /**

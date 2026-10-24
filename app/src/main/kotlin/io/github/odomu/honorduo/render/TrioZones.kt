@@ -462,6 +462,8 @@ object TrioZones {
         }
         lists[zone].add(0, id)
         next.ringZones = Array(Prefs.ZONE_COUNT) { z -> lists[z].toIntArray() }
+        next.enabled = true
+        next.mergeIcons = true
         // A placed piece needs its own switch on, or the zone would reserve space it then
         // draws nothing in.
         val hasWifiNow = next.ringZones.any { it.contains(Prefs.PART_WIFI) }
@@ -471,7 +473,21 @@ object TrioZones {
         next.showWifi = hasWifiNow
         next.showValue = hasValueNow
         next.showBolt = hasBoltNow
-        if (hasMobileNow) next.showMobile = true
+        if (hasMobileNow) {
+            next.showMobile = true
+            if (want == Part.SIM_1 || want == Part.SIM_2 || want == Part.MOBILE) {
+                next.signalMode = Prefs.SIGNAL_IN_RING
+            }
+        }
+        if (want == Part.SIM_1 || next.ringZones.any { it.contains(Prefs.PART_SIM_1) }) {
+            next.showSim1 = true
+        }
+        if (want == Part.SIM_2 || next.ringZones.any { it.contains(Prefs.PART_SIM_2) }) {
+            next.showSim2 = true
+        }
+        if (want == Part.TYPE || next.ringZones.any { it.contains(Prefs.PART_TYPE) }) {
+            next.mobileTypeMode = Prefs.MOBILE_TYPE_IN_RING
+        }
         return next
     }
 
