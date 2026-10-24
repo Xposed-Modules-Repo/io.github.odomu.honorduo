@@ -202,6 +202,7 @@ class TrioAppearance(c: TrioSettings) {
     @JvmField val chargingOnLight: Int = c.chargingOnLight
     @JvmField val lowOnDark: Int = c.lowOnDark
     @JvmField val lowOnLight: Int = c.lowOnLight
+    @JvmField val roleColorsTemp: Boolean = c.roleColorsTemp
     @JvmField val tempThreshold: Int = c.tempThreshold
     @JvmField val highTempOnDark: Int = c.highTempOnDark
     @JvmField val highTempOnLight: Int = c.highTempOnLight

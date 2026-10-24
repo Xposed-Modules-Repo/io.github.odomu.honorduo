@@ -228,7 +228,6 @@ telephony：
 | `HwStatusbarContents` | `onAttachedToWindow` | `honorduo-contents-attach` | 记录状态栏 contents，供时钟与图标遍历使用 |
 | `HwStatusBarClock` | `onAttachedToWindow` | `honorduo-clock-face` | 采用系统字体、记录原生时钟、挂载模块时钟 |
 | `HwStatusbarContents` | `refreshTint` | `honorduo-tint` | 深浅色切换后立即重绘 |
-| `HnPhoneStatusBarAnimController` | `setPivotXY`（3 参） | `honorduo-pivot` | 按模块视图修正下拉动画的 pivot |
 
 启动时打印 `HonorDuo installed, hooks=N`。某个方法在别的固件上改名时只打印
 `skip <id>: method not found`，其余钩子照常工作。

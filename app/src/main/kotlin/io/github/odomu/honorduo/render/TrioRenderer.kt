@@ -623,7 +623,7 @@ object TrioRenderer {
                         } else {
                             TEXT.textAlign = Paint.Align.CENTER
                             TEXT.textSize = fitted
-                            val tempIsHigh = part == Prefs.PART_TEMP &&
+                            val tempIsHigh = a.roleColorsTemp && part == Prefs.PART_TEMP &&
                                 TrioState.sBatteryTempC != TrioState.TEMP_UNKNOWN &&
                                 TrioState.sBatteryTempC >= a.tempThreshold
                             TEXT.color = if (tempIsHigh) (if (isDarkBackground(fg)) a.highTempOnDark else a.highTempOnLight) else fg
@@ -967,7 +967,7 @@ object TrioRenderer {
             effectiveHeightLimit(heightHint, stroke),
         )
         TEXT.textSize = size
-        val tempIsHigh = text == tempText() &&
+        val tempIsHigh = a.roleColorsTemp && text == tempText() &&
             TrioState.sBatteryTempC != TrioState.TEMP_UNKNOWN &&
             TrioState.sBatteryTempC >= a.tempThreshold
         TEXT.color = if (tempIsHigh) (if (isDarkBackground(fg)) a.highTempOnDark else a.highTempOnLight) else fg

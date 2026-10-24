@@ -40,6 +40,8 @@ param(
     [Parameter(Mandatory = $true)][string]$Version,
     [Parameter(Mandatory = $true)][int]$VersionCode,
     [Parameter(Mandatory = $true)][string]$Apk,
+    [string]$TagName,
+    [string]$Title,
     [string]$Notes,
     [string]$NotesFile,
     [switch]$DryRun,
@@ -53,14 +55,46 @@ $ErrorActionPreference = 'Stop'
 $Root    = Split-Path $PSScriptRoot -Parent
 $Module  = 'Xposed-Modules-Repo/io.github.odomu.honorduo'
 $Package = 'io.github.odomu.honorduo'
-$Tag     = "$VersionCode-$Version"
+if (-not $TagName) { $TagName = "v$Version" }
+$Tag     = $TagName
+if (-not $Title) { $Title = "HonorDuo $Version" }
 $Asset   = "HonorDuo-$Version.apk"
 $Readme  = Join-Path $Root 'module-README.md'
 
-# aapt2 from whichever SDK the shell points at, newest build-tools installed.
+# Auto-detect Android SDK if not set
+if (-not $env:ANDROID_HOME -or -not (Test-Path $env:ANDROID_HOME)) {
+    $localProp = Join-Path $Root 'local.properties'
+    if (Test-Path $localProp) {
+        $sdkLine = Get-Content $localProp -ErrorAction SilentlyContinue |
+            Where-Object { $_ -match '^\s*sdk\.dir\s*=' } | Select-Object -First 1
+        if ($sdkLine) {
+            $parsed = ($sdkLine -replace '^\s*sdk\.dir\s*=\s*', '').Trim()
+            $parsed = $parsed -replace '\\\\', '\' -replace '\\:', ':'
+            if (Test-Path $parsed) { $env:ANDROID_HOME = $parsed }
+        }
+    }
+}
+if (-not $env:ANDROID_HOME -or -not (Test-Path $env:ANDROID_HOME)) {
+    if ($env:ANDROID_SDK_ROOT -and (Test-Path $env:ANDROID_SDK_ROOT)) {
+        $env:ANDROID_HOME = $env:ANDROID_SDK_ROOT
+    }
+}
+if (-not $env:ANDROID_HOME -or -not (Test-Path $env:ANDROID_HOME)) {
+    $stdPaths = @(
+        "$env:LOCALAPPDATA\Android\Sdk",
+        "$env:ProgramFiles\Android\android-sdk",
+        "$env:ProgramFiles(x86)\Android\android-sdk",
+        "$HOME/Library/Android/sdk",
+        "$HOME/Android/Sdk"
+    )
+    foreach ($p in $stdPaths) {
+        if ($p -and (Test-Path $p)) { $env:ANDROID_HOME = $p; break }
+    }
+}
+if (-not $env:ANDROID_HOME) { throw "ANDROID_HOME is not set. Please define ANDROID_HOME or sdk.dir in local.properties." }
 $buildTools = Get-ChildItem (Join-Path $env:ANDROID_HOME 'build-tools') -Directory -ErrorAction SilentlyContinue |
     Sort-Object { [version]$_.Name } -ErrorAction SilentlyContinue | Select-Object -Last 1
-if (-not $buildTools) { throw "找不到 build-tools：$env:ANDROID_HOME\build-tools" }
+if (-not $buildTools) { throw "build-tools not found under: $env:ANDROID_HOME\build-tools" }
 $Aapt = Join-Path $buildTools.FullName 'aapt2.exe'
 if (-not (Test-Path $Aapt)) { $Aapt = Join-Path $buildTools.FullName 'aapt2' }
 
@@ -87,6 +121,34 @@ function Get-GitHubToken {
         return ($line -replace '^password=', '').Trim()
     } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
 }
+function Invoke-RestMethodWithRetry {
+    param(
+        [Parameter(Mandatory = $true)][string]$Uri,
+        [hashtable]$Headers,
+        [string]$Method = 'Get',
+        [string]$ContentType,
+        $Body,
+        [string]$InFile,
+        [int]$MaxRetries = 3
+    )
+    for ($i = 1; $i -le $MaxRetries; $i++) {
+        try {
+            $params = @{ Uri = $Uri; Headers = $Headers; Method = $Method }
+            if ($ContentType) { $params.ContentType = $ContentType }
+            if ($Body) { $params.Body = $Body }
+            if ($InFile) { $params.InFile = $InFile }
+            return Invoke-RestMethod @params
+        } catch {
+            $status = $null
+            try { $status = [int]$_.Exception.Response.StatusCode } catch {}
+            if ($status -eq 404) { throw }
+            if ($i -eq $MaxRetries) { throw }
+            Write-Host "==> network transient issue ($($_.Exception.Message)), retrying ($i/$MaxRetries)..." -ForegroundColor DarkGray
+            Start-Sleep -Seconds 2
+        }
+    }
+}
+
 
 # The module repo must show exactly one version: delete every release except the
 # one just published. Only the release records go away; the tags stay.
@@ -97,7 +159,7 @@ function Remove-StaleReleases {
         [int]$KeepId,
         [string]$KeepTag
     )
-    $all = Invoke-RestMethod -Uri "$ApiBase/releases?per_page=100" -Headers $Headers
+    $all = Invoke-RestMethodWithRetry -Uri "$ApiBase/releases?per_page=100" -Headers $Headers
     $stale = @($all | Where-Object { $_.id -ne $KeepId -and -not $_.draft })
     if ($stale.Count -eq 0) {
         Write-Host '==> no stale releases to remove' -ForegroundColor DarkGray
@@ -105,7 +167,7 @@ function Remove-StaleReleases {
     }
     foreach ($r in $stale) {
         Write-Host "==> deleting stale release $($r.tag_name) (tag kept)" -ForegroundColor Yellow
-        Invoke-RestMethod -Method Delete -Uri "$ApiBase/releases/$($r.id)" -Headers $Headers | Out-Null
+        Invoke-RestMethodWithRetry -Method Delete -Uri "$ApiBase/releases/$($r.id)" -Headers $Headers | Out-Null
     }
     Write-Host "==> removed $($stale.Count) stale release(s); only $KeepTag remains" -ForegroundColor Green
 }
@@ -152,7 +214,7 @@ $api = "https://api.github.com/repos/$Module"
 
 $existing = $null
 try {
-    $existing = Invoke-RestMethod -Uri "$api/releases/tags/$Tag" -Headers $headers
+    $existing = Invoke-RestMethodWithRetry -Uri "$api/releases/tags/$Tag" -Headers $headers
 } catch {
     $status = $null
     try { $status = [int]$_.Exception.Response.StatusCode } catch { $status = $null }
@@ -161,7 +223,7 @@ try {
 
 $payload = @{
     tag_name   = $Tag
-    name       = $Version
+    name       = $Title
     body       = [string]$Notes
     draft      = $false
     prerelease = $false
@@ -170,13 +232,20 @@ $payload = @{
 if ($existing) {
     if (-not $Force) { throw "release $Tag already exists in the module repo. Re-run with -Force to overwrite." }
     Write-Host "==> overwriting existing release $Tag" -ForegroundColor Yellow
-    $release = Invoke-RestMethod -Method Patch -Uri "$api/releases/$($existing.id)" `
+    $release = Invoke-RestMethodWithRetry -Method Patch -Uri "$api/releases/$($existing.id)" `
         -Headers $headers -ContentType 'application/json; charset=utf-8' `
         -Body ([System.Text.Encoding]::UTF8.GetBytes($payload))
 } else {
-    $release = Invoke-RestMethod -Method Post -Uri "$api/releases" `
+    $release = Invoke-RestMethodWithRetry -Method Post -Uri "$api/releases" `
         -Headers $headers -ContentType 'application/json; charset=utf-8' `
         -Body ([System.Text.Encoding]::UTF8.GetBytes($payload))
+}
+if ($release.draft) {
+    Write-Host "==> publishing draft release..." -ForegroundColor Yellow
+    $pubPayload = '{"draft":false}'
+    $release = Invoke-RestMethodWithRetry -Method Patch -Uri "$api/releases/$($release.id)" `
+        -Headers $headers -ContentType 'application/json; charset=utf-8' `
+        -Body ([System.Text.Encoding]::UTF8.GetBytes($pubPayload))
 }
 
 # ---- asset -------------------------------------------------------------------
@@ -184,49 +253,18 @@ if ($existing) {
 foreach ($a in $release.assets) {
     if ($a.name -eq $Asset) {
         Write-Host "==> deleting stale asset $Asset" -ForegroundColor Yellow
-        Invoke-RestMethod -Method Delete -Uri "$api/releases/assets/$($a.id)" -Headers $headers | Out-Null
+        Invoke-RestMethodWithRetry -Method Delete -Uri "$api/releases/assets/$($a.id)" -Headers $headers | Out-Null
     }
 }
 
-$uploaded = Invoke-RestMethod -Method Post `
+$uploaded = Invoke-RestMethodWithRetry -Method Post `
     -Uri "https://uploads.github.com/repos/$Module/releases/$($release.id)/assets?name=$Asset" `
     -Headers $headers -ContentType 'application/vnd.android.package-archive' -InFile $Apk
 
 Write-Host "==> uploaded $($uploaded.name)  $($uploaded.size) B" -ForegroundColor Green
 Write-Host "==> $($uploaded.browser_download_url)" -ForegroundColor Green
 
-# ---- readme ------------------------------------------------------------------
-
-# module-README.md is the tracked source of the module repo's front page. If the
-# published copy already matches, say so and do not create an empty commit.
-if ($SkipReadme) {
-    Write-Host '==> -SkipReadme: leaving the module repo README.md alone' -ForegroundColor Yellow
-} elseif (-not (Test-Path $Readme)) {
-    Write-Host "==> $Readme not found: skipping README.md" -ForegroundColor Yellow
-} else {
-    $want = [System.IO.File]::ReadAllText($Readme, [Text.Encoding]::UTF8)
-    $cur = $null
-    try { $cur = Invoke-RestMethod -Uri "$api/contents/README.md" -Headers $headers } catch {
-        $status = $null
-        try { $status = [int]$_.Exception.Response.StatusCode } catch { $status = $null }
-        if ($status -ne 404) { throw }
-    }
-    $have = ''
-    if ($cur) { $have = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(($cur.content -replace '\s', ''))) }
-
-    if ($cur -and $have -ceq $want) {
-        Write-Host '==> README.md already up to date' -ForegroundColor DarkGray
-    } else {
-        $body = @{
-            message = "docs: sync README for $Version"
-            content = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($want))
-        }
-        if ($cur) { $body.sha = $cur.sha }
-        $put = Invoke-RestMethod -Method Put -Uri "$api/contents/README.md" -Headers $headers `
-            -ContentType 'application/json' -Body ($body | ConvertTo-Json -Compress)
-        Write-Host "==> README.md published  $($put.content.size) B  sha=$($put.content.sha.Substring(0,10))" -ForegroundColor Green
-    }
-}
+# README is tracked and pushed via git; do not create duplicate commits via Contents API.
 
 # Run last, so a cleanup failure can never undo a successful publish.
 if ($KeepOldReleases) {

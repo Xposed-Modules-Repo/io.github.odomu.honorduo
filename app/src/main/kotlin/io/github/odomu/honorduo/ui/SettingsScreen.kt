@@ -2194,7 +2194,7 @@ private fun ColorDialog(
     onPick: (onDark: Boolean, argb: Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var onDark by remember { mutableStateOf(true) }
+    var onDark by remember { mutableStateOf(false) }
 
     OverlayDialog(
         show = true,
@@ -2208,15 +2208,15 @@ private fun ColorDialog(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 BackgroundChip(
-                    label = stringResource(R.string.color_on_dark),
-                    selected = onDark,
-                    modifier = Modifier.weight(1f),
-                ) { onDark = true }
-                BackgroundChip(
                     label = stringResource(R.string.color_on_light),
                     selected = !onDark,
                     modifier = Modifier.weight(1f),
                 ) { onDark = false }
+                BackgroundChip(
+                    label = stringResource(R.string.color_on_dark),
+                    selected = onDark,
+                    modifier = Modifier.weight(1f),
+                ) { onDark = true }
             }
             ColorPalette(
                 color = Color(colorFor(settings, role, onDark)),
@@ -2229,7 +2229,7 @@ private fun ColorDialog(
             ) {
                 TextButton(
                     text = stringResource(R.string.color_reset_default),
-                    onClick = { onPick(onDark, 0) },
+                    onClick = { onPick(onDark, defaultColorFor(role, onDark)) },
                 )
             }
         }
@@ -2395,6 +2395,15 @@ internal fun colorFor(settings: TrioSettings, role: RoleColor, onDark: Boolean):
         RoleColor.ClockDate -> if (onDark) settings.clockDateColorOnDark else settings.clockDateColorOnLight
         RoleColor.ClockLunar -> if (onDark) settings.clockLunarColorOnDark else settings.clockLunarColorOnLight
         RoleColor.HighTemp -> if (onDark) settings.highTempOnDark else settings.highTempOnLight
+    }
+
+internal fun defaultColorFor(role: RoleColor, onDark: Boolean): Int =
+    when (role) {
+        RoleColor.Critical -> if (onDark) Prefs.DEF_COLOR_CRITICAL_ON_DARK else Prefs.DEF_COLOR_CRITICAL_ON_LIGHT
+        RoleColor.Low -> if (onDark) Prefs.DEF_COLOR_LOW_ON_DARK else Prefs.DEF_COLOR_LOW_ON_LIGHT
+        RoleColor.Charging -> if (onDark) Prefs.DEF_COLOR_CHARGING_ON_DARK else Prefs.DEF_COLOR_CHARGING_ON_LIGHT
+        RoleColor.HighTemp -> if (onDark) Prefs.DEF_COLOR_HIGH_TEMP_ON_DARK else Prefs.DEF_COLOR_HIGH_TEMP_ON_LIGHT
+        RoleColor.ClockWeekday, RoleColor.ClockDate, RoleColor.ClockLunar -> Prefs.DEF_COLOR_CLOCK
     }
 
 /** Palette for the activation card, sampled off the reference screenshot. */

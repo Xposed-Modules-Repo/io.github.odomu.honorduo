@@ -554,6 +554,7 @@ object Prefs {
     const val KEY_PERF_LINE_GAP = "perf_line_gap"
 
     const val KEY_ROLE_COLORS = "role_colors"
+    const val KEY_ROLE_COLORS_TEMP = "role_colors_temp"
     const val KEY_COLOR_CRITICAL_ON_DARK = "color_critical_on_dark"
     const val KEY_COLOR_CRITICAL_ON_LIGHT = "color_critical_on_light"
     const val KEY_COLOR_CHARGING_ON_DARK = "color_charging_on_dark"
@@ -996,6 +997,7 @@ object Prefs {
     const val DEF_SHOW_SIM_2 = false
 
     const val DEF_ROLE_COLORS = true
+    const val DEF_ROLE_COLORS_TEMP = false
     const val DEF_COLOR_CRITICAL_ON_DARK = 0xFFFF3B30.toInt()
     const val DEF_COLOR_CRITICAL_ON_LIGHT = 0xFFFF3B30.toInt()
     const val DEF_COLOR_CHARGING_ON_DARK = 0xFF34C759.toInt()

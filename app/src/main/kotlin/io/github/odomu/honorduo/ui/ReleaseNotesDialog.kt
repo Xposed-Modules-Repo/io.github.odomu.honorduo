@@ -100,24 +100,26 @@ internal object ReleaseNotesLoader {
             cachedDoc?.let { return it }
         }
 
+        val lspRepo = "Xposed-Modules-Repo/io.github.odomu.honorduo"
         val repo = BuildConfig.REPO_SLUG
-        if (repo.isBlank()) return null
+        val repos = listOfNotNull(lspRepo, repo.takeIf { it.isNotBlank() && it != lspRepo })
         return withContext(Dispatchers.IO) {
             val endpoints = buildList {
-                if (!targetVersion.isNullOrBlank()) {
-                    add("https://gh-proxy.com/https://api.github.com/repos/$repo/releases/tags/v$targetVersion")
-                    add("https://api.github.com/repos/$repo/releases/tags/v$targetVersion")
-                    add("https://gh-proxy.com/https://raw.githubusercontent.com/$repo/fork/docs/release-notes/release-notes-$targetVersion.md")
-                    add("https://raw.githubusercontent.com/$repo/fork/docs/release-notes/release-notes-$targetVersion.md")
-                    add("https://gh-proxy.com/https://raw.githubusercontent.com/$repo/main/docs/release-notes/release-notes-$targetVersion.md")
-                    add("https://raw.githubusercontent.com/$repo/main/docs/release-notes/release-notes-$targetVersion.md")
+                for (r in repos) {
+                    if (!targetVersion.isNullOrBlank()) {
+                        add("https://gh-proxy.com/https://api.github.com/repos/$r/releases/tags/v$targetVersion")
+                        add("https://api.github.com/repos/$r/releases/tags/v$targetVersion")
+                        add("https://gh-proxy.com/https://raw.githubusercontent.com/$r/fork/docs/release-notes/release-notes-$targetVersion.md")
+                        add("https://raw.githubusercontent.com/$r/fork/docs/release-notes/release-notes-$targetVersion.md")
+                        add("https://gh-proxy.com/https://raw.githubusercontent.com/$r/main/docs/release-notes/release-notes-$targetVersion.md")
+                        add("https://raw.githubusercontent.com/$r/main/docs/release-notes/release-notes-$targetVersion.md")
+                    }
+                    add("https://gh-proxy.com/https://api.github.com/repos/$r/releases/latest")
+                    add("https://api.github.com/repos/$r/releases/latest")
+                    add("https://gh-proxy.com/https://api.github.com/repos/$r/releases")
+                    add("https://api.github.com/repos/$r/releases")
                 }
-                add("https://gh-proxy.com/https://api.github.com/repos/$repo/releases/latest")
-                add("https://api.github.com/repos/$repo/releases/latest")
-                add("https://gh-proxy.com/https://api.github.com/repos/$repo/releases")
-                add("https://api.github.com/repos/$repo/releases")
             }
-
             for (urlStr in endpoints) {
                 val fetched = runCatching {
                     val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
@@ -207,10 +209,13 @@ internal fun parseMarkdownDoc(markdown: String): ReleaseNoteDoc {
         if (line.startsWith("#")) {
             val level = line.takeWhile { it == '#' }.length
             val headingText = line.drop(level).trim()
-            if (level == 1 && detectedVersion.isEmpty()) {
-                detectedVersion = headingText.removePrefix("v").removePrefix("V").trim()
+            val verMatch = Regex("""(?i)(?:HonorDuo\s*)?(?:v)?(\d+\.\d+(?:\.\d+)?)""").find(headingText)
+            if (verMatch != null && detectedVersion.isEmpty()) {
+                detectedVersion = verMatch.groupValues[1]
             }
-            nodes.add(MdNode.Heading(level, headingText))
+            if (!isRedundantVersionHeading(headingText)) {
+                nodes.add(MdNode.Heading(level, headingText))
+            }
             continue
         }
 
@@ -247,6 +252,13 @@ internal fun parseMarkdownDoc(markdown: String): ReleaseNoteDoc {
     }
 
     return ReleaseNoteDoc(detectedVersion, nodes)
+}
+
+private fun isRedundantVersionHeading(text: String): Boolean {
+    val clean = text.trim()
+    if (Regex("""^(?i)(?:HonorDuo\s*)?(?:v)?\d+\.\d+(?:\.\d+)?$""").matches(clean)) return true
+    if (Regex("""^(?i)(?:HonorDuo\s+)?(?:v)?(?:\d+\.\d+(?:\.\d+)?\s+)?(?:更新日志|版本说明|Changelog|Release Notes)$""").matches(clean)) return true
+    return false
 }
 
 private fun formatNoteSize(bytes: Long): String = when {

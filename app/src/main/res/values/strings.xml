@@ -231,11 +231,11 @@
         <string name="temp_threshold_title">电池高温阈值</string>
     <string name="temp_threshold_summary">默认 40℃，可调 30–60℃；达到或超过该温度时显示高温警告色。</string>
     <string name="color_high_temp_title">高温颜色</string>
-    <string name="color_reset">恢复默认</string>
-    <string name="color_reset_summary">把三种状态颜色恢复为出厂预设。</string>
-    <string name="color_reset_dialog_summary">三种状态颜色都会回到出厂预设，当前的自定义颜色会被覆盖。</string>
+    <string name="color_reset">恢复默认颜色</string>
+    <string name="color_reset_summary">将所有自定义颜色恢复为默认预设。</string>
+    <string name="color_reset_dialog_summary">确定将所有自定义颜色恢复为默认预设吗？当前配置将被覆盖。</string>
     <string name="color_reset_confirm">恢复</string>
-    <string name="reset_setting_title">重置设置</string>
+    <string name="reset_setting_title">恢复默认</string>
     <string name="reset_setting_confirm">确认将“%1$s”恢复为默认值？</string>
     <string name="confirm">确认</string>
 
@@ -297,7 +297,7 @@
     <string name="color_clock_weekday_title">星期颜色</string>
     <string name="color_clock_date_title">日期颜色</string>
     <string name="color_clock_lunar_title">农历颜色</string>
-    <string name="color_reset_default">恢复默认（无颜色）</string>
+    <string name="color_reset_default">恢复默认</string>
 
     <string name="type_size_title">网络类型字号</string>
     <string name="type_size_summary">默认 32，可调 16–44。</string>

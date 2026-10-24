@@ -774,17 +774,25 @@ internal fun PartSettingsSheet(
                     }
                 }
                 if (part == TrioSettingsPart.Readouts && settings.perfTemp) {
-                    IntSlider(
-                        value = settings.tempThreshold,
-                        min = Prefs.MIN_TEMP_THRESHOLD,
-                        max = Prefs.MAX_TEMP_THRESHOLD,
-                        title = stringResource(R.string.temp_threshold_title),
-                        summary = stringResource(R.string.temp_threshold_summary),
-                        valueTextSuffix = "℃",
-                        enabled = true,
-                        onValueChange = { value -> update { it.setTempThreshold(value) } },
-                        onReset = { update { it.setTempThreshold(Prefs.DEF_TEMP_THRESHOLD) } },
+                    SwitchPreference(
+                        checked = a.roleColorsTemp,
+                        title = stringResource(R.string.color_role_title),
+                        insideMargin = SettingsItemMargin,
+                        onCheckedChange = { value -> update { it.setRoleColorsTemp(value) } },
                     )
+                    if (a.roleColorsTemp) {
+                        IntSlider(
+                            value = settings.tempThreshold,
+                            min = Prefs.MIN_TEMP_THRESHOLD,
+                            max = Prefs.MAX_TEMP_THRESHOLD,
+                            title = stringResource(R.string.temp_threshold_title),
+                            summary = stringResource(R.string.temp_threshold_summary),
+                            valueTextSuffix = "℃",
+                            enabled = true,
+                            onValueChange = { value -> update { it.setTempThreshold(value) } },
+                            onReset = { update { it.setTempThreshold(Prefs.DEF_TEMP_THRESHOLD) } },
+                        )
+                    }
                 }
 
                 rows.forEach { spec ->
@@ -794,7 +802,13 @@ internal fun PartSettingsSheet(
                     }
                 }
 
-                if ((a.glyph && a.roleColors) || part == TrioSettingsPart.Clock || part == TrioSettingsPart.Readouts || part == TrioSettingsPart.Bolt) colors.forEach { role ->
+                val showColors = when (part) {
+                    TrioSettingsPart.Battery -> a.glyph && a.roleColors
+                    TrioSettingsPart.Readouts -> settings.perfTemp && a.roleColorsTemp
+                    TrioSettingsPart.Clock, TrioSettingsPart.Bolt -> true
+                    else -> false
+                }
+                if (showColors) colors.forEach { role ->
                     ArrowPreference(
                         title = stringResource(role.labelRes),
                         summary = stringResource(R.string.color_field_summary),
@@ -809,7 +823,7 @@ internal fun PartSettingsSheet(
                     )
                 }
 
-                if (part == TrioSettingsPart.Battery || part == TrioSettingsPart.Clock || part == TrioSettingsPart.Bolt) {
+                if (part == TrioSettingsPart.Battery || part == TrioSettingsPart.Clock || part == TrioSettingsPart.Bolt || (part == TrioSettingsPart.Readouts && a.roleColorsTemp)) {
                     ArrowPreference(
                         title = stringResource(R.string.color_reset),
                         summary = stringResource(R.string.color_reset_summary),

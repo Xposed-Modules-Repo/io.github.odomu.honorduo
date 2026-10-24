@@ -448,7 +448,7 @@ internal object StatusBarRowManager {
         // already accounts for it.
         perf.setLineSpacing(a.perfLineGap * density, 1f)
         val baseColor = row.state.foreground()
-        val tempIsHigh = TrioState.sBatteryTempC != TrioState.TEMP_UNKNOWN && TrioState.sBatteryTempC >= a.tempThreshold
+        val tempIsHigh = a.roleColorsTemp && TrioState.sBatteryTempC != TrioState.TEMP_UNKNOWN && TrioState.sBatteryTempC >= a.tempThreshold
         if (tempIsHigh) {
             val highColor = if (TrioRenderer.isDarkBackground(baseColor)) a.highTempOnDark else a.highTempOnLight
             val tempStr = "${TrioState.sBatteryTempC}°C"

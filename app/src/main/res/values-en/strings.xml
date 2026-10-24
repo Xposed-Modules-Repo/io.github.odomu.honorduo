@@ -196,11 +196,11 @@
         <string name="temp_threshold_title">High temperature threshold</string>
     <string name="temp_threshold_summary">Default is 40℃, range 30–60℃; applies high temp color when reached.</string>
     <string name="color_high_temp_title">High temperature color</string>
-    <string name="color_reset">Reset to default</string>
-    <string name="color_reset_summary">Restore the three state colors to their factory presets.</string>
-    <string name="color_reset_dialog_summary">All three state colors go back to their factory presets; your custom colors will be overwritten.</string>
-    <string name="color_reset_confirm">Reset</string>
-    <string name="reset_setting_title">Reset setting</string>
+    <string name="color_reset">Reset to default colors</string>
+    <string name="color_reset_summary">Restore custom colors to their default presets.</string>
+    <string name="color_reset_dialog_summary">Reset all custom colors to their default presets? Current settings will be overwritten.</string>
+    <string name="color_reset_confirm">Restore</string>
+    <string name="reset_setting_title">Reset to default</string>
     <string name="reset_setting_confirm">Reset \"%1$s\" to its default value?</string>
     <string name="confirm">Confirm</string>
 
@@ -262,7 +262,7 @@
     <string name="color_clock_weekday_title">Weekday color</string>
     <string name="color_clock_date_title">Date color</string>
     <string name="color_clock_lunar_title">Lunar calendar color</string>
-    <string name="color_reset_default">Reset to default (no color)</string>
+    <string name="color_reset_default">Reset to default</string>
 
     <string name="type_size_title">Network type size</string>
     <string name="type_size_summary">The default is 32 and the slider covers 16–44.</string>

@@ -172,8 +172,13 @@ class TrioSettings {
     var lowOnLight = Prefs.DEF_COLOR_LOW_ON_LIGHT
     @JvmField
     var lowThreshold = Prefs.DEF_LOW_THRESHOLD
+    @JvmField
+    var roleColorsTemp = Prefs.DEF_ROLE_COLORS_TEMP
+    @JvmField
     var tempThreshold = Prefs.DEF_TEMP_THRESHOLD
+    @JvmField
     var highTempOnDark = Prefs.DEF_COLOR_HIGH_TEMP_ON_DARK
+    @JvmField
     var highTempOnLight = Prefs.DEF_COLOR_HIGH_TEMP_ON_LIGHT
 
     @JvmField
@@ -405,6 +410,10 @@ class TrioSettings {
             lowOnDark = Prefs.DEF_COLOR_LOW_ON_DARK
             lowOnLight = Prefs.DEF_COLOR_LOW_ON_LIGHT
             lowThreshold = Prefs.DEF_LOW_THRESHOLD
+            roleColorsTemp = Prefs.DEF_ROLE_COLORS_TEMP
+            tempThreshold = Prefs.DEF_TEMP_THRESHOLD
+            highTempOnDark = Prefs.DEF_COLOR_HIGH_TEMP_ON_DARK
+            highTempOnLight = Prefs.DEF_COLOR_HIGH_TEMP_ON_LIGHT
             ringStroke = Prefs.DEF_RING_STROKE
             arcStroke = Prefs.DEF_ARC_STROKE
             valueSize = Prefs.DEF_VALUE_SIZE
@@ -612,6 +621,7 @@ class TrioSettings {
             )
             s.lowOnDark = p.getInt(Prefs.KEY_COLOR_LOW_ON_DARK, Prefs.DEF_COLOR_LOW_ON_DARK)
             s.lowOnLight = p.getInt(Prefs.KEY_COLOR_LOW_ON_LIGHT, Prefs.DEF_COLOR_LOW_ON_LIGHT)
+            s.roleColorsTemp = p.getBoolean(Prefs.KEY_ROLE_COLORS_TEMP, Prefs.DEF_ROLE_COLORS_TEMP)
             s.tempThreshold = Prefs.clamp(
                 p.getInt(Prefs.KEY_TEMP_THRESHOLD, Prefs.DEF_TEMP_THRESHOLD),
                 Prefs.MIN_TEMP_THRESHOLD,
@@ -899,6 +909,7 @@ class TrioSettings {
             )
             s.lowOnDark = bundle.getInt(Prefs.KEY_COLOR_LOW_ON_DARK, Prefs.DEF_COLOR_LOW_ON_DARK)
             s.lowOnLight = bundle.getInt(Prefs.KEY_COLOR_LOW_ON_LIGHT, Prefs.DEF_COLOR_LOW_ON_LIGHT)
+            s.roleColorsTemp = bundle.getBoolean(Prefs.KEY_ROLE_COLORS_TEMP, Prefs.DEF_ROLE_COLORS_TEMP)
             s.tempThreshold = Prefs.clamp(
                 bundle.getInt(Prefs.KEY_TEMP_THRESHOLD, Prefs.DEF_TEMP_THRESHOLD),
                 Prefs.MIN_TEMP_THRESHOLD,
@@ -1299,6 +1310,7 @@ class TrioSettings {
         s.lowOnDark = lowOnDark
         s.lowOnLight = lowOnLight
         s.lowThreshold = lowThreshold
+        s.roleColorsTemp = roleColorsTemp
         s.tempThreshold = tempThreshold
         s.highTempOnDark = highTempOnDark
         s.highTempOnLight = highTempOnLight
@@ -1441,6 +1453,10 @@ class TrioSettings {
             Prefs.KEY_COLOR_LOW_ON_DARK -> lowOnDark = src.lowOnDark
             Prefs.KEY_COLOR_LOW_ON_LIGHT -> lowOnLight = src.lowOnLight
             Prefs.KEY_LOW_THRESHOLD -> lowThreshold = src.lowThreshold
+            Prefs.KEY_ROLE_COLORS_TEMP -> roleColorsTemp = src.roleColorsTemp
+            Prefs.KEY_TEMP_THRESHOLD -> tempThreshold = src.tempThreshold
+            Prefs.KEY_COLOR_HIGH_TEMP_ON_DARK -> highTempOnDark = src.highTempOnDark
+            Prefs.KEY_COLOR_HIGH_TEMP_ON_LIGHT -> highTempOnLight = src.highTempOnLight
             Prefs.KEY_RING_STROKE -> ringStroke = src.ringStroke
             Prefs.KEY_ARC_STROKE -> arcStroke = src.arcStroke
             Prefs.KEY_VALUE_SIZE -> valueSize = src.valueSize
@@ -1551,6 +1567,10 @@ class TrioSettings {
         putInt(Prefs.KEY_COLOR_LOW_ON_DARK, lowOnDark)
         putInt(Prefs.KEY_COLOR_LOW_ON_LIGHT, lowOnLight)
         putInt(Prefs.KEY_LOW_THRESHOLD, lowThreshold)
+        putBoolean(Prefs.KEY_ROLE_COLORS_TEMP, roleColorsTemp)
+        putInt(Prefs.KEY_TEMP_THRESHOLD, tempThreshold)
+        putInt(Prefs.KEY_COLOR_HIGH_TEMP_ON_DARK, highTempOnDark)
+        putInt(Prefs.KEY_COLOR_HIGH_TEMP_ON_LIGHT, highTempOnLight)
         putInt(Prefs.KEY_RING_STROKE, ringStroke)
         putInt(Prefs.KEY_ARC_STROKE, arcStroke)
         putInt(Prefs.KEY_VALUE_SIZE, valueSize)
@@ -1652,6 +1672,7 @@ class TrioSettings {
             lowOnDark == other.lowOnDark &&
             lowOnLight == other.lowOnLight &&
             lowThreshold == other.lowThreshold &&
+            roleColorsTemp == other.roleColorsTemp &&
             tempThreshold == other.tempThreshold &&
             highTempOnDark == other.highTempOnDark &&
             highTempOnLight == other.highTempOnLight &&
