@@ -30,43 +30,58 @@
 - `app/build/outputs/apk/release/app-release.apk`
 
 debug 与 release 都使用 `.tools/debug.keystore` 签名，所以一个可以覆盖安装另一个。包名是
-`com.honor.duo`，与上游 HyperDuo 是两个不同的应用。
+`io.github.odomu.honorduo`，与上游 HyperDuo 是两个不同的应用。
 
 ## 源码结构
 
-源码根是 `app/src/main/kotlin/com/honor/duo/`，全部为 Kotlin：
+源码根是 `app/src/main/kotlin/io/github/odomu/honorduo/`，全部为 Kotlin：
 
 ```
-app/src/main/kotlin/com/honor/duo/
+app/src/main/kotlin/io/github/odomu/honorduo/
 ├── HonorDuoModule.kt     框架入口；onPackageReady 只对 com.android.systemui 安装钩子
 ├── HonorDuoApp.kt        设置进程；连接 XposedService，断线重连后重放设置
-├── TrioHooks.kt          全部注入点、行注册、原生图标抑制、环外视图挂载
-├── TrioState.kt          电量 / 墨色 / Wi-Fi / 移动信号 / 制式 / 数据活动的采样与缓存
-├── TrioConfig.kt         钩子侧设置快照；remote preferences 监听与重载广播
-├── Prefs.kt              键名、默认值、取值范围、ring_layout 编解码
-├── TrioSettings.kt       不可变设置快照；从 prefs / Bundle 读取，序列化回 Bundle
-├── TrioAppearance.kt     把快照解析成「这一帧画什么、谁该被藏」的唯一规则源
-├── TrioRenderer.kt       圆环 / 矩形 / 胶囊的绘制，以及环外读数
-├── TrioGeometry.kt       120×120 设计空间里的全部几何常量
-├── TrioZones.kt          三个可点区域与每个区域里的组件仲裁
-├── GlyphView.kt          状态栏图标行里的字形宿主视图
-├── TrioPreviewView.kt    设置界面的实时预览，复用 TrioRenderer
-├── ClockTicker.kt        分钟 / 秒边界对齐的时钟刷新与日期格式化
-├── FpsTicker.kt          屏幕帧率采样
-├── BatteryPresence.kt    充电功率与电池温度
-├── WifiPresence.kt       Wi-Fi 有无
-├── Refl.kt               反射查找与读写的薄封装
-└── ui/                   设置界面（Compose + Miuix）
-    ├── MainActivity.kt        Activity 入口
-    ├── SettingsScreen.kt      首页 / 关于两页、顶栏与对话框
-    ├── DrawingScreen.kt       字形放大预览、点位编辑、组件库、环外顺序
-    ├── PartControls.kt        单个组件的尺寸 / 字重 / 颜色滑杆
-    ├── ContentControls.kt     组件开关与位置选择
-    ├── SettingsRepository.kt  读写本地 prefs、推送框架、发送重载广播
-    ├── UpdateController.kt    检查更新、下载与安装
-    ├── RestartController.kt   重启系统界面
-    ├── GlassDropdown.kt       下拉选择控件
-    └── NavigationDrag.kt      底部导航的拖动交互
+├── hook/
+│   ├── TrioHooks.kt          全部注入点、行注册、原生图标抑制、环外视图挂载
+│   ├── StatusBarRowManager.kt 图标行的注册 / 注销与视图安排
+│   ├── BarClockManager.kt     状态栏时钟的挂载与刷新
+│   ├── BarVisibility.kt       状态栏可见性判定（全屏 / 锁屏时暂停刷新）
+│   ├── StatusBarIconManager.kt / StatusBarIconHook.kt / SignalIconHook.kt
+│   ├── ShadeHook.kt           通知栏日期行的农历 / 天气附加
+│   ├── BatteryPresence.kt     充电功率与电池温度
+│   ├── WifiPresence.kt        Wi-Fi 有无
+│   ├── WeatherManager.kt      天气数据抓取与缓存
+│   ├── ClockTicker.kt / FpsTicker.kt / ScreenStateTracker.kt
+│   └── Refl.kt                反射查找与读写的薄封装
+├── model/
+│   ├── Prefs.kt           键名、默认值、取值范围、ring_layout 编解码
+│   ├── TrioSettings.kt    不可变设置快照；从 prefs / Bundle 读取，序列化回 Bundle
+│   ├── TrioAppearance.kt  把快照解析成「这一帧画什么、谁该被藏」的唯一规则源
+│   ├── TrioConfig.kt      钩子侧设置快照；remote preferences 监听与重载广播
+│   └── TrioState.kt       电量 / 墨色 / Wi-Fi / 移动信号 / 制式 / 数据活动的采样与缓存
+├── render/
+│   ├── TrioRenderer.kt    圆环 / 矩形 / 胶囊的绘制，以及环外读数
+│   ├── TrioGeometry.kt    120×120 设计空间里的全部几何常量
+│   ├── TrioZones.kt       三个可点区域与每个区域里的组件仲裁
+│   ├── GlyphView.kt       状态栏图标行里的字形宿主视图
+│   └── WeatherIconDrawer.kt 天气图标绘制
+└── ui/                    设置界面（Compose + Miuix）
+    ├── MainActivity.kt           Activity 入口
+    ├── SettingsScreen.kt         首页、顶栏与对话框
+    ├── AboutPage.kt              独立关于页（全屏动态背景 + 品牌字形）
+    ├── AmbientMeshBackground.kt  AGSL 动态渐变背景
+    ├── LogViewerPage.kt          日志页（筛选、清空、文件分享）
+    ├── ModuleLogManager.kt       LSPosed 日志读取与级别归一
+    ├── ReleaseNotesDialog.kt / UpdateController.kt
+    ├── DrawingScreen.kt          字形放大预览、点位编辑、组件库、环外顺序
+    ├── PartControls.kt           单个组件的尺寸 / 字重 / 颜色滑杆
+    ├── ContentControls.kt        组件开关与位置选择
+    ├── SettingsRepository.kt     读写本地 prefs、推送框架、发送重载广播
+    ├── ConfigBackupManager.kt    配置导出与恢复
+    ├── FontInstaller.kt          字体安装
+    ├── RestartController.kt      重启系统界面
+    ├── GlassDropdown.kt          下拉选择控件
+    ├── NavigationDrag.kt         底部导航的拖动交互
+    └── TrioPreviewView.kt        设置界面的实时预览，复用 TrioRenderer
 ```
 
 `TrioHooks.kt` 里的 `Row` 表示一条状态栏图标行，保存行本身、真正装图标的容器、电池、该行的
@@ -99,7 +114,7 @@ app/src/main/kotlin/com/honor/duo/
    `res/values/strings.xml` 与 `res/values-en/strings.xml`。
 5. **`ui/SettingsRepository.kt`**：加 `setXxx`，先写应用自己的 `SharedPreferences`，再通过
    `push { ... }` 写框架的 remote preferences，最后 `notifyModule()` 发送携带完整快照的
-   `com.honor.duo.action.RELOAD` 广播。别忘了把新键补进 `syncAllToFramework()`，否则服务晚绑定时
+   `io.github.odomu.honorduo.action.RELOAD` 广播。别忘了把新键补进 `syncAllToFramework()`，否则服务晚绑定时
    这次写入不会被重放。
 
 改完设置后，钩子侧由 `TrioConfig` 的单键监听或整包广播更新快照，再通知 `TrioHooks` 重绘。

@@ -10,8 +10,8 @@
 
 | 项 | 值 |
 | --- | --- |
-| 包名 / applicationId / namespace | `com.honor.duo` |
-| 入口类 | `com.honor.duo.HonorDuoModule`（`META-INF/xposed/java_init.list` 同步） |
+| 包名 / applicationId / namespace | `io.github.odomu.honorduo` |
+| 入口类 | `io.github.odomu.honorduo.HonorDuoModule`（`META-INF/xposed/java_init.list` 同步） |
 | 作用域 | `com.android.systemui`（`META-INF/xposed/scope.list`） |
 | 源码目录 | `app/src/main/kotlin`，全 Kotlin，无 Java 源 |
 | 字形宿主 | `HwSystemIcons` 图标行里的一个普通子视图，不创建窗口 |
@@ -70,6 +70,19 @@ HwSystemIcons
 
 胶囊的仲裁与圆环共用同一份候选列表；圆环拒绝把信号点行放进中段（那里没有开口），胶囊则把
 两排信号画在上下两个开口上。
+
+### 2.2 胶囊中段的两个单元
+
+胶囊中段是一行独立的两个单元，不是一个宽度对半分：左单元从左边界向内长，右单元从右边界向内长，
+各自只受「轨道宽度」约束。两侧的留白来自同一个设置（组件外观 → 间距 → 胶囊文字内边距）：
+
+```
+左单元锚点 = 文字区左边界 + 间距
+右单元锚点 = 文字区右边界 − 间距（文字按右对齐，图标按其自身墨宽的一半收回）
+```
+
+右单元是图标时（充电闪电、Wi-Fi 弧），锚点用「右边界 − 间距 − 墨宽/2」求中心，墨宽与真正绘制
+时使用的缩放一致；因此拉长胶囊、调整间距或放大图标都不会把图标推出轮廓，左右留白始终对称。
 
 ## 三、状态采样
 
@@ -240,7 +253,7 @@ telephony：
    `honorduo_settings`）里的值逐项写进框架的 remote group；`TrioConfig.install()` 在钩子进程里
    `getRemotePreferences(Prefs.NAME)`，注册单键变更监听。框架每变更一个键就回调一次，
    `applyKeyFrom()` 把该键的新值合进当前快照，再整份发布。
-2. **重载广播（第二通道）**。设置页每次写入后发送 `com.honor.duo.action.RELOAD`，目标包固定为
+2. **重载广播（第二通道）**。设置页每次写入后发送 `io.github.odomu.honorduo.action.RELOAD`，目标包固定为
    `com.android.systemui`，extras 是完整快照。`TrioConfig` 在电池 inflate 时用 application
    context 注册接收器；广播必须带 `KEY_ENABLED` 才会被接受，`fromBundle(extras, previous)` 以当前
    快照为底，因此发送方省略的键保持原值。
@@ -255,7 +268,46 @@ telephony：
 `TrioAppearance` 是绘制与抑制共同的唯一规则源：渲染器问它这一帧画什么，`TrioHooks` 问它谁该被
 藏，设置界面问它哪些行有意义。它不可变、纯 Kotlin、不依赖 Android 类型，两个进程都能构建。
 
-## 八、验证
+## 八、设置界面
+
+### 8.1 首页分组
+
+首页（`SettingsScreen.aboutTab`）按「一张卡片一个语义组」排列，卡片之间只有一个 12dp 分组间距，
+组内行与行不再留空档：
+
+| 顺序 | 卡片内容 |
+| --- | --- |
+| 1 | 隐藏桌面图标、导出备份、导入备份、日志查看、关于 |
+| 2 | 应用语言、底栏样式、底栏标签 |
+| 3 | 自定义字体、恢复系统字体 |
+
+隐藏桌面图标是 activity-alias 的开关（`MainActivityAlias`），不是快捷方式：别名关掉后图标消失，
+设置页仍可从 LSPosed 管理器的模块入口进入，重启也不会失效。
+
+### 8.2 关于页
+
+关于页的背景是常驻的全屏 `AmbientMeshBackground`（AGSL 运行时着色器，API 33+；低版本回落到
+静态渐变）。只有顶部品牌区跟随滚动做位移与淡出，背景本身不参与滚动，也不随滚动进度变淡，因此
+把列表滑到底仍然有完整背景。
+
+四行入口共用 `AboutAction`：标题 + 说明 + 右侧箭头，左侧 20dp 对齐，行内不含图标；更新行在有
+下载或检查时把箭头换成进度圈。品牌字形用 Compose `Canvas` 手绘，按 `minDimension / 120` 缩放，
+与状态栏里的字形无资源依赖。
+
+### 8.3 日志页
+
+数据来源两级：先读 LSPosed 的 `/data/adb/lspd/log/modules_*.log`（`su` + `grep` 过滤模块名），
+读不到时回落到 `logcat -d -t <N> -s HonorDuo Xposed LSPosed`。采集端把级别统一成
+`ERROR/WARN/INFO/DEBUG` 再拼成 `yyyy-MM-dd HH:mm:ss LEVEL -> message`，界面据此着色与筛选；
+页面上的级别文字来自字符串资源，跟随系统语言。
+
+- **滚动按钮**：方向由 `LazyListState` 的首项索引与偏移推导，不在点击后取反，手动滑动后图标与
+  动作始终一致。
+- **清空**：垃圾桶按钮 + `OverlayDialog` 二次确认，确认后执行 `logcat -c` 并清空当前列表。
+- **分享**：把当前筛选结果写进 `cacheDir/logs/honorduo_<时间戳>.txt`，经 `FileProvider`
+  （`file_paths.xml` 中的 `logs/`）以 `ACTION_SEND` + `EXTRA_STREAM` 交给系统分享面板。
+
+## 九、验证
 
 构建：
 
@@ -284,7 +336,12 @@ adb logcat -v time -s LSPosedFramework:* | Select-String HonorDuo
 5. 双卡时卡一 / 卡二两排点与系统信号格档位一致（五格布局已换算）；
 6. 调整环外读数顺序后立即生效，读数之间不重叠、不盖住旁边的图标；
 7. 时间放进字形后状态栏原时钟消失；开启秒 / 日期 / 星期后模块时钟正确出现并随分钟或秒刷新；
-8. 深浅色背景切换后，字形墨色在 `refreshTint` 后立即跟随，不需要等电池或信号事件。
+8. 深浅色背景切换后，字形墨色在 `refreshTint` 后立即跟随，不需要等电池或信号事件；
+9. 关于页滑到底仍能看到流动背景，四行入口左侧对齐、无行内图标；
+10. 日志页的滚动按钮图标随位置切换，清空需二次确认，分享产出的 `.txt` 能被其它应用接收。
+
+新安装的默认值另有一组判据：农历、天气、通知栏农历与通知栏天气四项均为关闭，状态栏时钟只画
+时间与日期。
 
 日志判据：
 

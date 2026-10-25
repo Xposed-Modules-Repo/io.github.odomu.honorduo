@@ -1,6 +1,6 @@
 # HonorDuo
 
-[![版本](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/odomu/HonorDuo/releases/latest)
+[![版本](https://img.shields.io/badge/version-1.0.3-blue)](https://github.com/odomu/HonorDuo/releases/latest)
 [![许可证](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 [![Android](https://img.shields.io/badge/Android-10%2B-green)](https://developer.android.com)
 [![LSPosed](https://img.shields.io/badge/LSPosed-API%20102-orange)](https://github.com/LSPosed/LSPosed)
@@ -21,7 +21,9 @@
 - **丰富可放置组件**：电量数字、Wi-Fi 弧、移动信号（支持卡一卡二拆分）、网络类型、充电闪电、功率、温度、帧率、时钟等均可独立放置或交还系统。
 - **环外读数堆叠**：移动信号支持移至环外，提供**圆点副卡**与**双排柱**两种样式，支持 **4 信号柱与 5 信号柱**自由切换及全维度比例自适应；双卡网络类型单独显示高度对称锚定。
 - **多元时钟与硬件读数**：支持月/日、年/月/日、月日、年月日 4 种无歧义日期格式；支持电池高温阈值（30℃–60℃）与高温专属告警颜色配置。
-- **三段式卡片化界面**：「组件排布」、「功能设置」、「关于模块」三大专属 Tab，分类预览卡片直达专属配置抽屉，排版对称工整。
+- **运行日志查看**：独立日志页支持按级别与关键字筛选、一键分享日志文件，级别文字随系统语言显示，默认不开启日志记录。
+- **配置备份与恢复**：整份模块配置可导出为 JSON 备份文件，也可从备份恢复并即时生效。
+- **三段式卡片化界面**：「组件排布」、「功能设置」、「关于模块」三大专属 Tab，分类预览卡片直达专属配置抽屉，排版对称工整；独立关于页保留全屏动态背景。
 
 ## 安装与要求
 
