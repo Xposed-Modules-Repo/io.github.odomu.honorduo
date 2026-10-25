@@ -163,31 +163,14 @@ internal class TrioState(val host: View) {
      */
     private fun resolveInk(): Int {
         val tint = Refl.getInt(hostTint, host, 0)
-        if (tint != 0) {
-            noteInk(tint, "mTintColor")
-            return tint
-        }
+        if (tint != 0) return tint
         val border = Refl.get(hostBorder, host)
         if (border != null) {
             if (borderInk == null) borderInk = Refl.field(border.javaClass, "mDefaultColor")
             val colour = Refl.getInt(borderInk, border, 0)
-            if (colour != 0) {
-                noteInk(colour, "border")
-                return colour
-            }
+            if (colour != 0) return colour
         }
-        val fallback = if (nightMode()) WHITE else DEFAULT_FOREGROUND
-        noteInk(fallback, "fallback")
-        return fallback
-    }
-
-    /** Records the resolved ink once per change, so a device log can be read off. */
-    private fun noteInk(resolved: Int, source: String) {
-        if (!TrioHooks.debugLog()) return
-        val note = "ink: $source -> ${Integer.toHexString(resolved)}"
-        if (note == sLastInk) return
-        sLastInk = note
-        TrioHooks.log(TrioHooks.LOG_INFO, note)
+        return if (nightMode()) WHITE else DEFAULT_FOREGROUND
     }
 
     /** The plain icon colour: what MagicOS would paint the battery icon in. */
@@ -330,6 +313,96 @@ internal class TrioState(val host: View) {
         @JvmField
         var sBatteryTempC = TEMP_UNKNOWN
 
+        /** No current reading has arrived; draw nothing rather than "0 mA". */
+        const val CURRENT_UNKNOWN = Int.MIN_VALUE
+
+        /**
+         * The battery current in microamperes, signed as the platform reports it.
+         *
+         * Negative while the battery is discharging on this platform, positive while it
+         * charges; the sign is kept so the readout can show the direction when the user
+         * asks for it, and dropped at formatting time when they do not.
+         */
+        @Volatile
+        @JvmField
+        var sCurrentUa = CURRENT_UNKNOWN
+
+        /**
+         * The current as a piece of text, or null when it is unknown.
+         *
+         * The magnitude is what the reading is for, so the sign is dropped unless the user
+         * asks to keep it; the unit is theirs too, because milliamps are what a phone's
+         * currents are actually talked about in while amps stay readable past 1 A.
+         */
+        @JvmStatic
+        fun currentText(unit: Int, positive: Boolean): String? {
+            val micro = sCurrentUa
+            if (micro == CURRENT_UNKNOWN) return null
+            val milliamps = micro / 1_000f
+            val shown = if (positive) kotlin.math.abs(milliamps) else milliamps
+            return if (unit == Prefs.CURRENT_UNIT_A) {
+                String.format(java.util.Locale.US, "%.2fA", shown / 1_000f)
+            } else {
+                "${kotlin.math.round(shown).toInt()}mA"
+            }
+        }
+
+        /**
+         * The platform's thermal status, or [THERMAL_UNKNOWN] before it is read.
+         *
+         * A different question from [sBatteryTempC]: the battery warms up under
+         * charge, while this is the framework's own throttling verdict on the SoC,
+         * which it reaches from skin and junction sensors the module cannot see.
+         */
+        @Volatile
+        @JvmField
+        var sThermalStatus = THERMAL_UNKNOWN
+
+        /**
+         * Latched "the device is running hot" state, with one degree of hysteresis.
+         *
+         * A bare `temperature >= threshold` flips the ink twice whenever the reading
+         * sits on the threshold: the platform reports tenths of a degree, this module
+         * rounds to whole degrees, so 39.4 and 39.6 alternate 39 and 40. Latching it
+         * keeps the hot ink on until the reading falls below `threshold - 1`.
+         *
+         * The platform's thermal status sets it as well, which covers a throttled SoC
+         * whose battery has not caught up yet - the state a temperature readout exists
+         * to warn about.
+         */
+        @Volatile
+        @JvmField
+        var sBatteryHot = false
+
+        /** Degrees of hysteresis between the hot and the cool threshold. */
+        const val HOT_HYSTERESIS_C = 1
+
+        /** `PowerManager.THERMAL_STATUS_SEVERE`, from which the SoC is throttling. */
+        const val THERMAL_STATUS_SEVERE = 4
+
+        /** No thermal status has been read. */
+        const val THERMAL_UNKNOWN = -1
+
+        /**
+         * Recomputes [sBatteryHot] from the temperature, the thermal status and the
+         * user's threshold.
+         *
+         * @return true when the answer changed, so the caller knows to repaint.
+         */
+        @JvmStatic
+        fun updateBatteryHot(threshold: Int): Boolean {
+            val before = sBatteryHot
+            val temperature = sBatteryTempC
+            sBatteryHot = when {
+                sThermalStatus >= THERMAL_STATUS_SEVERE -> true
+                temperature == TEMP_UNKNOWN -> false
+                temperature >= threshold -> true
+                temperature <= threshold - HOT_HYSTERESIS_C -> false
+                else -> sBatteryHot
+            }
+            return sBatteryHot != before
+        }
+
         /** The display's current refresh rate in whole hertz, or 0 before it is read. */
         @Volatile
         @JvmField
@@ -375,8 +448,6 @@ internal class TrioState(val host: View) {
 
         private fun appContext(): Context? = sContextRef?.get()
 
-        @Volatile
-        private var sLastInk = ""
 
         @Volatile
         private var sSimsDueAt = 0L

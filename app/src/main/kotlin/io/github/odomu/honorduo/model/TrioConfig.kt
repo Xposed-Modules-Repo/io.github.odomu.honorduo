@@ -136,7 +136,6 @@ object TrioConfig {
         reload()
         val now = snapshot
         if (previous === now || previous == now) return
-        TrioHooks.log(TrioHooks.LOG_INFO, "delayed settings re-read applied")
         notifyChanged()
     }
 
@@ -190,7 +189,6 @@ object TrioConfig {
             ContextCompat.registerReceiver(
                 target, receiver, filter, ContextCompat.RECEIVER_EXPORTED,
             )
-            TrioHooks.log(TrioHooks.LOG_INFO, "reload receiver registered")
         } catch (t: Throwable) {
             receiverInstalled = false
             TrioHooks.log(TrioHooks.LOG_WARN, "cannot register reload receiver: $t")

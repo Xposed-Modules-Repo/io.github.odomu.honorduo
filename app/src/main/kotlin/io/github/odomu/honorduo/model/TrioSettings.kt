@@ -329,6 +329,16 @@ class TrioSettings {
     @JvmField var clockWeatherColorOnDark = Prefs.DEF_COLOR_CLOCK
     @JvmField var clockWeatherColorOnLight = Prefs.DEF_COLOR_CLOCK
 
+    /**
+     * Colour of each character of the time, indexed in the drawn string.
+     *
+     * An entry of `0` is "not set": that character draws in the clock's own ink, which
+     * is also what makes an untouched install look exactly as it did before the row
+     * existed. Kept per background like every other clock colour.
+     */
+    @JvmField var clockDigitColorsOnDark: IntArray = Prefs.decodeClockDigitColors(null)
+    @JvmField var clockDigitColorsOnLight: IntArray = Prefs.decodeClockDigitColors(null)
+
     /** Control center: hide the header's power button. */
     @JvmField var shadeHidePower = Prefs.DEF_SHADE_HIDE_POWER
 
@@ -352,6 +362,18 @@ class TrioSettings {
     @JvmField
     var perfFps = Prefs.DEF_PERF_FPS
 
+    /** Show the battery current among the readouts. */
+    @JvmField
+    var perfCurrent = Prefs.DEF_PERF_CURRENT
+
+    /** How the current is written: milliamps or amps. */
+    @JvmField
+    var currentUnit = Prefs.DEF_CURRENT_UNIT
+
+    /** Draw the current as a magnitude, whatever direction the platform reports. */
+    @JvmField
+    var currentPositive = Prefs.DEF_CURRENT_POSITIVE
+
     /** Overall size of the two readouts, as a percentage of the adaptive fit. */
     @JvmField
     var perfScale = Prefs.DEF_PERF_SCALE
@@ -363,6 +385,10 @@ class TrioSettings {
     /** Extra spacing between the two stacked readout lines, in dp. */
     @JvmField
     var perfLineGap = Prefs.DEF_PERF_LINE_GAP
+
+    /** How often the charging power and the temperature are re-read, in seconds. */
+    @JvmField
+    var perfRefreshSec = Prefs.DEF_PERF_REFRESH_SEC
 
     /** Overall size of the glyph, as a percentage of the fit the host box implies. */
     @JvmField
@@ -436,6 +462,8 @@ class TrioSettings {
             clockStyle = Prefs.DEF_CLOCK_STYLE
             clockWeatherColorOnDark = Prefs.DEF_COLOR_CLOCK
             clockWeatherColorOnLight = Prefs.DEF_COLOR_CLOCK
+            clockDigitColorsOnDark = Prefs.decodeClockDigitColors(null)
+            clockDigitColorsOnLight = Prefs.decodeClockDigitColors(null)
             shadeHidePower = Prefs.DEF_SHADE_HIDE_POWER
             shadeHideBell = Prefs.DEF_SHADE_HIDE_BELL
             shadeLunar = Prefs.DEF_SHADE_LUNAR
@@ -443,9 +471,13 @@ class TrioSettings {
             shadeWeatherStyle = Prefs.DEF_SHADE_WEATHER_STYLE
             perfTemp = Prefs.DEF_PERF_TEMP
             perfFps = Prefs.DEF_PERF_FPS
+            perfCurrent = Prefs.DEF_PERF_CURRENT
+            currentUnit = Prefs.DEF_CURRENT_UNIT
+            currentPositive = Prefs.DEF_CURRENT_POSITIVE
             perfScale = Prefs.DEF_PERF_SCALE
             perfWeight = Prefs.DEF_PERF_WEIGHT
             perfLineGap = Prefs.DEF_PERF_LINE_GAP
+            perfRefreshSec = Prefs.DEF_PERF_REFRESH_SEC
             glyphScale = Prefs.DEF_GLYPH_SCALE
             roleColors = Prefs.DEF_ROLE_COLORS
             criticalOnDark = Prefs.DEF_COLOR_CRITICAL_ON_DARK
@@ -636,6 +668,8 @@ class TrioSettings {
             s.clockStyle = p.getInt(Prefs.KEY_CLOCK_STYLE, Prefs.DEF_CLOCK_STYLE)
             s.clockWeatherColorOnDark = p.getInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_DARK, Prefs.DEF_COLOR_CLOCK)
             s.clockWeatherColorOnLight = p.getInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_LIGHT, Prefs.DEF_COLOR_CLOCK)
+            s.clockDigitColorsOnDark = Prefs.decodeClockDigitColors(p.getString(Prefs.KEY_CLOCK_DIGIT_COLORS, null))
+            s.clockDigitColorsOnLight = Prefs.decodeClockDigitColors(p.getString(Prefs.KEY_CLOCK_DIGIT_COLORS_LIGHT, null))
             s.shadeHidePower = p.getBoolean(Prefs.KEY_SHADE_HIDE_POWER, Prefs.DEF_SHADE_HIDE_POWER)
             s.shadeHideBell = p.getBoolean(Prefs.KEY_SHADE_HIDE_BELL, Prefs.DEF_SHADE_HIDE_BELL)
             s.shadeLunar = p.getBoolean(Prefs.KEY_SHADE_LUNAR, Prefs.DEF_SHADE_LUNAR)
@@ -643,6 +677,10 @@ class TrioSettings {
             s.shadeWeatherStyle = p.getInt(Prefs.KEY_SHADE_WEATHER_STYLE, Prefs.DEF_SHADE_WEATHER_STYLE)
             s.perfTemp = p.getBoolean(Prefs.KEY_PERF_TEMP, Prefs.DEF_PERF_TEMP)
             s.perfFps = p.getBoolean(Prefs.KEY_PERF_FPS, Prefs.DEF_PERF_FPS)
+            s.perfCurrent = p.getBoolean(Prefs.KEY_PERF_CURRENT, Prefs.DEF_PERF_CURRENT)
+            s.currentUnit = p.getInt(Prefs.KEY_CURRENT_UNIT, Prefs.DEF_CURRENT_UNIT)
+                .coerceIn(Prefs.CURRENT_UNIT_MA, Prefs.CURRENT_UNIT_A)
+            s.currentPositive = p.getBoolean(Prefs.KEY_CURRENT_POSITIVE, Prefs.DEF_CURRENT_POSITIVE)
             s.perfScale = Prefs.clamp(
                 p.getInt(Prefs.KEY_PERF_SCALE, Prefs.DEF_PERF_SCALE),
                 Prefs.MIN_PERF_SCALE,
@@ -657,6 +695,11 @@ class TrioSettings {
                 p.getInt(Prefs.KEY_PERF_LINE_GAP, Prefs.DEF_PERF_LINE_GAP),
                 Prefs.MIN_PERF_LINE_GAP,
                 Prefs.MAX_PERF_LINE_GAP,
+            )
+            s.perfRefreshSec = Prefs.clamp(
+                p.getInt(Prefs.KEY_PERF_REFRESH_SEC, Prefs.DEF_PERF_REFRESH_SEC),
+                Prefs.MIN_PERF_REFRESH_SEC,
+                Prefs.MAX_PERF_REFRESH_SEC,
             )
             s.glyphScale = Prefs.clamp(
                 p.getInt(Prefs.KEY_GLYPH_SCALE, Prefs.DEF_GLYPH_SCALE),
@@ -937,6 +980,8 @@ class TrioSettings {
             s.clockStyle = bundle.getInt(Prefs.KEY_CLOCK_STYLE, Prefs.DEF_CLOCK_STYLE)
             s.clockWeatherColorOnDark = bundle.getInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_DARK, Prefs.DEF_COLOR_CLOCK)
             s.clockWeatherColorOnLight = bundle.getInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_LIGHT, Prefs.DEF_COLOR_CLOCK)
+            s.clockDigitColorsOnDark = Prefs.decodeClockDigitColors(bundle.getString(Prefs.KEY_CLOCK_DIGIT_COLORS))
+            s.clockDigitColorsOnLight = Prefs.decodeClockDigitColors(bundle.getString(Prefs.KEY_CLOCK_DIGIT_COLORS_LIGHT))
             s.shadeHidePower = bundle.getBoolean(Prefs.KEY_SHADE_HIDE_POWER, Prefs.DEF_SHADE_HIDE_POWER)
             s.shadeHideBell = bundle.getBoolean(Prefs.KEY_SHADE_HIDE_BELL, Prefs.DEF_SHADE_HIDE_BELL)
             s.shadeLunar = bundle.getBoolean(Prefs.KEY_SHADE_LUNAR, Prefs.DEF_SHADE_LUNAR)
@@ -944,6 +989,10 @@ class TrioSettings {
             s.shadeWeatherStyle = bundle.getInt(Prefs.KEY_SHADE_WEATHER_STYLE, Prefs.DEF_SHADE_WEATHER_STYLE)
             s.perfTemp = bundle.getBoolean(Prefs.KEY_PERF_TEMP, Prefs.DEF_PERF_TEMP)
             s.perfFps = bundle.getBoolean(Prefs.KEY_PERF_FPS, Prefs.DEF_PERF_FPS)
+            s.perfCurrent = bundle.getBoolean(Prefs.KEY_PERF_CURRENT, Prefs.DEF_PERF_CURRENT)
+            s.currentUnit = bundle.getInt(Prefs.KEY_CURRENT_UNIT, Prefs.DEF_CURRENT_UNIT)
+                .coerceIn(Prefs.CURRENT_UNIT_MA, Prefs.CURRENT_UNIT_A)
+            s.currentPositive = bundle.getBoolean(Prefs.KEY_CURRENT_POSITIVE, Prefs.DEF_CURRENT_POSITIVE)
             s.perfScale = Prefs.clamp(
                 bundle.getInt(Prefs.KEY_PERF_SCALE, Prefs.DEF_PERF_SCALE),
                 Prefs.MIN_PERF_SCALE,
@@ -958,6 +1007,11 @@ class TrioSettings {
                 bundle.getInt(Prefs.KEY_PERF_LINE_GAP, Prefs.DEF_PERF_LINE_GAP),
                 Prefs.MIN_PERF_LINE_GAP,
                 Prefs.MAX_PERF_LINE_GAP,
+            )
+            s.perfRefreshSec = Prefs.clamp(
+                bundle.getInt(Prefs.KEY_PERF_REFRESH_SEC, Prefs.DEF_PERF_REFRESH_SEC),
+                Prefs.MIN_PERF_REFRESH_SEC,
+                Prefs.MAX_PERF_REFRESH_SEC,
             )
             s.glyphScale = Prefs.clamp(
                 bundle.getInt(Prefs.KEY_GLYPH_SCALE, Prefs.DEF_GLYPH_SCALE),
@@ -1372,6 +1426,8 @@ class TrioSettings {
         s.clockStyle = clockStyle
         s.clockWeatherColorOnDark = clockWeatherColorOnDark
         s.clockWeatherColorOnLight = clockWeatherColorOnLight
+        s.clockDigitColorsOnDark = clockDigitColorsOnDark.copyOf()
+        s.clockDigitColorsOnLight = clockDigitColorsOnLight.copyOf()
         s.shadeHidePower = shadeHidePower
         s.shadeHideBell = shadeHideBell
         s.shadeLunar = shadeLunar
@@ -1379,9 +1435,13 @@ class TrioSettings {
         s.shadeWeatherStyle = shadeWeatherStyle
         s.perfTemp = perfTemp
         s.perfFps = perfFps
+        s.perfCurrent = perfCurrent
+        s.currentUnit = currentUnit
+        s.currentPositive = currentPositive
         s.perfScale = perfScale
         s.perfWeight = perfWeight
         s.perfLineGap = perfLineGap
+        s.perfRefreshSec = perfRefreshSec
         s.glyphScale = glyphScale
         s.roleColors = roleColors
         s.criticalOnDark = criticalOnDark
@@ -1525,6 +1585,8 @@ class TrioSettings {
             Prefs.KEY_CLOCK_STYLE -> clockStyle = src.clockStyle
             Prefs.KEY_COLOR_CLOCK_WEATHER_ON_DARK -> clockWeatherColorOnDark = src.clockWeatherColorOnDark
             Prefs.KEY_COLOR_CLOCK_WEATHER_ON_LIGHT -> clockWeatherColorOnLight = src.clockWeatherColorOnLight
+            Prefs.KEY_CLOCK_DIGIT_COLORS -> clockDigitColorsOnDark = src.clockDigitColorsOnDark.copyOf()
+            Prefs.KEY_CLOCK_DIGIT_COLORS_LIGHT -> clockDigitColorsOnLight = src.clockDigitColorsOnLight.copyOf()
             Prefs.KEY_SHADE_HIDE_POWER -> shadeHidePower = src.shadeHidePower
             Prefs.KEY_SHADE_HIDE_BELL -> shadeHideBell = src.shadeHideBell
             Prefs.KEY_SHADE_LUNAR -> shadeLunar = src.shadeLunar
@@ -1532,9 +1594,13 @@ class TrioSettings {
             Prefs.KEY_SHADE_WEATHER_STYLE -> shadeWeatherStyle = src.shadeWeatherStyle
             Prefs.KEY_PERF_TEMP -> perfTemp = src.perfTemp
             Prefs.KEY_PERF_FPS -> perfFps = src.perfFps
+            Prefs.KEY_PERF_CURRENT -> perfCurrent = src.perfCurrent
+            Prefs.KEY_CURRENT_UNIT -> currentUnit = src.currentUnit
+            Prefs.KEY_CURRENT_POSITIVE -> currentPositive = src.currentPositive
             Prefs.KEY_PERF_SCALE -> perfScale = src.perfScale
             Prefs.KEY_PERF_WEIGHT -> perfWeight = src.perfWeight
             Prefs.KEY_PERF_LINE_GAP -> perfLineGap = src.perfLineGap
+            Prefs.KEY_PERF_REFRESH_SEC -> perfRefreshSec = src.perfRefreshSec
             Prefs.KEY_GLYPH_SCALE -> glyphScale = src.glyphScale
             Prefs.KEY_ROLE_COLORS -> roleColors = src.roleColors
             Prefs.KEY_COLOR_CRITICAL_ON_DARK -> criticalOnDark = src.criticalOnDark
@@ -1652,6 +1718,8 @@ class TrioSettings {
         putInt(Prefs.KEY_CLOCK_STYLE, clockStyle)
         putInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_DARK, clockWeatherColorOnDark)
         putInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_LIGHT, clockWeatherColorOnLight)
+        putString(Prefs.KEY_CLOCK_DIGIT_COLORS, Prefs.encodeClockDigitColors(clockDigitColorsOnDark))
+        putString(Prefs.KEY_CLOCK_DIGIT_COLORS_LIGHT, Prefs.encodeClockDigitColors(clockDigitColorsOnLight))
         putBoolean(Prefs.KEY_SHADE_HIDE_POWER, shadeHidePower)
         putBoolean(Prefs.KEY_SHADE_HIDE_BELL, shadeHideBell)
         putBoolean(Prefs.KEY_SHADE_LUNAR, shadeLunar)
@@ -1659,9 +1727,13 @@ class TrioSettings {
         putInt(Prefs.KEY_SHADE_WEATHER_STYLE, shadeWeatherStyle)
         putBoolean(Prefs.KEY_PERF_TEMP, perfTemp)
         putBoolean(Prefs.KEY_PERF_FPS, perfFps)
+        putBoolean(Prefs.KEY_PERF_CURRENT, perfCurrent)
+        putInt(Prefs.KEY_CURRENT_UNIT, currentUnit)
+        putBoolean(Prefs.KEY_CURRENT_POSITIVE, currentPositive)
         putInt(Prefs.KEY_PERF_SCALE, perfScale)
         putInt(Prefs.KEY_PERF_WEIGHT, perfWeight)
         putInt(Prefs.KEY_PERF_LINE_GAP, perfLineGap)
+        putInt(Prefs.KEY_PERF_REFRESH_SEC, perfRefreshSec)
         putInt(Prefs.KEY_GLYPH_SCALE, glyphScale)
         putBoolean(Prefs.KEY_ROLE_COLORS, roleColors)
         putInt(Prefs.KEY_COLOR_CRITICAL_ON_DARK, criticalOnDark)
@@ -1777,9 +1849,15 @@ class TrioSettings {
             shadeWeatherStyle == other.shadeWeatherStyle &&
             perfTemp == other.perfTemp &&
             perfFps == other.perfFps &&
+            perfCurrent == other.perfCurrent &&
+            currentUnit == other.currentUnit &&
+            currentPositive == other.currentPositive &&
             perfScale == other.perfScale &&
             perfWeight == other.perfWeight &&
             perfLineGap == other.perfLineGap &&
+            perfRefreshSec == other.perfRefreshSec &&
+            clockDigitColorsOnDark.contentEquals(other.clockDigitColorsOnDark) &&
+            clockDigitColorsOnLight.contentEquals(other.clockDigitColorsOnLight) &&
             glyphScale == other.glyphScale &&
             roleColors == other.roleColors &&
             criticalOnDark == other.criticalOnDark &&
@@ -1833,9 +1911,14 @@ class TrioSettings {
         h = h * 31 + (if (perfRunning) 1 else 0)
         h = h * 31 + (if (perfTemp) 1 else 0)
         h = h * 31 + (if (perfFps) 1 else 0)
+        h = h * 31 + (if (perfCurrent) 1 else 0)
+        h = h * 31 + currentUnit
+        h = h * 31 + (if (currentPositive) 1 else 0)
         h = h * 31 + perfScale
         h = h * 31 + perfWeight
         h = h * 31 + perfLineGap
+        h = h * 31 + clockDigitColorsOnDark.contentHashCode()
+        h = h * 31 + clockDigitColorsOnLight.contentHashCode()
         h = h * 31 + glyphScale
         return if (h != 0) h else 1
     }

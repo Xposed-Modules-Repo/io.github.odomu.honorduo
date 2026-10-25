@@ -196,6 +196,17 @@ class TrioAppearance(c: TrioSettings) {
     @JvmField val clockWeatherColorOnDark: Int = c.clockWeatherColorOnDark
     @JvmField val clockWeatherColorOnLight: Int = c.clockWeatherColorOnLight
 
+    /**
+     * The colour of one character of the time, or `0` when that character has none.
+     *
+     * Indexed by the character's place in the drawn string, so a caller drawing glyph
+     * by glyph can ask per glyph without knowing the format.
+     */
+    fun clockDigitColor(index: Int, onDark: Boolean): Int {
+        val colors = if (onDark) clockDigitColorsOnDark else clockDigitColorsOnLight
+        return if (index in colors.indices) colors[index] else 0
+    }
+
     /** Control center: the header's power button is hidden. */
     @JvmField val shadeHidePower: Boolean = c.shadeHidePower
 
@@ -217,6 +228,15 @@ class TrioAppearance(c: TrioSettings) {
     /** The screen's frame rate is drawn - in the glyph when placed, on its own otherwise. */
     @JvmField val perfFps: Boolean = c.perfFps
 
+    /** Whether the battery current is one of the readings. */
+    @JvmField val perfCurrent: Boolean = c.perfCurrent
+
+    /** Milliamps or amps; see [Prefs.CURRENT_UNIT_MA]. */
+    @JvmField val currentUnit: Int = c.currentUnit
+
+    /** Draw the current as a magnitude whatever its direction. */
+    @JvmField val currentPositive: Boolean = c.currentPositive
+
     /** Overall size of the two readouts, in percent of the adaptive fit. */
     @JvmField val perfScale: Int = c.perfScale
 
@@ -225,6 +245,13 @@ class TrioAppearance(c: TrioSettings) {
 
     /** Extra spacing between the two stacked readout lines, in dp. */
     @JvmField val perfLineGap: Int = c.perfLineGap
+
+    /** How often the readouts are re-read, in seconds. */
+    @JvmField val perfRefreshSec: Int = c.perfRefreshSec
+
+    /** Per-character time colours; index into the drawn string, `0` = unset. */
+    @JvmField val clockDigitColorsOnDark: IntArray = c.clockDigitColorsOnDark
+    @JvmField val clockDigitColorsOnLight: IntArray = c.clockDigitColorsOnLight
 
     /** Overall size of the glyph, in percent of the fit the host box implies. */
     @JvmField val glyphScale: Int = c.glyphScale
@@ -462,8 +489,9 @@ class TrioAppearance(c: TrioSettings) {
      * every caller that mounts or measures that view has to ask - never [perfPower] or
      * [perfTemp] alone.
      */
-    fun perfAnywhere(): Boolean = perfPower || perfTemp ||
-        (!glyph && (hasRingPart(Prefs.PART_POWER) || hasRingPart(Prefs.PART_TEMP) || hasRingPart(Prefs.PART_RUNNING)))
+    fun perfAnywhere(): Boolean = perfPower || perfTemp || perfCurrent ||
+        (!glyph && (hasRingPart(Prefs.PART_POWER) || hasRingPart(Prefs.PART_TEMP) ||
+            hasRingPart(Prefs.PART_RUNNING) || hasRingPart(Prefs.PART_CURRENT)))
 
     /**
      * Whether any performance reading is switched on, the frame rate included.
@@ -576,12 +604,21 @@ class TrioAppearance(c: TrioSettings) {
      */
     fun hidesStatusClock(): Boolean {
         if (!glyph) return false
-        val drawn = if (capsule) 2 else 1
         for (z in 0 until Prefs.ZONE_COUNT) {
+            // What this band can actually show: the ring draws one piece per band,
+            // the capsule's two openings one each and only its interior two. Counting
+            // two everywhere hid the bar clock for a queue the openings never reach,
+            // which left the corner blank with no time anywhere.
+            val drawn = if (capsule && z == Prefs.ZONE_CENTRE) 2 else 1
             var ahead = 0
             for (id in ringZones[z]) {
                 if (id == Prefs.PART_NONE) continue
-                if (id == Prefs.PART_CLOCK) return ahead < drawn
+                if (id == Prefs.PART_CLOCK) {
+                    // One queue that cannot reach the clock does not decide the answer
+                    // on its own: another band may place it first.
+                    if (ahead < drawn) return true
+                    break
+                }
                 ahead++
             }
         }
@@ -852,6 +889,8 @@ class TrioAppearance(c: TrioSettings) {
             // Its own piece: a frame rate has nothing to do with the charger state, so it
             // is drawn whenever the reading is on.
             Prefs.PART_FPS -> a.perfFps
+            // Likewise independent of the charger: the current reads on both directions.
+            Prefs.PART_CURRENT -> a.perfCurrent && TrioState.sCurrentUa != TrioState.CURRENT_UNKNOWN
             else -> false
         }
 

@@ -286,8 +286,28 @@ object Prefs {
     /** The screen's current refresh rate, as its own piece: "120". */
     const val PART_FPS = 12
 
+    /** The battery current, as its own piece: "420mA" or "1.42A". */
+    const val PART_CURRENT = 13
+
     /** The highest valid part id. */
-    const val PART_MAX = PART_FPS
+    const val PART_MAX = PART_CURRENT
+
+    /** How the current is written: milliamps ([CURRENT_UNIT_MA]) or amps. */
+    const val KEY_CURRENT_UNIT = "current_unit"
+    const val CURRENT_UNIT_MA = 0
+    const val CURRENT_UNIT_A = 1
+
+    /** Milliamps by default: that is the scale a phone's currents are talked about in. */
+    const val DEF_CURRENT_UNIT = CURRENT_UNIT_MA
+
+    /**
+     * Draw the current as a magnitude whatever its direction.
+     *
+     * On by default: the platform reports discharge as a negative number, and a readout
+     * on the status bar is watched for its size far more often than for its sign.
+     */
+    const val KEY_CURRENT_POSITIVE = "current_positive"
+    const val DEF_CURRENT_POSITIVE = true
 
     /**
      * How many zones the layout has, in the order the layout string stores them:
@@ -554,6 +574,9 @@ object Prefs {
      */
     const val KEY_PERF_FPS = "perf_fps"
 
+    /** Show the battery current as one of the out-of-ring readings. */
+    const val KEY_PERF_CURRENT = "perf_current"
+
     /**
      * Overall size of the two performance readouts, as a percentage of the size
      * [KEY_OUT_TYPE_SIZE_DP] and the adaptive fit settle on.
@@ -569,6 +592,31 @@ object Prefs {
 
     /** Extra spacing between the two stacked readout lines, in dp. */
     const val KEY_PERF_LINE_GAP = "perf_line_gap"
+
+    /**
+     * How often the charging power and the battery temperature are re-read, in seconds.
+     *
+     * Each of them also arrives on the platform's own battery broadcast, so this is the
+     * ceiling on how stale the pair can get when a delivery is dropped - and the row the
+     * user can slow down to stop the readout from costing wake-ups.
+     */
+    const val KEY_PERF_REFRESH_SEC = "perf_refresh_sec"
+
+    /**
+     * Per-character colours of the time, as indices into the drawn string.
+     *
+     * Stored as one comma-separated list rather than one preference per glyph: the
+     * number of characters changes with the format (seconds on, a two-digit hour), so
+     * a fixed set of keys would have to guess how many exist. An entry of `0` means
+     * "not set" and draws in the clock's own ink.
+     */
+    const val KEY_CLOCK_DIGIT_COLORS = "clock_digit_colors"
+
+    /** The same list for the light background; the pair mirrors every other clock colour. */
+    const val KEY_CLOCK_DIGIT_COLORS_LIGHT = "clock_digit_colors_light"
+
+    /** How many characters the time can have: `HH:mm:ss` plus a sign's worth of slack. */
+    const val CLOCK_DIGIT_SLOTS = 8
 
     const val KEY_ROLE_COLORS = "role_colors"
     const val KEY_ROLE_COLORS_TEMP = "role_colors_temp"
@@ -896,6 +944,21 @@ object Prefs {
     const val KEY_TRACK_ALPHA = "track_alpha"
 
     const val KEY_DEBUG_LOG = "debug_log"
+    const val KEY_LOG_LEVEL = "log_level"
+    const val LOG_LEVEL_OFF = 0
+    const val LOG_LEVEL_ERROR = 1
+    const val LOG_LEVEL_WARN = 2
+    const val LOG_LEVEL_INFO = 3
+    const val LOG_LEVEL_DEBUG = 4
+    const val DEF_LOG_LEVEL = LOG_LEVEL_OFF
+
+    const val KEY_IGNORE_UPDATE_VERSION = "ignore_update_version"
+    const val KEY_APP_FIRST_LAUNCH = "app_first_launch"
+    const val KEY_APP_LANGUAGE = "app_language"
+    const val APP_LANG_SYSTEM = 0
+    const val APP_LANG_ZH = 1
+    const val APP_LANG_EN = 2
+    const val DEF_APP_LANGUAGE = APP_LANG_SYSTEM
 
     // Defaults.
     const val DEF_ENABLED = true
@@ -1026,6 +1089,9 @@ object Prefs {
     /** Off by default, for the same reason as [DEF_PERF_POWER]. */
     const val DEF_PERF_FPS = false
 
+    /** Off by default, for the same reason as [DEF_PERF_POWER]. */
+    const val DEF_PERF_CURRENT = false
+
     /**
      * One weight for every reading the module draws.
      *
@@ -1049,6 +1115,14 @@ object Prefs {
 
     /** No extra spacing by default; the lines already sit on the strip's own rhythm. */
     const val DEF_PERF_LINE_GAP = 0
+
+    /**
+     * Ten seconds: the pace the platform itself updates the battery figures at.
+     *
+     * Faster buys nothing - the source does not change in between - and slower starts
+     * to show when a delivery is dropped.
+     */
+    const val DEF_PERF_REFRESH_SEC = 10
 
     /** Off by default: the second row is an opt-in reading for a dual-SIM device. */
     const val DEF_DUAL_SIM = false
@@ -1089,7 +1163,7 @@ object Prefs {
 
     /** The weekday ships off, for the same reason as [DEF_CLOCK_DATE]. */
     const val DEF_CLOCK_WEEKDAY = false
-    const val DEF_CLOCK_LUNAR = true
+    const val DEF_CLOCK_LUNAR = false
     const val DEF_CLOCK_TOP_OFFSET_X = 0
     const val DEF_CLOCK_BOTTOM_OFFSET_X = 0
     const val DEF_CLOCK_LUNAR_GAP = 2
@@ -1098,7 +1172,7 @@ object Prefs {
     const val DEF_CLOCK_DATE_FORMAT = CLOCK_DATE_MONTH_DAY
     const val DEF_CLOCK_WEEKDAY_FORMAT = CLOCK_WEEKDAY_ZH_SHORT
     const val DEF_COLOR_CLOCK = 0
-    const val DEF_CLOCK_WEATHER = true
+    const val DEF_CLOCK_WEATHER = false
     const val DEF_CLOCK_WEATHER_STYLE = WEATHER_STYLE_TEXT
     const val DEF_CLOCK_STYLE = CLOCK_STYLE_BALANCED
 
@@ -1319,6 +1393,13 @@ object Prefs {
 
     const val MIN_PERF_LINE_GAP = 0
     const val MAX_PERF_LINE_GAP = 12
+
+    /**
+     * Floor refresh rate allowed for charging power and battery temperature watchdog.
+     * Default is 10s, allowing down to 1s.
+     */
+    const val MIN_PERF_REFRESH_SEC = 1
+    const val MAX_PERF_REFRESH_SEC = 120
     const val MIN_LOW_THRESHOLD = 5
     const val MAX_LOW_THRESHOLD = 50
 
@@ -1330,4 +1411,30 @@ object Prefs {
 
     @JvmStatic
     fun clamp(value: Int, min: Int, max: Int): Int = value.coerceIn(min, max)
+
+    /**
+     * Renders per-character time colours as the comma list the preference stores.
+     *
+     * A list rather than fixed keys: the number of glyphs depends on the format, so the
+     * stored form is allowed to be shorter or longer than the time on screen.
+     */
+    @JvmStatic
+    fun encodeClockDigitColors(colors: IntArray?): String {
+        if (colors == null || colors.isEmpty()) return ""
+        return colors.take(CLOCK_DIGIT_SLOTS).joinToString(",")
+    }
+
+    /** Reads the list back into a fixed-length array; entries of `0` mean "unset". */
+    @JvmStatic
+    fun decodeClockDigitColors(raw: String?): IntArray {
+        val out = IntArray(CLOCK_DIGIT_SLOTS)
+        if (raw.isNullOrEmpty()) return out
+        var i = 0
+        for (part in raw.split(',')) {
+            if (i >= CLOCK_DIGIT_SLOTS) break
+            out[i] = part.trim().toIntOrNull() ?: 0
+            i++
+        }
+        return out
+    }
 }
