@@ -40,25 +40,30 @@ internal object SignalIconHook {
      */
     private fun hookSignalIcons(module: XposedModule, cl: ClassLoader): Int {
         var n = 0
-        // Modern MagicOS signal utility (HnSignalUtils).
+        // Adaptive signal icon utility: prefer modern HnSignalUtils, fallback to classic HwSignalUtil.
         val hn = Refl.cls("com.android.systemui.utils.HnSignalUtils", cl)
-        n += TrioHooks.hook(module, TrioHooks.methodNamed(hn, "setIconForView", 2), "honorduo-signal-new") { chain ->
-            val result = chain.proceed()
-            val view = chain.getArg(0) as? View
-            val id = chain.getArg(1)
-            noteIcon(view, id)
-            if (view != null && id is Int) {
-                noteSlotType(view, id)
+        val hnMethod = TrioHooks.methodNamed(hn, "setIconForView", 2)
+        if (hnMethod != null) {
+            n += TrioHooks.hook(module, hnMethod, "honorduo-signal-new") { chain ->
+                val result = chain.proceed()
+                val view = chain.getArg(0) as? View
+                val id = chain.getArg(1)
+                noteIcon(view, id)
+                if (view != null && id is Int) {
+                    noteSlotType(view, id)
+                }
+                result
             }
-            result
-        }
-
-        // Classic MagicOS/EMUI signal utility (HwSignalUtil).
-        val hw = Refl.cls("com.android.systemui.utils.HwSignalUtil", cl)
-        n += TrioHooks.hook(module, TrioHooks.methodNamed(hw, "setIconForView", 2), "honorduo-signal-classic") { chain ->
-            val result = chain.proceed()
-            noteIcon(chain.getArg(0) as? View, chain.getArg(1))
-            result
+        } else {
+            val hw = Refl.cls("com.android.systemui.utils.HwSignalUtil", cl)
+            val hwMethod = TrioHooks.methodNamed(hw, "setIconForView", 2)
+            if (hwMethod != null) {
+                n += TrioHooks.hook(module, hwMethod, "honorduo-signal-classic") { chain ->
+                    val result = chain.proceed()
+                    noteIcon(chain.getArg(0) as? View, chain.getArg(1))
+                    result
+                }
+            }
         }
         return n
     }

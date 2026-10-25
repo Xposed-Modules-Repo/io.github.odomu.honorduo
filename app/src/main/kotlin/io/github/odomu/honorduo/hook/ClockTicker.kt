@@ -65,7 +65,13 @@ internal object ClockTicker {
         dateFormat = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM, locale)
         weekdayFormat = SimpleDateFormat("EEEE", locale)
         is24Hour = AndroidDateFormat.is24HourFormat(app)
-        main.post { tick() }
+        BarVisibility.addListener { shown ->
+            if (shown) {
+                main.removeCallbacks(tickRunnable)
+                main.post(tickRunnable)
+            }
+        }
+        main.post(tickRunnable)
     }
 
     fun formatDate(now: java.util.Date, format: Int): String {
@@ -140,10 +146,16 @@ internal object ClockTicker {
         }
     }
 
+    private val tickRunnable = Runnable { tick() }
+
     private fun tick() {
         var delay = MAX_LATENESS_MS
         try {
-            if (timeFormat != null && usesClock()) publishNow()
+            // The alignment below is still recomputed while hidden - one date
+            // comparison a minute - but the format and the repaint behind it wait
+            // for a bar that can show them. The visibility listener re-ticks on the
+            // way back, so the first visible minute is the current one.
+            if (BarVisibility.shown && timeFormat != null && usesClock()) publishNow()
             // Recomputed either way: the style can be switched at any moment and
             // the next tick should already be aligned to the boundary.
             delay = millisToNextMinute()
@@ -152,7 +164,7 @@ internal object ClockTicker {
         } finally {
             // In a finally, deliberately: a ticker that died on one bad frame
             // would leave the clock frozen for the life of the process.
-            main.postDelayed({ tick() }, delay.coerceAtLeast(1L))
+            main.postDelayed(tickRunnable, delay.coerceAtLeast(1L))
         }
     }
 

@@ -71,7 +71,7 @@ internal object WeatherManager {
         try {
             app.contentResolver.registerContentObserver(WEATHER_URI, true, object : ContentObserver(main) {
                 override fun onChange(selfChange: Boolean) {
-                    if (ScreenStateTracker.isScreenOn) {
+                    if (ScreenStateTracker.isScreenOn && BarVisibility.shown) {
                         fetchAsync(app, force = true)
                     }
                 }
@@ -85,7 +85,7 @@ internal object WeatherManager {
             }
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(c: Context?, intent: Intent?) {
-                    if (ScreenStateTracker.isScreenOn) {
+                    if (ScreenStateTracker.isScreenOn && BarVisibility.shown) {
                         fetchAsync(app, force = true)
                     }
                 }
@@ -95,6 +95,11 @@ internal object WeatherManager {
 
         ScreenStateTracker.addListener { on ->
             if (on) onScreenOn(app)
+        }
+        // A bar that comes back inside the cache window needs no query at all;
+        // one that comes back after it asks once, through the same staleness rule.
+        BarVisibility.addListener { shown ->
+            if (shown) onScreenOn(app)
         }
 
         fetchAsync(app, force = true)
@@ -108,14 +113,16 @@ internal object WeatherManager {
     }
 
     fun fetchAsync(context: Context, force: Boolean = false) {
-        // Suspend weather queries during screen-off to eliminate battery drain
-        if (!ScreenStateTracker.isScreenOn) return
+        // Suspend weather queries while the bar is off screen or the screen is
+        // off: a query costs a content-provider round trip plus a network path,
+        // and nothing would be drawn from the answer.
+        if (!ScreenStateTracker.isScreenOn || !BarVisibility.shown) return
         val now = System.currentTimeMillis()
         if (!force && now - lastFetchTime < CACHE_EXPIRY_MS && data != null) {
             return
         }
         executor.execute {
-            if (!ScreenStateTracker.isScreenOn) return@execute
+            if (!ScreenStateTracker.isScreenOn || !BarVisibility.shown) return@execute
             try {
                 val queried = queryWeather(context)
                 if (queried != null) {

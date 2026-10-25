@@ -92,6 +92,22 @@ internal object TrioHooks {
             val handler = Handler(Looper.getMainLooper())
             handler.post { onScreenStateChanged(screenOn) }
         }
+        // Posted, not run inline: the producers listening to the same transition
+        // (battery, clock, frame rate) refresh their state inside their own
+        // callbacks, so replaying one turn later is what makes the single repaint
+        // show the readings the hidden interval accumulated instead of the old ones.
+        BarVisibility.addListener { shown ->
+            if (!shown) return@addListener
+            Handler(Looper.getMainLooper()).post {
+                if (!BarVisibility.shown) return@post
+                val pending = sRepaintPending
+                sRepaintPending = false
+                // Only a skipped update needs the text rebuilt; every return to the
+                // bar needs the repaint, if only for the ink the new surroundings ask for.
+                if (pending) StatusBarRowManager.syncAll(TrioConfig.appearance(), force = false)
+                invalidateHosts()
+            }
+        }
     }
 
     private fun onScreenStateChanged(screenOn: Boolean) {
@@ -102,14 +118,36 @@ internal object TrioHooks {
         }
     }
 
+    /**
+     * Asks for a repaint of every reading.
+     *
+     * While the bar is hidden the request is only recorded: nothing painted into
+     * an undrawn row reaches a display, and the work behind it - the telephony
+     * poll inside [TrioState.refresh] above all - is the expensive part. The one
+     * repaint this defers is replayed by the visibility listener above, so the
+     * bar cannot come back showing a stale reading.
+     */
     fun invalidateHosts() {
         if (Looper.myLooper() != Looper.getMainLooper()) {
             Handler(Looper.getMainLooper()).post { invalidateHosts() }
             return
         }
+        if (!BarVisibility.shown) {
+            sRepaintPending = true
+            return
+        }
+        sRepaintPending = false
         StatusBarRowManager.invalidateAll()
         BarClockManager.sync(TrioConfig.appearance())
     }
+
+    /** Records that a repaint was skipped while the bar was hidden. */
+    fun markRepaintPending() {
+        sRepaintPending = true
+    }
+
+    @Volatile
+    private var sRepaintPending = false
 
     fun hook(
         module: XposedModule,
@@ -118,7 +156,9 @@ internal object TrioHooks {
         hooker: XposedInterface.Hooker,
     ): Int {
         if (m == null) {
-            log(module, "skip $id: method not found")
+            if (debugLog()) {
+                log(module, "skip $id: method not found")
+            }
             return 0
         }
         return try {

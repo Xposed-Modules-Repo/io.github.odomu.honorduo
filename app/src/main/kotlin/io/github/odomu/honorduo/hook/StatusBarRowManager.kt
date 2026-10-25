@@ -94,6 +94,7 @@ internal object StatusBarRowManager {
         val parent = battery.parent as? ViewGroup ?: return
         val created = Row(row, parent, battery, TrioState(battery))
         synchronized(ROWS) { ROWS.add(created) }
+        watchVisibility(row)
         row.post { syncRow(created, true) }
     }
 
@@ -107,6 +108,36 @@ internal object StatusBarRowManager {
                 }
             }
         }
+        refreshShown()
+    }
+
+    /**
+     * Watches one row for the transitions that decide whether the bar is on screen.
+     *
+     * `isShown` is the answer - it walks the parents' visibility and the window's -
+     * but it is a query, so something has to say when to ask it again: a relayout,
+     * the window being hidden or shown, and attachment. All three are rare, and
+     * every one of them means what the gate tracks actually moved.
+     */
+    private fun watchVisibility(row: ViewGroup) {
+        row.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) = refreshShown()
+
+            override fun onViewDetachedFromWindow(v: View) = refreshShown()
+        })
+        row.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> refreshShown() }
+        row.viewTreeObserver.addOnWindowVisibilityChangeListener { refreshShown() }
+    }
+
+    /** True while any registered row is displayed. Main thread only. */
+    private fun anyRowShown(): Boolean = snapshot().any { it.row.isShown }
+
+    private fun refreshShown() {
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post { refreshShown() }
+            return
+        }
+        BarVisibility.update(anyRowShown())
     }
 
     fun find(row: ViewGroup): Row? {
@@ -164,6 +195,11 @@ internal object StatusBarRowManager {
             StatusBarIconManager.hide(row.battery)
         }
         StatusBarIconManager.settle(row.container, a)
+        // The row lays out on every status-bar change, which is the cheap moment to
+        // put the bar's own clock back where the arrangement wants it: the suppression
+        // hook only sees visibility writes, and a copy re-shown through another path
+        // would otherwise sit in the corner until the next settings change.
+        StatusBarIconManager.reassertClock(a)
         syncOutViews(row)
         if (force || row.lastStyle != a.style) {
             row.lastStyle = a.style
@@ -185,6 +221,12 @@ internal object StatusBarRowManager {
      * gets to the runnable, and mounting is not something to repeat.
      */
     fun requestSync(row: Row) {
+        // A hidden row lays out for nobody: the work below mounts and measures
+        // children. The replay on the way back runs a full sync, so nothing is lost.
+        if (!BarVisibility.shown) {
+            TrioHooks.markRepaintPending()
+            return
+        }
         synchronized(row) {
             if (row.syncPosted) return
             row.syncPosted = true
@@ -452,7 +494,7 @@ internal object StatusBarRowManager {
         // already accounts for it.
         perf.setLineSpacing(a.perfLineGap * density, 1f)
         val baseColor = row.state.foreground()
-        val tempIsHigh = a.roleColorsTemp && TrioState.sBatteryTempC != TrioState.TEMP_UNKNOWN && TrioState.sBatteryTempC >= a.tempThreshold
+        val tempIsHigh = a.roleColorsTemp && TrioState.sBatteryHot
         if (tempIsHigh) {
             val highColor = if (TrioRenderer.isDarkBackground(baseColor)) a.highTempOnDark else a.highTempOnLight
             val tempStr = "${TrioState.sBatteryTempC}°C"
@@ -670,6 +712,16 @@ internal object StatusBarRowManager {
             }
             text.append(TrioState.sBatteryTempC).append("\u00B0C")
         }
+        val showCurrent = showCurrentLine(a)
+        if (showCurrent) {
+            val current = TrioState.currentText(a.currentUnit, a.currentPositive)
+            if (!current.isNullOrEmpty()) {
+                if (text.isNotEmpty()) {
+                    text.append(PERF_BREAK)
+                }
+                text.append(current)
+            }
+        }
         if (text.isNotEmpty() && perfStripLines(a) == 1) {
             val fps = stackedFps(a, s)
             if (fps.isNotEmpty()) {
@@ -699,8 +751,22 @@ internal object StatusBarRowManager {
             tempWanted && !(a.glyph && a.placed(Prefs.PART_TEMP)) &&
             TrioState.sBatteryTempC != TrioState.TEMP_UNKNOWN
         if (showTemp) lines++
+        if (showCurrentLine(a)) lines++
         return lines
     }
+
+    /**
+     * Whether the current earns a line of the strip.
+     *
+     * Its own reading rather than a share with the watt figure: the two answer different
+     * questions - what the charger is delivering, and what the battery is taking - and a
+     * battery that is not being charged has no watt figure at all while still having a
+     * current.
+     */
+    private fun showCurrentLine(a: TrioAppearance): Boolean =
+        (a.perfCurrent || (!a.glyph && a.hasRingPart(Prefs.PART_CURRENT))) &&
+            !(a.glyph && a.placed(Prefs.PART_CURRENT)) &&
+            TrioState.sCurrentUa != TrioState.CURRENT_UNKNOWN
 
     /** The frame rate as a line of the strip, or empty when it cannot join it. */
     private fun stackedFps(a: TrioAppearance, s: TrioState): String {
@@ -831,16 +897,30 @@ internal object StatusBarRowManager {
         } else {
             val a = TrioConfig.appearance()
             for (row in snapshot()) {
-                if (a.enabled && a.antiBurnIn) {
+                if (a.enabled && a.antiBurnIn && row.row.isShown) {
                     row.row.removeCallbacks(row.burnInTask)
                     row.row.postDelayed(row.burnInTask, Prefs.BURN_IN_INTERVAL_MS)
                 }
             }
+            refreshShown()
             invalidateAll()
         }
     }
 
+    /**
+     * Repaints every reading from the live state.
+     *
+     * Skipped entirely while the bar is hidden: nothing painted into an undrawn row
+     * reaches a display, and [TrioState.refresh] behind it polls telephony - a binder
+     * round trip per call - which is exactly the work that must not run for a bar
+     * nobody is looking at. [TrioHooks.invalidateHosts] records the miss and replays
+     * one repaint when the bar comes back, so nothing stays stale.
+     */
     fun invalidateAll() {
+        if (!BarVisibility.shown) {
+            TrioHooks.markRepaintPending()
+            return
+        }
         for (row in snapshot()) {
             row.state.refresh()
             val fg = row.state.foreground()
@@ -912,7 +992,9 @@ internal object StatusBarRowManager {
                     resetBurnIn(this@Row)
                     return
                 }
-                applyBurnInStep(this@Row)
+                // A shift nobody can see is a repaint of five views for nothing; the
+                // chain stays alive so the step resumes with the bar.
+                if (BarVisibility.shown) applyBurnInStep(this@Row)
                 this@Row.row.removeCallbacks(this)
                 if (ScreenStateTracker.isScreenOn) {
                     this@Row.row.postDelayed(this, Prefs.BURN_IN_INTERVAL_MS)

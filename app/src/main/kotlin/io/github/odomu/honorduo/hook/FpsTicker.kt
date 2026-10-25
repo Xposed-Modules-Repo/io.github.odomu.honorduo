@@ -68,6 +68,9 @@ internal object FpsTicker {
             ScreenStateTracker.addListener { screenOn ->
                 handler.post { onScreenStateChanged(screenOn) }
             }
+            BarVisibility.addListener { shown ->
+                handler.post { onScreenStateChanged(shown) }
+            }
             schedulePoll(0L)
         } catch (_: Throwable) {
             main = null
@@ -76,7 +79,8 @@ internal object FpsTicker {
 
     private fun isFpsActive(): Boolean {
         val a = TrioConfig.appearance()
-        return ScreenStateTracker.isScreenOn && a.enabled && (a.perfFps || (!a.glyph && a.hasRingPart(Prefs.PART_FPS)))
+        return ScreenStateTracker.isScreenOn && BarVisibility.shown && a.enabled &&
+            (a.perfFps || (!a.glyph && a.hasRingPart(Prefs.PART_FPS)))
     }
 
     private fun onScreenStateChanged(screenOn: Boolean) {

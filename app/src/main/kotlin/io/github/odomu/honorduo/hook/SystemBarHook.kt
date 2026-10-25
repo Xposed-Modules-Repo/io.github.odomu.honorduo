@@ -89,28 +89,20 @@ internal object SystemBarHook {
             result
         }
 
-        // Intercept dynamic capsule area notification boundaries (5-arg overload).
-        n += TrioHooks.hook(module, TrioHooks.methodNamed(rowClass, "setCapsuleArea", 5), "honorduo-capsule-area") { chain ->
-            val result = chain.proceed()
-            val self = chain.thisObject
-            if (self is ViewGroup) {
-                val isShown = chain.getArg(1) as? Boolean ?: false
-                val right = (chain.getArg(2) as? Number)?.toInt() ?: 0
-                StatusBarRowManager.handleCapsuleAvoidance(self, isShown, right)
+        // Intercept dynamic capsule area notification boundaries (adaptive 5 or 6 arg overload).
+        val capsuleMethod = TrioHooks.methodNamed(rowClass, "setCapsuleArea", 6)
+            ?: TrioHooks.methodNamed(rowClass, "setCapsuleArea", 5)
+        if (capsuleMethod != null) {
+            n += TrioHooks.hook(module, capsuleMethod, "honorduo-capsule-area") { chain ->
+                val result = chain.proceed()
+                val self = chain.thisObject
+                if (self is ViewGroup) {
+                    val isShown = chain.getArg(1) as? Boolean ?: false
+                    val right = (chain.getArg(2) as? Number)?.toInt() ?: 0
+                    StatusBarRowManager.handleCapsuleAvoidance(self, isShown, right)
+                }
+                result
             }
-            result
-        }
-
-        // Intercept dynamic capsule area notification boundaries (6-arg overload).
-        n += TrioHooks.hook(module, TrioHooks.methodNamed(rowClass, "setCapsuleArea", 6), "honorduo-capsule-area-6") { chain ->
-            val result = chain.proceed()
-            val self = chain.thisObject
-            if (self is ViewGroup) {
-                val isShown = chain.getArg(1) as? Boolean ?: false
-                val right = (chain.getArg(2) as? Number)?.toInt() ?: 0
-                StatusBarRowManager.handleCapsuleAvoidance(self, isShown, right)
-            }
-            result
         }
 
         // Intercept window attachment to track live container instances.
@@ -152,7 +144,9 @@ internal object SystemBarHook {
                     StatusBarIconManager.hide(self)
                 }
                 val row = StatusBarRowManager.rowOfBattery(self)
-                if (row != null) {
+                // While the bar is hidden the update is recorded, not painted: the
+                // measured text is rebuilt by the replay when the bar returns.
+                if (row != null && BarVisibility.shown) {
                     StatusBarRowManager.syncRow(row, false)
                 }
                 TrioHooks.invalidateHosts()

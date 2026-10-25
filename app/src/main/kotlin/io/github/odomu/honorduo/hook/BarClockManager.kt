@@ -152,9 +152,10 @@ internal object BarClockManager {
             !a.drawsBarClock()
         ) {
             removeBarClock()
-            // Releasing would undo the user's own "hide the bar clock" switch, which is
-            // the one case where nothing stands in for the view.
-            if (!a.barClockHidden) native?.let { StatusBarIconManager.release(it) }
+            // The clock's visibility is decided by ownership, never by this branch:
+            // when the arrangement draws the time itself the bar's copy has to stay
+            // hidden, and "handing it back" here was what put it back in the corner.
+            native?.let { StatusBarIconManager.settleClock(it, a) }
             return
         }
         val view = ensureBarClock(native)
@@ -201,10 +202,12 @@ internal object BarClockManager {
                 restoreClipping()
             }
         }
-        if (!TrioConfig.appearance().barClockHidden) {
-            sBarClock?.get()?.let { StatusBarIconManager.release(it) }
-        }
+        sBarClock?.get()?.let { StatusBarIconManager.settleClock(it) }
     }
+
+    /** The bar's own clock, for the suppression's re-assert; null until it has attached. */
+    val nativeClock: TextView?
+        get() = sBarClock?.get()
 
     private fun ensureBarClock(native: TextView): BarClockView? {
         val parent = native.parent as? ViewGroup ?: return null
@@ -296,6 +299,10 @@ internal object BarClockManager {
             topOffsetX = a.clockTopOffsetX * density, bottomOffsetX = a.clockBottomOffsetX * density,
             lunarGap = a.clockLunarGap * density, rowGap = a.clockRowGap * density,
         )
+        // Outside `apply`, which early-outs when nothing else changed: an array cannot take
+        // part in that comparison, so a colour change would otherwise never reach the view.
+        view.digitColors = if (isDark) a.clockDigitColorsOnDark else a.clockDigitColorsOnLight
+        view.invalidate()
         view.requestLayout()
         (view.parent as? View)?.requestLayout()
     }
@@ -392,6 +399,14 @@ internal object BarClockManager {
         private var dateColor = 0
         private var lunarColor = 0
 
+        /**
+         * Per-character colours of the time, by index in the drawn string; `0` = unset.
+         *
+         * Assigned after [apply] rather than compared inside it: `apply` skips a call that
+         * changes nothing else, and an array cannot be compared with `==` in that early-out.
+         */
+        var digitColors: IntArray = IntArray(0)
+
         private var inkHost: WeakReference<TextView>? = null
 
         private var baseSize = 0f
@@ -428,6 +443,24 @@ internal object BarClockManager {
                 super.setTranslationX(0f)
             } else {
                 super.setTranslationX(translationX)
+            }
+        }
+
+        /**
+         * The time, one character at a time, so each glyph can take its own colour.
+         *
+         * One `drawText` cannot: a paint has a single colour. Advances come from the same
+         * paint, so the run measures exactly like the plain draw it replaces.
+         */
+        private fun drawTimeAt(canvas: Canvas, x: Float, baseline: Float, inkFallback: Int) {
+            if (time.isEmpty()) return
+            var cursor = x
+            for (i in time.indices) {
+                val picked = if (i < digitColors.size) digitColors[i] else 0
+                paint.color = if (picked != 0) picked else inkFallback
+                val advance = paint.measureText(time, i, i + 1)
+                canvas.drawText(time, i, i + 1, cursor, baseline, paint)
+                cursor += advance
             }
         }
 
@@ -774,7 +807,7 @@ internal object BarClockManager {
                     }
                     paint.textSize = timeSize
                     paint.color = currentInk
-                    canvas.drawText(time, x, baseline, paint)
+                    drawTimeAt(canvas, x, baseline, currentInk)
                     x += paint.measureText(time) + step
                     drawWeatherAt(x, captionBaseline, lineSize)
                 }
@@ -808,7 +841,7 @@ internal object BarClockManager {
                     }
                     paint.textSize = timeSize
                     paint.color = currentInk
-                    canvas.drawText(time, x, timeBaseline, paint)
+                    drawTimeAt(canvas, x, timeBaseline, currentInk)
                 } else {
                     paint.textSize = bottomSize
                     val dtW = if (date.isEmpty()) 0f else paint.measureText(date)

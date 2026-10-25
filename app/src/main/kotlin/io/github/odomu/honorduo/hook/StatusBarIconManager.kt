@@ -76,6 +76,9 @@ internal object StatusBarIconManager {
 
     private const val STATUS_ICON_VIEW_SUFFIX = "StatusBarIconView"
 
+    /** The bar's own clock view, whose visibility is owned by the arrangement. */
+    private const val STATUS_BAR_CLOCK_SUFFIX = "HwStatusBarClock"
+
     /** The stylus icon the bar also draws from the Bluetooth slot family. */
     private const val BLUETOOTH_PENCIL_SLOT = "bluetooth_pencil"
 
@@ -229,6 +232,19 @@ internal object StatusBarIconManager {
         if (id == 0 || (id != wifiId && id != mobileId && id != batteryId && id != clockId)) {
             return
         }
+        // The clock is the one icon whose ownership does not depend on the container:
+        // its write can land before the view is parented (a re-inflated bar sets
+        // visibility during inflate), when the contents walk below has nothing to
+        // match yet. The class check keeps the calling and projection clocks - which
+        // share the id but are a plain TextView - out of it.
+        if (id == clockId &&
+            view.javaClass.name.endsWith(STATUS_BAR_CLOCK_SUFFIX) &&
+            isOwned(id, TrioConfig.appearance())
+        ) {
+            rememberHidden(view)
+            hide(view)
+            return
+        }
         if (!insideOwnedContainer(view)) return
         if (isOwned(id, TrioConfig.appearance())) {
             rememberHidden(view)
@@ -268,8 +284,15 @@ internal object StatusBarIconManager {
                 } else if (!insideOwnedContainer(view)) {
                     // A slot icon is handed back with the visibility the host gave it;
                     // forcing VISIBLE would draw an alarm or Bluetooth icon that is not
-                    // actually on.
-                    if (isSlotTracked(view)) restoreSlotIcon(view) else release(view, a)
+                    // actually on. The clock is never handed back on this path either:
+                    // its container is the bar's contents, and a re-parented copy (a
+                    // keyguard rebuild, a multi-user switch) would otherwise come back
+                    // in the corner while the glyph still draws the time.
+                    when {
+                        isSlotTracked(view) -> restoreSlotIcon(view)
+                        view.id == clockId && isOwned(clockId, a) -> hide(view)
+                        else -> release(view, a)
+                    }
                     HIDDEN.removeAt(i)
                 }
             }
@@ -300,11 +323,48 @@ internal object StatusBarIconManager {
     fun release(view: View, a: TrioAppearance = TrioConfig.appearance()) {
         val target = when (view.id) {
             wifiId -> if (WifiPresence.isConnected) View.VISIBLE else View.GONE
-            clockId -> if (a.barClockHidden) View.GONE else View.VISIBLE
+            // Ownership, not just the explicit hide switch: while the arrangement
+            // draws the time itself the bar's copy has to stay away, or the two race.
+            clockId -> if (a.barClockHidden || (a.glyph && a.hidesStatusClock())) View.GONE else View.VISIBLE
             else -> View.VISIBLE
         }
         if (view.visibility != target) {
             view.visibility = target
+        }
+    }
+
+    /**
+     * Puts the bar's own clock where the appearance asks for it.
+     *
+     * The one place the clock's visibility is decided: the module either draws the
+     * time itself and the native copy goes, or the native copy comes back. Written as
+     * a single rule because "handing back" [release] alone used to force the clock
+     * visible on every repaint, and the clock placed inside the glyph flickered back
+     * into the top-left corner whenever the suppression hook missed a write.
+     */
+    fun settleClock(view: View, a: TrioAppearance = TrioConfig.appearance()) {
+        if (isOwned(clockId, a)) {
+            rememberHidden(view)
+            hide(view)
+        } else {
+            release(view, a)
+        }
+    }
+
+    /**
+     * Re-hides the bar's clock when the appearance still owns it.
+     *
+     * The suppression hook only sees visibility *writes*; a copy re-shown through a
+     * path that does not write visibility would stay up. The row asks this on every
+     * layout, which is cheap (one id compare and one visibility read) and heals the
+     * state within a frame.
+     */
+    fun reassertClock(a: TrioAppearance = TrioConfig.appearance()) {
+        if (!idsResolved || !isOwned(clockId, a)) return
+        val view = BarClockManager.nativeClock ?: return
+        if (view.visibility != View.GONE) {
+            rememberHidden(view)
+            hide(view)
         }
     }
 
