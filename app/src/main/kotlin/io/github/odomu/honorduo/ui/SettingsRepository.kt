@@ -39,7 +39,7 @@ import io.github.odomu.honorduo.render.TrioZones
  * write is pushed, otherwise a value the user changes while the service is
  * bound would never reach SystemUI.
  */
-class SettingsRepository(context: Context) {
+class SettingsRepository(val context: Context) {
 
     private val appContext = context.applicationContext
     private val service: XposedService? get() = HonorDuoApp.xposedService
@@ -290,6 +290,47 @@ class SettingsRepository(context: Context) {
     fun setPerfWeight(value: Int) = writeInt(Prefs.KEY_PERF_WEIGHT, value)
     fun setPerfLineGap(value: Int) = writeInt(Prefs.KEY_PERF_LINE_GAP, value)
 
+    /** Whether the battery current is drawn among the readouts. */
+    fun setPerfCurrent(value: Boolean) = writeBoolean(Prefs.KEY_PERF_CURRENT, value)
+
+    /** Milliamps or amps for the current readout. */
+    fun setCurrentUnit(value: Int) =
+        writeInt(Prefs.KEY_CURRENT_UNIT, Prefs.clamp(value, Prefs.CURRENT_UNIT_MA, Prefs.CURRENT_UNIT_A))
+
+    /** Draw the current as a magnitude whatever its direction. */
+    fun setCurrentPositive(value: Boolean) = writeBoolean(Prefs.KEY_CURRENT_POSITIVE, value)
+
+    /** How often the charging power and the temperature are re-read, in seconds. */
+    fun setPerfRefreshSec(value: Int) = writeInt(Prefs.KEY_PERF_REFRESH_SEC, value)
+
+    /**
+     * Colours one character of the time.
+     *
+     * One list holds every character, so this is a read-modify-write of that list: the
+     * row it belongs to is a per-glyph tap, not a single value.
+     *
+     * @param index the character's place in the drawn time
+     * @param onDark which background's list to edit
+     * @param argb the colour, or `0` to hand the character back to the clock's own ink
+     */
+    fun setClockDigitColor(index: Int, onDark: Boolean, argb: Int) {
+        if (index < 0 || index >= Prefs.CLOCK_DIGIT_SLOTS) return
+        val current = read()
+        val colors = (if (onDark) current.clockDigitColorsOnDark else current.clockDigitColorsOnLight)
+            .copyOf()
+        colors[index] = argb
+        writeString(
+            if (onDark) Prefs.KEY_CLOCK_DIGIT_COLORS else Prefs.KEY_CLOCK_DIGIT_COLORS_LIGHT,
+            Prefs.encodeClockDigitColors(colors),
+        )
+    }
+
+    /** Hands every character of the time back to the clock's own ink. */
+    fun clearClockDigitColors() {
+        writeString(Prefs.KEY_CLOCK_DIGIT_COLORS, "")
+        writeString(Prefs.KEY_CLOCK_DIGIT_COLORS_LIGHT, "")
+    }
+
     /** Size of the in-ring charging bolt, in percent - see [Prefs.KEY_BOLT_SCALE]. */
     fun setBoltScale(value: Int) = writeInt(Prefs.KEY_BOLT_SCALE, value)
 
@@ -342,6 +383,10 @@ class SettingsRepository(context: Context) {
             putInt(Prefs.KEY_COLOR_CLOCK_DATE_ON_LIGHT, Prefs.DEF_COLOR_CLOCK)
             putInt(Prefs.KEY_COLOR_CLOCK_LUNAR_ON_DARK, Prefs.DEF_COLOR_CLOCK)
             putInt(Prefs.KEY_COLOR_CLOCK_LUNAR_ON_LIGHT, Prefs.DEF_COLOR_CLOCK)
+            putInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_DARK, Prefs.DEF_COLOR_CLOCK)
+            putInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_LIGHT, Prefs.DEF_COLOR_CLOCK)
+            putString(Prefs.KEY_CLOCK_DIGIT_COLORS, "")
+            putString(Prefs.KEY_CLOCK_DIGIT_COLORS_LIGHT, "")
         }
         push { prefs ->
             prefs.putInt(Prefs.KEY_COLOR_CRITICAL_ON_DARK, Prefs.DEF_COLOR_CRITICAL_ON_DARK)
@@ -358,6 +403,10 @@ class SettingsRepository(context: Context) {
             prefs.putInt(Prefs.KEY_COLOR_CLOCK_DATE_ON_LIGHT, Prefs.DEF_COLOR_CLOCK)
             prefs.putInt(Prefs.KEY_COLOR_CLOCK_LUNAR_ON_DARK, Prefs.DEF_COLOR_CLOCK)
             prefs.putInt(Prefs.KEY_COLOR_CLOCK_LUNAR_ON_LIGHT, Prefs.DEF_COLOR_CLOCK)
+            prefs.putInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_DARK, Prefs.DEF_COLOR_CLOCK)
+            prefs.putInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_LIGHT, Prefs.DEF_COLOR_CLOCK)
+            prefs.putString(Prefs.KEY_CLOCK_DIGIT_COLORS, "")
+            prefs.putString(Prefs.KEY_CLOCK_DIGIT_COLORS_LIGHT, "")
         }
         notifyModule()
     }
@@ -403,6 +452,25 @@ class SettingsRepository(context: Context) {
     fun setGlyphScale(value: Int) = writeInt(Prefs.KEY_GLYPH_SCALE, value)
     fun setFontPath(value: String) = writeString(Prefs.KEY_FONT_PATH, value)
     fun setDebugLog(value: Boolean) = writeBoolean(Prefs.KEY_DEBUG_LOG, value)
+    fun getDebugLog(): Boolean =
+        preferences().getBoolean(Prefs.KEY_DEBUG_LOG, Prefs.DEF_DEBUG_LOG)
+
+    /**
+     * The viewer's own filter level, which must not touch the debug log switch:
+     * picking "All" in the tabs means "show everything recorded", not "stop
+     * recording". Only the record toggle writes [Prefs.KEY_DEBUG_LOG].
+     */
+    fun setLogFilter(value: Int) = writeInt(Prefs.KEY_LOG_LEVEL, value)
+    fun getLogLevel(): Int = preferences().getInt(Prefs.KEY_LOG_LEVEL, Prefs.DEF_LOG_LEVEL)
+
+    fun setIgnoreUpdateVersion(version: String) = writeString(Prefs.KEY_IGNORE_UPDATE_VERSION, version)
+    fun getIgnoreUpdateVersion(): String = preferences().getString(Prefs.KEY_IGNORE_UPDATE_VERSION, "") ?: ""
+
+    fun isFirstLaunch(): Boolean = preferences().getBoolean(Prefs.KEY_APP_FIRST_LAUNCH, true)
+    fun markFirstLaunchDone() = writeBoolean(Prefs.KEY_APP_FIRST_LAUNCH, false)
+
+    fun getAppLanguage(): Int = preferences().getInt(Prefs.KEY_APP_LANGUAGE, Prefs.DEF_APP_LANGUAGE)
+    fun setAppLanguage(value: Int) = writeInt(Prefs.KEY_APP_LANGUAGE, value)
 
     /**
      * Pushes every value currently in the app's own file to the framework.
@@ -456,6 +524,12 @@ class SettingsRepository(context: Context) {
             prefs.putInt(Prefs.KEY_SHADE_WEATHER_STYLE, snapshot.shadeWeatherStyle)
             prefs.putInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_DARK, snapshot.clockWeatherColorOnDark)
             prefs.putInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_LIGHT, snapshot.clockWeatherColorOnLight)
+            prefs.putString(Prefs.KEY_CLOCK_DIGIT_COLORS, Prefs.encodeClockDigitColors(snapshot.clockDigitColorsOnDark))
+            prefs.putString(Prefs.KEY_CLOCK_DIGIT_COLORS_LIGHT, Prefs.encodeClockDigitColors(snapshot.clockDigitColorsOnLight))
+            prefs.putBoolean(Prefs.KEY_PERF_CURRENT, snapshot.perfCurrent)
+            prefs.putInt(Prefs.KEY_CURRENT_UNIT, snapshot.currentUnit)
+            prefs.putBoolean(Prefs.KEY_CURRENT_POSITIVE, snapshot.currentPositive)
+            prefs.putInt(Prefs.KEY_PERF_REFRESH_SEC, snapshot.perfRefreshSec)
             prefs.putBoolean(Prefs.KEY_PERF_TEMP, snapshot.perfTemp)
             prefs.putBoolean(Prefs.KEY_PERF_TEMP_CHARGING_ONLY, snapshot.perfTempChargingOnly)
             prefs.putBoolean(Prefs.KEY_CHARGING_SHOWS_VALUE, snapshot.chargingShowsValue)

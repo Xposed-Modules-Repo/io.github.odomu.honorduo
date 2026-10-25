@@ -15,7 +15,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.state.ToggleableState
+import top.yukonga.miuix.kmp.basic.Checkbox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -297,6 +300,8 @@ internal fun ReleaseNotesDialog(
     info: UpdateInfo? = null,
     currentVersion: String? = null,
     downloadProgress: Float? = null,
+    dontRemind: Boolean = false,
+    onDontRemindChange: ((Boolean) -> Unit)? = null,
     onDismiss: () -> Unit,
     onDownload: ((UpdateInfo) -> Unit)? = null,
 ) {
@@ -317,17 +322,14 @@ internal fun ReleaseNotesDialog(
         }
     }
 
-    val dialogTitle = if (info != null) {
-        stringResource(R.string.update_dialog_title, info.version)
-    } else {
-        stringResource(R.string.release_notes_title)
-    }
-
     val currentDoc = doc
+    val targetVersionName = info?.version ?: currentDoc?.version?.takeIf { it.isNotBlank() } ?: currentVersion ?: "1.0.3"
+    val targetVersionCode = info?.versionCode ?: releaseCodeOf(targetVersionName)
+    val versionBadgeText = if (targetVersionCode > 0) "v$targetVersionName ($targetVersionCode)" else "v$targetVersionName"
+    val dialogTitle = "${stringResource(R.string.release_notes_title)} $versionBadgeText"
+
     val dialogSummary = if (info != null && currentVersion != null) {
         stringResource(R.string.update_dialog_summary, currentVersion, formatNoteSize(info.apkSize))
-    } else if (currentDoc != null && currentDoc.version.isNotEmpty()) {
-        "v${currentDoc.version}"
     } else {
         null
     }
@@ -340,8 +342,7 @@ internal fun ReleaseNotesDialog(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
+                .fillMaxWidth(),
         ) {
             if (isRefreshing && currentDoc == null) {
                 Row(
@@ -399,7 +400,28 @@ internal fun ReleaseNotesDialog(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            if (info != null && onDontRemindChange != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onDontRemindChange(!dontRemind) }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Checkbox(
+                        state = if (dontRemind) ToggleableState.On else ToggleableState.Off,
+                        onClick = { onDontRemindChange(!dontRemind) },
+                    )
+                    Text(
+                        text = stringResource(R.string.update_dont_remind),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
             if (info != null && onDownload != null) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),

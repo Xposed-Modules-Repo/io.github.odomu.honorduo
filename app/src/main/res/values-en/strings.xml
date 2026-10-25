@@ -3,7 +3,7 @@
     <string name="drawing_quick_edit_title">Quick edit</string>
     <string name="drawing_order_title">In-ring order</string>
     <string name="app_name">HonorDuo</string>
-    <string name="xposed_description">Merges Wi-Fi, mobile signal and battery into a single iPhone-Duo style trio glyph in the status bar.</string>
+    <string name="xposed_description">Honor status bar · Network and battery, unified</string>
 
     <string name="group_stroke">Stroke</string>
     <string name="group_scale">Overall size</string>
@@ -183,6 +183,14 @@
     <string name="perf_running_title">Running power</string>
     <string name="perf_temp_title">Battery temp</string>
     <string name="perf_fps_title">Frame rate</string>
+    <string name="perf_current_title">Battery current</string>
+    <string name="perf_current_summary" formatted="false">Show the battery\'s current. Placeable anywhere in the ring or capsule, or left in the out-of-ring strip.</string>
+    <string name="current_unit_title">Current unit</string>
+    <string name="current_unit_summary">Milliamps read most naturally; amps keep two decimals.</string>
+    <string name="current_unit_ma">Milliamps mA</string>
+    <string name="current_unit_a">Amps A</string>
+    <string name="current_positive_title">Always show a positive value</string>
+    <string name="current_positive_summary">Off keeps the platform\'s own direction, where discharging is negative.</string>
 
     <string name="glyph_scale_title">Overall icon size</string>
     <string name="glyph_scale_summary" formatted="false">The default is 100% and the slider covers 60–100%.</string>
@@ -191,13 +199,22 @@
     <string name="perf_scale_summary" formatted="false">The default is 100% and the slider covers 60–150%; affects every reading the module draws.</string>
     <string name="perf_line_gap_title">Reading line gap</string>
     <string name="perf_line_gap_summary" formatted="false">Extra space between the two stacked lines. Default 0dp, adjustable 0–12dp.</string>
+    <string name="perf_refresh_title">Refresh interval</string>
+    <string name="perf_refresh_summary" formatted="false">How often the charging power and battery temperature are re-read. Default 10s, adjustable 1–120s; longer saves power, and pushes from the system still update at once.</string>
     <string name="perf_weight_title">Reading weight</string>
     <string name="perf_weight_summary">The default is 600 and the slider covers 100–900.</string>
 
     <string name="perf_pair_title">Readings</string>
 
+    <string name="clock_digit_colors_title">Digit colors</string>
+    <string name="clock_digit_colors_summary" formatted="false">Tap any character of the time above, then pick a color from the palette; it applies to that character only. Light and dark are stored apart, and &quot;Clear this character&quot; hands one back.</string>
+    <string name="clock_digit_color_clear_one">Clear this character</string>
+    <string name="clock_digit_color_clear_all">Clear all</string>
+
 
     <string name="color_role_title">State colors</string>
+    <string name="color_role_temp_title">High temperature warning color</string>
+    <string name="color_role_temp_summary">Apply a dedicated warning color when battery temperature reaches the threshold</string>
 
     <string name="color_low_title">Low battery color</string>
     <string name="color_charging_title">Charging color</string>
@@ -330,19 +347,87 @@
 
     <string name="about_activated">Activated</string>
     <string name="about_inactive">Inactive</string>
-    <string name="about_inactive_hint">Enable the module in LSPosed</string>
+
+    <string name="language_title">App language</string>
+    <string name="language_system">System default</string>
+    <string name="language_zh">Simplified Chinese</string>
+    <string name="language_en">English</string>
     <string name="about_module_version">Module version: %1$s</string>
     <string name="about_scope_count">Scoped apps</string>
     <string name="about_enabled_count">Enabled toggles</string>
+    <string name="back">Back</string>
     <string name="about_title">About</string>
-    <string name="about_summary">HonorDuo · an iPhone-Duo style trio status bar icon for Honor MagicOS</string>
+    <string name="tab_home">Home</string>
+    <string name="home_banner_inactive_title">Module Inactive</string>
+    <string name="home_banner_inactive_summary">Please enable HonorDuo in LSPosed and restart System UI</string>
+    <string name="home_banner_noscope_title">System UI Scope Missing</string>
+    <string name="home_banner_noscope_summary">Please check System UI (com.android.systemui) in module scope</string>
 
     <string name="info_module_version">App version</string>
-    <string name="info_framework">Xposed framework</string>
-    <string name="info_scope">Scope</string>
-    <string name="info_system_version">System version</string>
-    <string name="info_android_version">Android version</string>
+    <string name="info_xposed_version">Xposed version</string>
     <string name="info_device_model">Device model</string>
+    <string name="info_android_version">Android version</string>
+    <string name="info_system_fingerprint">System fingerprint</string>
+
+    <string name="backup_and_restore_title">Backup &amp; Restore</string>
+    <string name="backup_export_title">Export Backup Settings</string>
+    <string name="backup_export_summary">Export current module settings as a JSON file</string>
+    <string name="backup_import_title">Import Backup Settings</string>
+    <string name="backup_import_summary">Restore settings from an external JSON file</string>
+    <string name="backup_export_success">Backup exported successfully</string>
+    <string name="backup_import_success">Imported %1$d settings successfully</string>
+    <string name="backup_failed">Backup or restore failed: %1$s</string>
+
+    <string name="log_viewer_title">Log Viewer</string>
+    <string name="log_viewer_summary">View module logs and output</string>
+    <string name="log_level_title">Log Level</string>
+    <string name="log_level_summary">Configure log verbosity; disabled by default</string>
+    <string name="log_level_off">Off</string>
+    <string name="log_level_error">Error</string>
+    <string name="log_level_warn">Warn</string>
+    <string name="log_level_info">Info</string>
+    <string name="log_level_debug">Debug</string>
+    <string name="log_empty">No logs available</string>
+    <string name="log_clear">Clear Logs</string>
+    <string name="log_refresh">Refresh</string>
+    <string name="logs_title">Logs</string>
+    <string name="log_all">All</string>
+    <string name="log_debug">Debug</string>
+    <string name="log_info">Info</string>
+    <string name="log_warn">Warning</string>
+    <string name="log_error">Error</string>
+    <string name="scroll_to_top">Scroll to top</string>
+    <string name="scroll_to_bottom">Scroll to bottom</string>
+    <string name="export_log">Export Logs</string>
+    <string name="log_clear_confirm">Clear the current log buffer? This cannot be undone.</string>
+    <string name="log_clear_success">Logs cleared</string>
+    <string name="log_export_copied">Share log file</string>
+    <string name="log_no_search_results">No matching logs found</string>
+    <string name="log_read_failed">Cannot read the module log: %1$s</string>
+    <string name="log_record_on">Record all logs</string>
+    <string name="log_record_off">Stop recording all logs</string>
+    <string name="hide_icon_confirm_title">Hide Launcher Icon</string>
+    <string name="hide_icon_confirm_summary">The launcher icon will be hidden and settings can only be opened from the LSPosed manager. Continue?</string>
+    <string name="hide_icon_confirm_action">Hide</string>
+    <string name="log_menu_raw_view">Raw view</string>
+    <string name="log_menu_parsed_view">Parsed view</string>
+    <string name="log_menu_wrap_text">Wrap text</string>
+    <string name="log_menu_clear_now">Clear logs now</string>
+    <string name="log_record_summary">Turns on the debug log so every level is recorded</string>
+    <string name="log_record_started">Recording all logs</string>
+    <string name="log_record_stopped">Stopped recording all logs</string>
+    <string name="log_not_recording">Logging is not enabled. Tap the record button above to start.</string>
+    <string name="log_level_label_error">Error</string>
+    <string name="log_level_label_warn">Warning</string>
+    <string name="log_level_label_info">Info</string>
+    <string name="log_level_label_debug">Debug</string>
+    <string name="search">Search</string>
+    <string name="logs_empty">No logs available</string>
+    <string name="view_repository_title">Repository</string>
+    <string name="view_repository_summary">Visit GitHub project homepage and source</string>
+    <string name="view_original_repo_title">Original Project</string>
+    <string name="view_original_repo_summary">Visit upstream HyperDuo project repository</string>
+
     <string name="info_unknown">Unknown</string>
 
     <string name="update_title">Check for updates</string>
@@ -417,6 +502,7 @@
     <string name="ring_position_temp">Battery temp position</string>
     <string name="ring_position_running">Running power position</string>
     <string name="ring_position_fps">Frame rate position</string>
+    <string name="ring_position_current">Battery current position</string>
     <string name="drawing_part_battery">Battery outline</string>
     <string name="drawing_part_ring">Battery ring</string>
 

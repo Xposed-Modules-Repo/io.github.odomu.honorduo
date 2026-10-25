@@ -12,7 +12,10 @@
 package io.github.odomu.honorduo.ui
 
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -21,14 +24,25 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -36,9 +50,13 @@ import io.github.odomu.honorduo.R
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.TrioAppearance
 import io.github.odomu.honorduo.model.TrioSettings
+import io.github.odomu.honorduo.model.TrioState
 import io.github.odomu.honorduo.render.TrioZones
+import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -295,6 +313,22 @@ internal fun geometrySliders(): List<SliderSpec> {
             summaryRes = { R.string.perf_line_gap_summary },
             enabled = { it.perfPairShown() },
             suffix = "dp",
+        ),
+        SliderSpec(
+            group = GeometryGroup.Layout,
+            part = null,
+            min = Prefs.MIN_PERF_REFRESH_SEC,
+            max = Prefs.MAX_PERF_REFRESH_SEC,
+            step = 1,
+            read = { it.perfRefreshSec },
+            editorOwner = TrioSettingsPart.Readouts,
+            write = { r, v -> r.setPerfRefreshSec(v) },
+            titleRes = { R.string.perf_refresh_title },
+            summaryRes = { R.string.perf_refresh_summary },
+            // Not gated on the readout switches: this is the pace the values are read at,
+            // and it keeps mattering the moment any of them is switched on.
+            enabled = { true },
+            suffix = "s",
         ),
         SliderSpec(
             group = GeometryGroup.Stroke,
@@ -708,6 +742,7 @@ internal fun PartSettingsSheet(
     val a = TrioAppearance.of(settings)
     val rows = slidersForEditor(part)
     val controls = contentControlsFor(part)
+    var showDigitColorDialog by remember { mutableStateOf(false) }
     val colors = when (part) {
         TrioSettingsPart.Battery ->
             listOf(RoleColor.Low, RoleColor.Charging, RoleColor.Critical)
@@ -777,7 +812,8 @@ internal fun PartSettingsSheet(
                 if (part == TrioSettingsPart.Readouts && settings.perfTemp) {
                     SwitchPreference(
                         checked = a.roleColorsTemp,
-                        title = stringResource(R.string.color_role_title),
+                        title = stringResource(R.string.color_role_temp_title),
+                        summary = stringResource(R.string.color_role_temp_summary),
                         insideMargin = SettingsItemMargin,
                         onCheckedChange = { value -> update { it.setRoleColorsTemp(value) } },
                     )
@@ -796,6 +832,7 @@ internal fun PartSettingsSheet(
                     }
                 }
 
+
                 rows.forEach { spec ->
                     // A row whose setting is off is not shown at all, not greyed.
                     if (spec.enabled(a)) {
@@ -809,7 +846,17 @@ internal fun PartSettingsSheet(
                     TrioSettingsPart.Clock, TrioSettingsPart.Bolt -> true
                     else -> false
                 }
-                if (showColors) colors.forEach { role ->
+                if (showColors) {
+                    // Place digit colors preference right before clock colors (e.g. weekday color)
+                    if (part == TrioSettingsPart.Clock) {
+                        ArrowPreference(
+                            title = stringResource(R.string.clock_digit_colors_title),
+                            summary = stringResource(R.string.color_field_summary),
+                            insideMargin = SettingsItemMargin,
+                            onClick = { showDigitColorDialog = true },
+                        )
+                    }
+                    colors.forEach { role ->
                     ArrowPreference(
                         title = stringResource(role.labelRes),
                         summary = stringResource(R.string.color_field_summary),
@@ -822,6 +869,7 @@ internal fun PartSettingsSheet(
                         },
                         onClick = { onEditColor(role) },
                     )
+                    }
                 }
 
                 if (part == TrioSettingsPart.Battery || part == TrioSettingsPart.Clock || part == TrioSettingsPart.Bolt || (part == TrioSettingsPart.Readouts && a.roleColorsTemp)) {
@@ -833,6 +881,126 @@ internal fun PartSettingsSheet(
                     )
                 }
             }
+            }
+
+            if (showDigitColorDialog) {
+                ClockDigitColorDialog(
+                    settings = settings,
+                    update = update,
+                    onDismiss = { showDigitColorDialog = false },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Dedicated modal dialog for customizing per-character time colors.
+ *
+ * Triggered exclusively when tapped from the clock settings sheet.
+ * Tapping individual glyphs in the live preview selects them for palette customization.
+ */
+@Composable
+private fun ClockDigitColorDialog(
+    settings: TrioSettings,
+    update: ((SettingsRepository) -> Unit) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var onDark by remember { mutableStateOf(false) }
+    var selected by remember { mutableStateOf(0) }
+    val sample = TrioState.sClockBarText.ifEmpty { TrioState.sClockText }.ifEmpty { "19:41:05" }
+    val colors = if (onDark) settings.clockDigitColorsOnDark else settings.clockDigitColorsOnLight
+    val selectedColor = colors.getOrElse(selected) { 0 }
+    val defaultInk = if (onDark) Color.White else Color.Black
+
+    OverlayDialog(
+        show = true,
+        title = stringResource(R.string.clock_digit_colors_title),
+        summary = stringResource(R.string.clock_digit_colors_summary),
+        onDismissRequest = onDismiss,
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+            // Light / Dark background chips matching ColorDialog style
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                BackgroundChip(
+                    label = stringResource(R.string.color_on_light),
+                    selected = !onDark,
+                    modifier = Modifier.weight(1f),
+                ) { onDark = false }
+                BackgroundChip(
+                    label = stringResource(R.string.color_on_dark),
+                    selected = onDark,
+                    modifier = Modifier.weight(1f),
+                ) { onDark = true }
+            }
+
+            // Tappable digits preview row
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    sample.forEachIndexed { index, glyph ->
+                        val picked = colors.getOrElse(index) { 0 }
+                        val isSelected = index == selected
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (isSelected) {
+                                        MiuixTheme.colorScheme.primary.copy(alpha = 0.22f)
+                                    } else {
+                                        MiuixTheme.colorScheme.surfaceContainerHigh
+                                    },
+                                )
+                                .clickable(role = Role.Button) { selected = index },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = glyph.toString(),
+                                style = MiuixTheme.textStyles.headline2,
+                                color = if (picked != 0) Color(picked) else defaultInk,
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Color palette for selected digit
+            ColorPalette(
+                color = if (selectedColor != 0) Color(selectedColor) else defaultInk,
+                onColorChanged = { picked ->
+                    update { it.setClockDigitColor(selected, onDark, picked.toArgb()) }
+                },
+                modifier = Modifier.padding(top = 10.dp),
+            )
+
+            // Actions row with generous spacing and distinct reset controls
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp, bottom = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(
+                    text = stringResource(R.string.clock_digit_color_clear_one),
+                    onClick = {
+                        update { it.setClockDigitColor(selected, onDark, 0) }
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    text = stringResource(R.string.clock_digit_color_clear_all),
+                    onClick = {
+                        update { it.clearClockDigitColors() }
+                    },
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
     }

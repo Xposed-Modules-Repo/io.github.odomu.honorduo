@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">HonorDuo</string>
-    <string name="xposed_description">荣耀 MagicOS：把状态栏的 Wi-Fi、移动信号与电池合并为一个仿 iPhone Duo 的三合一体图标。</string>
+    <string name="xposed_description">荣耀状态栏 · 网络与电量三合一</string>
 
     <string name="group_stroke">描边</string>
     <string name="group_scale">整体尺寸</string>
@@ -84,6 +84,7 @@
     <string name="ring_position_temp">电池温度的位置</string>
     <string name="ring_position_running">运行功率的位置</string>
     <string name="ring_position_fps">帧率的位置</string>
+    <string name="ring_position_current">电流的位置</string>
     <string name="ring_position_native">归还系统</string>
     <string name="drawing_occupant_sim_1">卡一信号点</string>
     <string name="drawing_occupant_sim_2">卡二信号点</string>
@@ -218,6 +219,14 @@
     <string name="perf_running_title">运行功率</string>
     <string name="perf_temp_title">电池温度</string>
     <string name="perf_fps_title">帧率显示</string>
+    <string name="perf_current_title">电池电流</string>
+    <string name="perf_current_summary" formatted="false">显示电池当前电流；可拖入圆环、胶囊的任意位置，也可留在环外读数条。</string>
+    <string name="current_unit_title">电流单位</string>
+    <string name="current_unit_summary">毫安（mA）读数更直观，安培（A）保留两位小数。</string>
+    <string name="current_unit_ma">毫安 mA</string>
+    <string name="current_unit_a">安培 A</string>
+    <string name="current_positive_title">始终显示正值</string>
+    <string name="current_positive_summary">关闭后按系统原始方向显示，放电为负值。</string>
 
     <string name="glyph_scale_title">图标整体尺寸</string>
     <string name="glyph_scale_summary" formatted="false">默认 100%，可调 60–100%。</string>
@@ -226,13 +235,22 @@
     <string name="perf_scale_summary" formatted="false">默认 100%，可调 60–150%；作用于模块绘制的全部读数文字。</string>
     <string name="perf_line_gap_title">读数行距</string>
     <string name="perf_line_gap_summary" formatted="false">堆叠读数两行之间的额外间距，默认 0dp，可调 0–12dp。</string>
+    <string name="perf_refresh_title">刷新频率</string>
+    <string name="perf_refresh_summary" formatted="false">充电功率与电池温度的回读间隔，默认 10s，可调 1–120s；调大更省电，系统推送的变化仍会即时更新。</string>
     <string name="perf_weight_title">读数字重</string>
     <string name="perf_weight_summary">默认 600，可调 100–900。</string>
 
     <string name="perf_pair_title">读数值</string>
 
+    <string name="clock_digit_colors_title">数字颜色</string>
+    <string name="clock_digit_colors_summary" formatted="false">点按上方时间中的任一位数字，再从调色板选色；只对该位生效。深浅色分别保存，可按「本字符恢复」清掉一位。</string>
+    <string name="clock_digit_color_clear_one">本字符恢复</string>
+    <string name="clock_digit_color_clear_all">全部恢复</string>
+
 
     <string name="color_role_title">状态颜色</string>
+    <string name="color_role_temp_title">高温告警颜色</string>
+    <string name="color_role_temp_summary">电池温度达到设定阈值时，使用专属颜色突出显示</string>
 
     <string name="color_low_title">低电量颜色</string>
     <string name="color_charging_title">充电颜色</string>
@@ -360,6 +378,10 @@
     <string name="nav_labels_both">图标和文字</string>
     <string name="nav_labels_icon">仅图标</string>
     <string name="nav_labels_text">仅文字</string>
+    <string name="language_title">应用语言</string>
+    <string name="language_system">跟随系统</string>
+    <string name="language_zh">简体中文</string>
+    <string name="language_en">English</string>
     <string name="debug_title">调试日志</string>
     <string name="debug_summary">把详细过程写入 LSPosed 日志，排查问题时开启。</string>
 
@@ -369,15 +391,79 @@
     <string name="about_module_version">模块版本：%1$s</string>
     <string name="about_scope_count">作用域应用</string>
     <string name="about_enabled_count">已开启显示项</string>
+    <string name="back">返回</string>
     <string name="about_title">关于</string>
-    <string name="about_summary">HonorDuo · 仿 iPhone Duo 三合一状态栏图标（荣耀 MagicOS）</string>
+    <string name="tab_home">首页</string>
+    <string name="home_banner_inactive_title">模块未激活</string>
+    <string name="home_banner_inactive_summary">请在 LSPosed 管理器中勾选启用 HonorDuo，并重启系统界面</string>
+    <string name="home_banner_noscope_title">未勾选系统界面作用域</string>
+    <string name="home_banner_noscope_summary">请在 LSPosed 模块作用域中勾选「系统界面」（com.android.systemui）</string>
 
     <string name="info_module_version">应用版本</string>
-    <string name="info_framework">Xposed 框架</string>
-    <string name="info_scope">作用域</string>
-    <string name="info_system_version">系统版本</string>
-    <string name="info_android_version">Android 版本</string>
+    <string name="info_xposed_version">Xposed 版本</string>
     <string name="info_device_model">设备型号</string>
+    <string name="info_android_version">Android 版本</string>
+    <string name="info_system_fingerprint">系统指纹</string>
+
+    <string name="backup_and_restore_title">备份与恢复</string>
+    <string name="backup_export_title">导出备份设置</string>
+    <string name="backup_export_summary">将当前模块完整配置导出为 JSON 文件</string>
+    <string name="backup_import_title">导入备份设置</string>
+    <string name="backup_import_summary">从外部 JSON 文件恢复设置并同步生效</string>
+    <string name="backup_export_success">备份已成功导出</string>
+    <string name="backup_import_success">已成功导入 %1$d 项设置</string>
+    <string name="backup_failed">备份或恢复失败：%1$s</string>
+
+    <string name="log_viewer_title">日志查看</string>
+    <string name="log_viewer_summary">查看模块日志输出与捕获信息</string>
+    <string name="log_level_title">日志级别</string>
+    <string name="log_level_summary">设置模块运行时日志记录详尽程度，默认关闭</string>
+    <string name="log_level_off">关闭</string>
+    <string name="log_level_error">错误 (Error)</string>
+    <string name="log_level_warn">警告 (Warn)</string>
+    <string name="log_level_info">信息 (Info)</string>
+    <string name="log_level_debug">调试 (Debug)</string>
+    <string name="log_empty">暂无相关日志记录</string>
+    <string name="log_clear">清空日志</string>
+    <string name="log_refresh">刷新日志</string>
+    <string name="logs_title">日志</string>
+    <string name="log_all">全部</string>
+    <string name="log_debug">调试</string>
+    <string name="log_info">信息</string>
+    <string name="log_warn">警告</string>
+    <string name="log_error">错误</string>
+    <string name="scroll_to_top">滚动到顶部</string>
+    <string name="scroll_to_bottom">滚动到底部</string>
+    <string name="export_log">导出日志</string>
+    <string name="log_clear_confirm">确定清空当前日志缓冲区吗？此操作无法撤销。</string>
+    <string name="log_clear_success">日志已清空</string>
+    <string name="log_export_copied">分享日志文件</string>
+    <string name="log_no_search_results">未找到匹配日志</string>
+    <string name="log_read_failed">读取模块日志失败：%1$s</string>
+    <string name="log_record_on">记录全部日志</string>
+    <string name="log_record_off">停止记录全部日志</string>
+    <string name="hide_icon_confirm_title">隐藏桌面图标</string>
+    <string name="hide_icon_confirm_summary">隐藏后桌面图标将不再显示，后续只能通过 LSPosed 管理器打开设置。确定隐藏吗？</string>
+    <string name="hide_icon_confirm_action">隐藏</string>
+    <string name="log_menu_raw_view">原始视图</string>
+    <string name="log_menu_parsed_view">解析视图</string>
+    <string name="log_menu_wrap_text">自动换行</string>
+    <string name="log_menu_clear_now">立即清空日志</string>
+    <string name="log_record_summary">开启后打开调试日志，记录所有级别的模块日志</string>
+    <string name="log_record_started">已开始记录全部日志</string>
+    <string name="log_record_stopped">已停止记录全部日志</string>
+    <string name="log_level_label_error">错误</string>
+    <string name="log_level_label_warn">警告</string>
+    <string name="log_level_label_info">信息</string>
+    <string name="log_not_recording">未启用日志记录，点击上方录制按钮开启</string>
+    <string name="log_level_label_debug">调试</string>
+    <string name="search">搜索</string>
+    <string name="logs_empty">暂无日志记录</string>
+    <string name="update_dont_remind">不再提示此版本</string>
+    <string name="view_repository_title">查看仓库</string>
+    <string name="view_repository_summary">访问 GitHub 开源仓库主页与源码</string>
+    <string name="view_original_repo_title">查看原始项目</string>
+    <string name="view_original_repo_summary">访问上游 HyperDuo 开源项目仓库</string>
     <string name="info_unknown">未知</string>
 
     <string name="update_title">检查更新</string>

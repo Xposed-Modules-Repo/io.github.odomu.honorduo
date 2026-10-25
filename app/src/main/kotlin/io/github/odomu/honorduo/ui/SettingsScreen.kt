@@ -35,6 +35,8 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -54,7 +56,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -64,12 +65,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -109,7 +108,6 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
@@ -146,7 +144,6 @@ import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarDisplayMode
 import top.yukonga.miuix.kmp.basic.NavigationBarItem
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
@@ -180,20 +177,6 @@ import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
  */
 internal val SettingsItemMargin = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
 
-/**
- * Group heading. Miuix's [SmallTitle] defaults to a 28.dp vertical margin, which
- * reads as a stray indent once the page itself only insets 12.dp; the reference
- * page narrows it to 18.dp so the heading lines up with the card padding instead
- * of the card edge.
- */
-@Composable
-private fun SectionTitle(title: String) {
-    SmallTitle(
-        text = title,
-        modifier = Modifier.padding(top = 4.dp),
-        insideMargin = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
-    )
-}
 
 /**
  * Which role colour the picker dialog is editing.
@@ -226,9 +209,9 @@ internal enum class RoleColor(val labelRes: Int) {
  * the saved-state bundle.
  */
 private enum class SettingsTab(val labelRes: Int, val route: Route) {
+    About(R.string.tab_home, Route.About),
     Layout(R.string.tab_layout, Route.Layout),
     Settings(R.string.tab_settings, Route.Settings),
-    About(R.string.about_title, Route.About),
 }
 
 /**
@@ -278,10 +261,17 @@ fun SettingsScreen(repository: SettingsRepository) {
     // The supertype is spelled out because the reified parameter is otherwise
     // inferred from the argument, and a stack declared as the first concrete
     // route cannot hold the other three once the process is recreated.
-    val nav = rememberNavController<Route>(Route.Layout)
+    val isFirst = remember { repository.isFirstLaunch() }
+    LaunchedEffect(Unit) {
+        if (isFirst) {
+            repository.markFirstLaunchDone()
+        }
+    }
+    val initialRoute = if (isFirst) Route.About else Route.Layout
+    val nav = rememberNavController<Route>(initialRoute)
     val openTab = SettingsTab.entries.firstOrNull {
         it.route == nav.backStack.lastOrNull()
-    } ?: SettingsTab.Layout
+    } ?: if (isFirst) SettingsTab.About else SettingsTab.Layout
     val pageStateHolder = rememberSaveableStateHolder()
     BackHandler(enabled = nav.backStack.size > 1) { nav.pop() }
 
@@ -305,9 +295,63 @@ fun SettingsScreen(repository: SettingsRepository) {
     // answer. Kept for the process lifetime, keyed by version - a newer release has a
     // different version string, so its notes open again, which is the point: it is different
     // news.
-    var dismissedUpdateVersion by rememberSaveable { mutableStateOf<String?>(null) }
     var showingReleaseNotes by remember { mutableStateOf(false) }
+    var showingLogs by remember { mutableStateOf(false) }
+    var showingAboutPage by remember { mutableStateOf(false) }
+    val ignoredVersion = remember { repository.getIgnoreUpdateVersion() }
+    var dismissedUpdateVersion by rememberSaveable { mutableStateOf<String?>(ignoredVersion.takeIf { it.isNotBlank() }) }
+    var dontRemindUpdate by rememberSaveable { mutableStateOf(false) }
 
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val showMessage: (String) -> Unit = remember(scope, snackbarHostState) {
+        { message ->
+            scope.launch {
+                snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
+            }
+        }
+    }
+
+    val exportBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri)?.use { stream ->
+                        val json = ConfigBackupManager.exportToJson(context)
+                        stream.write(json.toByteArray(Charsets.UTF_8))
+                    } ?: throw IllegalStateException("Cannot open output stream")
+                }
+            }
+            result.fold(
+                onSuccess = { showMessage(context.getString(R.string.backup_export_success)) },
+                onFailure = { showMessage(context.getString(R.string.backup_failed, it.message.orEmpty())) },
+            )
+        }
+    }
+
+    val importBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    ConfigBackupManager.importFromJson(context, uri, repository)
+                }
+            }
+            result.fold(
+                onSuccess = { count: Int ->
+                    settings = repository.read()
+                    showMessage(context.getString(R.string.backup_import_success, count))
+                },
+                onFailure = { showMessage(context.getString(R.string.backup_failed, it.message.orEmpty())) },
+            )
+        }
+    }
     LaunchedEffect(Unit) {
         if (HAS_REPO) {
             updater.check()
@@ -351,17 +395,7 @@ fun SettingsScreen(repository: SettingsRepository) {
     // Short (4s) rather than Long (10s): these messages are one short
     // sentence, and ten seconds is a long time to look at one. The user can
     // swipe the bar away if even four is too long.
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-    // Remembered so the row callbacks below capture one stable value: a lambda
-    // rebuilt every recomposition would make every row that takes it unstable.
-    val showMessage: (String) -> Unit = remember(scope, snackbarHostState) {
-        { message ->
-            scope.launch {
-                snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
-            }
-        }
-    }
+
     var lastInstalledPath by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(updater.state) {
         val ready = updater.state as? UpdateState.Ready ?: return@LaunchedEffect
@@ -433,8 +467,27 @@ fun SettingsScreen(repository: SettingsRepository) {
     val navBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
 
     CompositionLocalProvider(LocalDropdownBackdrop provides navBackdrop) {
-        Scaffold(
-            bottomBar = {
+        if (showingLogs) {
+            BackHandler { showingLogs = false }
+            LogViewerPage(
+                repository = repository,
+                onBack = { showingLogs = false },
+                showMessage = showMessage,
+            )
+        } else if (showingAboutPage) {
+            BackHandler { showingAboutPage = false }
+            AboutPage(
+                updater = updater,
+                onBack = { showingAboutPage = false },
+                onCheckUpdate = {
+                    dismissedUpdateVersion = null
+                    lastInstalledPath = null
+                    updater.check()
+                },
+            )
+        } else {
+            Scaffold(
+                bottomBar = {
                 val darkTheme = isSystemInDarkTheme()
                 val style = Prefs.normalizeNavStyle(settings.navStyle)
                 val labels = Prefs.normalizeNavLabels(settings.navLabels)
@@ -540,19 +593,24 @@ fun SettingsScreen(repository: SettingsRepository) {
                                 )
 
                                 SettingsTab.About -> aboutTab(
-                                    settingsState.value, serviceState.value, updater, showMessage,
+                                    settings = settingsState.value,
+                                    repository = repository,
+                                    service = serviceState.value,
+                                    updater = updater,
                                     installingFont = installingFont,
                                     onChooseFont = { fontPicker.launch(arrayOf("*/*")) },
                                     onClearFont = { fontPath ->
                                         update { it.setFontPath("") }
                                         scope.launch { FontInstaller.remove(fontPath) }
                                     },
-                                    onCheck = {
-                                        dismissedUpdateVersion = null
-                                        lastInstalledPath = null
-                                        updater.check()
+                                    onExportBackup = {
+                                        exportBackupLauncher.launch(ConfigBackupManager.createBackupFileName())
                                     },
-                                    onOpenReleaseNotes = { showingReleaseNotes = true },
+                                    onImportBackup = {
+                                        importBackupLauncher.launch(arrayOf("application/json"))
+                                    },
+                                    onOpenLogs = { showingLogs = true },
+                                    onOpenAboutPage = { showingAboutPage = true },
                                 ) { block -> update(block) }
                             }
                         }
@@ -659,6 +717,15 @@ fun SettingsScreen(repository: SettingsRepository) {
                 info = currentInfo,
                 currentVersion = available?.current,
                 downloadProgress = downloadProgress,
+                dontRemind = dontRemindUpdate,
+                onDontRemindChange = { checked ->
+                    dontRemindUpdate = checked
+                    if (checked && currentInfo != null) {
+                        repository.setIgnoreUpdateVersion(currentInfo.version)
+                    } else {
+                        repository.setIgnoreUpdateVersion("")
+                    }
+                },
                 onDismiss = {
                     showingReleaseNotes = false
                     if (autoShowUpdate != null) {
@@ -669,6 +736,8 @@ fun SettingsScreen(repository: SettingsRepository) {
                     updater.download(info)
                 },
             )
+
+        }
         }
     }
 }
@@ -694,9 +763,9 @@ private fun SettingsPage(
     }
     val pageTitle = stringResource(
         when (tab) {
+            SettingsTab.About -> R.string.tab_home
             SettingsTab.Layout -> R.string.tab_layout
             SettingsTab.Settings -> R.string.tab_settings
-            SettingsTab.About -> R.string.about_title
         }
     )
     val restartTitle = stringResource(R.string.restart_title)
@@ -784,7 +853,7 @@ private fun SettingsPage(
                     scrollBehavior = scrollBehavior,
                     actions = {
                         GlassIconButton(
-                            icon = ImageVector.vectorResource(R.drawable.ic_lucide_rotate_ccw),
+                            icon = ImageVector.vectorResource(R.drawable.ic_lucide_refresh_cw),
                             description = restartTitle,
                             backdrop = if (barBlurSupported) pageBackdrop else null,
                             collapsedFraction = collapsed,
@@ -934,9 +1003,9 @@ private fun DockedNavigationBar(
 /** The icon for one page. Shared by all three bars so they cannot disagree. */
 @Composable
 private fun iconFor(tab: SettingsTab): ImageVector = when (tab) {
+    SettingsTab.About -> ImageVector.vectorResource(R.drawable.ic_lucide_home)
     SettingsTab.Layout -> ImageVector.vectorResource(R.drawable.ic_lucide_circle_dot)
     SettingsTab.Settings -> ImageVector.vectorResource(R.drawable.ic_lucide_sliders_horizontal)
-    SettingsTab.About -> ImageVector.vectorResource(R.drawable.ic_lucide_info)
 }
 
 /**
@@ -1493,7 +1562,6 @@ private fun LazyListScope.settingsTab(
     onOpenPart: (TrioSettingsPart) -> Unit,
 ) {
     val a = TrioAppearance.of(settings)
-
     // Card 0: Appearance
     item {
         SettingPreviewCard(
@@ -1575,38 +1643,137 @@ private fun LazyListScope.settingsTab(
     }
 }
 
-/** About: activation state, the counters, module info, updates and the log switch. */
+/** Home page: activation banner, activation state, info, backup & restore, logs, about, font and nav styles. */
 private fun LazyListScope.aboutTab(
     settings: TrioSettings,
+    repository: SettingsRepository,
     service: XposedService?,
     updater: UpdateController,
-    showMessage: (String) -> Unit,
     installingFont: Boolean,
     onChooseFont: () -> Unit,
     onClearFont: (String) -> Unit,
-    onCheck: () -> Unit,
-    onOpenReleaseNotes: () -> Unit,
+    onExportBackup: () -> Unit,
+    onImportBackup: () -> Unit,
+    onOpenLogs: () -> Unit,
+    onOpenAboutPage: () -> Unit,
     update: ((SettingsRepository) -> Unit) -> Unit,
 ) {
-    item { ActivatedRow(settings = settings, service = service) }
-    item { InfoCard(service = service) }
-    item { SectionTitle(stringResource(R.string.group_update)) }
-    item { UpdateCard(updater, showMessage, onCheck, onOpenReleaseNotes) }
-    item { SectionTitle(stringResource(R.string.group_launcher_icon)) }
-    item { LauncherIconCard() }
-    item { SectionTitle(stringResource(R.string.group_debug)) }
-    item {
-        Card {
-            SwitchPreference(
-                checked = settings.debugLog,
-                onCheckedChange = { value -> update { it.setDebugLog(value) } },
-                title = stringResource(R.string.debug_title),
-                summary = stringResource(R.string.debug_summary),
-                insideMargin = SettingsItemMargin,
+    // Activation & scope banners
+    val isActivated = service != null
+    val scopes = runCatching { service?.scope }.getOrNull() ?: emptyList()
+    val hasSystemUiScope = scopes.contains("com.android.systemui")
+    if (!isActivated) {
+        item {
+            ActivationBanner(
+                title = stringResource(R.string.home_banner_inactive_title),
+                summary = stringResource(R.string.home_banner_inactive_summary),
+                isWarning = true,
+            )
+        }
+    } else if (!hasSystemUiScope) {
+        item {
+            ActivationBanner(
+                title = stringResource(R.string.home_banner_noscope_title),
+                summary = stringResource(R.string.home_banner_noscope_summary),
+                isWarning = true,
             )
         }
     }
-    item { SectionTitle(stringResource(R.string.group_font)) }
+
+    item { ActivatedRow(settings = settings, service = service) }
+    item { InfoCard(service = service) }
+
+    // One group, no seams: the launcher toggle, backup, logs and the About entry read
+    // as a single card. The gap between them is a group boundary, not a row style,
+    // so splitting them into four cards only added empty bands.
+    item { Spacer(Modifier.height(12.dp)) }
+    item {
+        Card {
+            LauncherIconEntry()
+            ArrowPreference(
+                title = stringResource(R.string.backup_export_title),
+                summary = stringResource(R.string.backup_export_summary),
+                insideMargin = SettingsItemMargin,
+                onClick = onExportBackup,
+            )
+            ArrowPreference(
+                title = stringResource(R.string.backup_import_title),
+                summary = stringResource(R.string.backup_import_summary),
+                insideMargin = SettingsItemMargin,
+                onClick = onImportBackup,
+            )
+            ArrowPreference(
+                title = stringResource(R.string.log_viewer_title),
+                summary = stringResource(R.string.log_viewer_summary),
+                insideMargin = SettingsItemMargin,
+                onClick = onOpenLogs,
+            )
+            val aboutSummary = when (val s = updater.state) {
+                is UpdateState.Checking -> stringResource(R.string.update_checking)
+                is UpdateState.UpToDate -> stringResource(R.string.update_uptodate, s.current)
+                is UpdateState.Available -> stringResource(R.string.update_available, s.info.version)
+                is UpdateState.Downloading -> "正在下载 ${(s.progress * 100).toInt()}%"
+                is UpdateState.Ready -> "新版本已下载完成，点击安装"
+                is UpdateState.NoRelease -> stringResource(R.string.update_no_release)
+                else -> stringResource(R.string.view_repository_summary)
+            }
+            ArrowPreference(
+                title = stringResource(R.string.about_title),
+                summary = aboutSummary,
+                insideMargin = SettingsItemMargin,
+                endActions = {
+                    if (updater.state is UpdateState.Checking || updater.state is UpdateState.Downloading) {
+                        CircularProgressIndicator(size = 18.dp, modifier = Modifier.padding(end = 4.dp))
+                    }
+                },
+                onClick = onOpenAboutPage,
+            )
+        }
+    }
+
+    item { Spacer(Modifier.height(12.dp)) }
+    item {
+        Card {
+            GlassDropdownPreference(
+                title = stringResource(R.string.language_title),
+                items = listOf(
+                    stringResource(R.string.language_system),
+                    stringResource(R.string.language_zh),
+                    stringResource(R.string.language_en),
+                ),
+                selectedIndex = repository.getAppLanguage(),
+                insideMargin = SettingsItemMargin,
+            ) { index ->
+                repository.setAppLanguage(index)
+                (repository.context as? android.app.Activity)?.recreate()
+            }
+            GlassDropdownPreference(
+                title = stringResource(R.string.nav_style_title),
+                items = listOf(
+                    stringResource(R.string.nav_style_docked),
+                    stringResource(R.string.nav_style_floating),
+                    stringResource(R.string.nav_style_liquid),
+                ),
+                selectedIndex = Prefs.normalizeNavStyle(settings.navStyle),
+                insideMargin = SettingsItemMargin,
+            ) { index -> update { it.setNavStyle(index) } }
+            GlassDropdownPreference(
+                title = stringResource(R.string.nav_labels_title),
+                items = listOf(
+                    stringResource(R.string.nav_labels_both),
+                    stringResource(R.string.nav_labels_icon),
+                    stringResource(R.string.nav_labels_text),
+                ),
+                selectedIndex = Prefs.normalizeNavLabels(settings.navLabels),
+                insideMargin = SettingsItemMargin,
+            ) { index -> update { it.setNavLabels(index) } }
+        }
+    }
+
+    // The font rows sit last: they are the only settings here that touch the
+    // system rather than the module's own drawing, so they stay out of the way
+    // of the everyday entries above.
+    item { Spacer(Modifier.height(12.dp)) }
     item {
         Card {
             val chosen = settings.fontPath
@@ -1635,35 +1802,6 @@ private fun LazyListScope.aboutTab(
             )
         }
     }
-    // The shell's own appearance. It lives on the About page rather than the drawing page
-    // because it is about this screen, not about the glyph the drawing page edits.
-    item {
-        Column {
-            SectionTitle(stringResource(R.string.nav_section))
-            Card {
-                GlassDropdownPreference(
-                    title = stringResource(R.string.nav_style_title),
-                    items = listOf(
-                        stringResource(R.string.nav_style_docked),
-                        stringResource(R.string.nav_style_floating),
-                        stringResource(R.string.nav_style_liquid),
-                    ),
-                    selectedIndex = Prefs.normalizeNavStyle(settings.navStyle),
-                    insideMargin = SettingsItemMargin,
-                ) { index -> update { it.setNavStyle(index) } }
-                GlassDropdownPreference(
-                    title = stringResource(R.string.nav_labels_title),
-                    items = listOf(
-                        stringResource(R.string.nav_labels_both),
-                        stringResource(R.string.nav_labels_icon),
-                        stringResource(R.string.nav_labels_text),
-                    ),
-                    selectedIndex = Prefs.normalizeNavLabels(settings.navLabels),
-                    insideMargin = SettingsItemMargin,
-                ) { index -> update { it.setNavLabels(index) } }
-            }
-        }
-    }
 }
 
 /**
@@ -1682,7 +1820,7 @@ private fun LazyListScope.aboutTab(
  * card out of view and back does not restart a download in flight.
  */
 @Composable
-private fun UpdateCard(
+internal fun UpdateCard(
     updater: UpdateController,
     showMessage: (String) -> Unit,
     onCheck: () -> Unit,
@@ -1847,6 +1985,44 @@ private fun InfoRow(label: String, value: String, bottomPadding: Dp = 24.dp) {
  * the reference: the side length follows the available width on any device, so
  * the block keeps its proportions instead of looking squat on a tablet.
  */
+/**
+ * Prominent warning banner displayed at the top of the home page if module
+ * is not active or missing System UI scope.
+ */
+@Composable
+private fun ActivationBanner(
+    title: String,
+    summary: String,
+    isWarning: Boolean = true,
+) {
+    val bg = if (isWarning) Color(0xFFFFEBEE) else Color(0xFFE8F5E9)
+    val titleColor = if (isWarning) Color(0xFFC62828) else Color(0xFF2E7D32)
+    val contentColor = if (isWarning) Color(0xFFB71C1C) else Color(0xFF1B5E20)
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp),
+        colors = CardDefaults.defaultColors(
+            color = if (isDarkTheme()) Color(0xFF2C1E1E) else bg,
+            contentColor = contentColor,
+        ),
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(
+                text = title,
+                style = MiuixTheme.textStyles.headline2,
+                color = if (isDarkTheme()) Color(0xFFEF9A9A) else titleColor,
+            )
+            Text(
+                text = summary,
+                style = MiuixTheme.textStyles.footnote1,
+                color = if (isDarkTheme()) Color(0xFFE57373) else contentColor,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+    }
+}
+
 @Composable
 private fun ActivatedRow(settings: TrioSettings, service: XposedService?) {
     val context = LocalContext.current
@@ -2003,23 +2179,55 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
  * launcher that cleans up shortcuts cannot undo it.
  */
 @Composable
-private fun LauncherIconCard() {
+private fun LauncherIconEntry() {
     val context = LocalContext.current
-    // Asked of the component on every composition rather than cached: the alias can
-    // also be changed by the system (a launcher cleanup, a restore), and a remembered
-    // flag would then show a switch that disagrees with the home screen.
     var hidden by remember(context) { mutableStateOf(isLauncherIconHidden(context)) }
-    Card(modifier = Modifier.fillMaxWidth()) {
-        SwitchPreference(
-            checked = hidden,
-            onCheckedChange = { value ->
-                setLauncherIconHidden(context, value)
+    var showConfirm by remember { mutableStateOf(false) }
+
+    SwitchPreference(
+        checked = hidden,
+        onCheckedChange = { value ->
+            if (value) {
+                showConfirm = true
+            } else {
+                setLauncherIconHidden(context, false)
                 hidden = isLauncherIconHidden(context)
-            },
-            title = stringResource(R.string.about_hide_icon),
-            summary = stringResource(R.string.about_hide_icon_summary),
-            insideMargin = SettingsItemMargin,
-        )
+            }
+        },
+        title = stringResource(R.string.about_hide_icon),
+        summary = stringResource(R.string.about_hide_icon_summary),
+        insideMargin = SettingsItemMargin,
+    )
+
+    if (showConfirm) {
+        OverlayDialog(
+            show = true,
+            title = stringResource(R.string.hide_icon_confirm_title),
+            summary = stringResource(R.string.hide_icon_confirm_summary),
+            onDismissRequest = { showConfirm = false },
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                TextButton(
+                    text = stringResource(R.string.cancel),
+                    onClick = { showConfirm = false },
+                    modifier = Modifier.weight(1f),
+                )
+                Button(
+                    onClick = {
+                        showConfirm = false
+                        setLauncherIconHidden(context, true)
+                        hidden = isLauncherIconHidden(context)
+                    },
+                    colors = ButtonDefaults.buttonColorsPrimary(),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(text = stringResource(R.string.hide_icon_confirm_action))
+                }
+            }
+        }
     }
 }
 
@@ -2063,29 +2271,17 @@ private fun InfoCard(service: XposedService?) {
     val unknown = stringResource(R.string.info_unknown)
     val module = remember(context) { readModuleInfo(context) }
     val framework = remember(service, unknown) { readFrameworkInfo(service, unknown) }
-    val scope = remember(service, unknown) { readScope(service, unknown) }
-
-    // fillMaxWidth is required on both the card and its content column: Miuix's Card
-    // wraps to its content, and this card's text is narrower than the sibling cards,
-    // so without it the About card renders visibly inset on the right.
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-            InfoRow(stringResource(R.string.info_system_version), module.systemVersion)
+            // Order: App version -> Xposed version -> Device model -> Android version -> System fingerprint
             InfoRow(stringResource(R.string.info_module_version), module.moduleVersion)
-            InfoRow(stringResource(R.string.info_framework), framework)
+            InfoRow(stringResource(R.string.info_xposed_version), framework)
             InfoRow(stringResource(R.string.info_device_model), module.deviceModel)
-            InfoRow(stringResource(R.string.info_scope), scope)
+            InfoRow(stringResource(R.string.info_android_version), module.androidVersion)
             InfoRow(
-                label = stringResource(R.string.info_android_version),
-                value = module.androidVersion,
-                bottomPadding = 12.dp,
-            )
-
-            Text(
-                text = stringResource(R.string.about_summary),
-                style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.padding(top = 2.dp),
+                label = stringResource(R.string.info_system_fingerprint),
+                value = module.systemFingerprint,
+                bottomPadding = 4.dp,
             )
         }
     }
@@ -2251,7 +2447,7 @@ private fun ColorDialog(
 }
 
 @Composable
-private fun BackgroundChip(
+internal fun BackgroundChip(
     label: String,
     selected: Boolean,
     modifier: Modifier = Modifier,
@@ -2446,7 +2642,7 @@ internal fun isDarkTheme(): Boolean = MiuixTheme.colorSchemeMode == ColorSchemeM
 /** Everything the about card renders about this installation. */
 private data class ModuleInfo(
     val moduleVersion: String,
-    val systemVersion: String,
+    val systemFingerprint: String,
     val androidVersion: String,
     val deviceModel: String,
 )
@@ -2470,7 +2666,7 @@ private fun readModuleInfo(context: Context): ModuleInfo {
         .joinToString(" · ")
     return ModuleInfo(
         moduleVersion = "$versionName ($versionCode)",
-        systemVersion = systemVersion.ifBlank { "?" },
+        systemFingerprint = Build.FINGERPRINT.ifBlank { "?" },
         androidVersion = "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
         deviceModel = readDeviceName(context),
     )
@@ -2543,9 +2739,3 @@ private fun readFrameworkInfo(service: XposedService?, unknown: String): String 
     }.getOrDefault(unknown)
 }
 
-private fun readScope(service: XposedService?, unknown: String): String {
-    if (service == null) return unknown
-    val packages = runCatching { service.scope }.getOrNull()
-    if (packages.isNullOrEmpty()) return unknown
-    return packages.joinToString("\n")
-}

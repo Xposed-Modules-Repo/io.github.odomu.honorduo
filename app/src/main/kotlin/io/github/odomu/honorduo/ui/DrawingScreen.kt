@@ -515,35 +515,6 @@ private fun DrawingSection(
     }
 }
 
-/**
- * All components remain reachable when hidden, outside the glyph, or overridden.
- *
- * The two per-card rows are deliberately NOT separate tiles: they are rows inside
- * the signal card, because the ink is one thing (a row of level dots) and only the
- * reading it shows differs. Separate tiles for them meant two entries that opened
- * one shared set of settings.
- */
-@Composable
-private fun DrawingPartLibrary(a: TrioAppearance, onEdit: (TrioSettingsPart) -> Unit) {
-    val parts = listOf(TrioSettingsPart.Appearance, TrioSettingsPart.Battery, TrioSettingsPart.Wifi,
-        TrioSettingsPart.Mobile, TrioSettingsPart.Value, TrioSettingsPart.Bolt, TrioSettingsPart.Type, TrioSettingsPart.Readouts) +
-        if (a.capsule || a.ring) listOf(TrioSettingsPart.Clock) else emptyList()
-    parts.chunked(3).forEach { row ->
-        Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            row.forEach { part ->
-                Box(Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
-                    .background(MiuixTheme.colorScheme.surfaceContainerHigh)
-                    .clickable(role = Role.Button) { onEdit(part) }
-                    .padding(horizontal = 6.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
-                    Text(stringResource(if (part == TrioSettingsPart.Battery && a.ring)
-                        R.string.drawing_part_ring else drawingPartLabel(part)), style = MiuixTheme.textStyles.footnote1,
-                        textAlign = TextAlign.Center)
-                }
-            }
-            repeat(3 - row.size) { Box(Modifier.weight(1f)) }
-        }
-    }
-}
 
 private fun drawingPartLabel(part: TrioSettingsPart): Int = when (part) {
     TrioSettingsPart.Appearance -> R.string.drawing_part_appearance
@@ -1472,6 +1443,7 @@ private fun occupantLabelRes(part: TrioZones.Part?): Int = when (part) {
     TrioZones.Part.TEMP -> R.string.drawing_occupant_temp
     TrioZones.Part.RUNNING -> R.string.drawing_occupant_running
     TrioZones.Part.FPS -> R.string.drawing_occupant_fps
+    TrioZones.Part.CURRENT -> R.string.perf_current_title
     null -> R.string.drawing_occupant_none
 }
 
@@ -1540,6 +1512,7 @@ private fun partSummaryRes(part: TrioZones.Part): Int = when (part) {
     TrioZones.Part.TEMP -> R.string.perf_temp_summary
     TrioZones.Part.RUNNING -> R.string.perf_running_summary
     TrioZones.Part.FPS -> R.string.perf_fps_summary
+    TrioZones.Part.CURRENT -> R.string.perf_current_summary
 }
 
 /**

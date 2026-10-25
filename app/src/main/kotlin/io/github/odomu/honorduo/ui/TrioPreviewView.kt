@@ -106,6 +106,7 @@ class TrioPreviewView @JvmOverloads constructor(
         // previews blank would look broken rather than switched off.
         TrioState.sFps = PREVIEW_FPS
         TrioState.sBatteryTempC = PREVIEW_TEMP_C
+        TrioState.updateBatteryHot(settings.tempThreshold)
         invalidate()
     }
 

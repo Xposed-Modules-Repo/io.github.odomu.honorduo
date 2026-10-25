@@ -12,14 +12,16 @@
 package io.github.odomu.honorduo.ui
 
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.remember
+import io.github.odomu.honorduo.model.Prefs
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
-
+import java.util.Locale
 /**
  * The module's settings screen.
  *
@@ -29,8 +31,22 @@ import top.yukonga.miuix.kmp.theme.ThemeController
  */
 class MainActivity : ComponentActivity() {
 
+    override fun attachBaseContext(newBase: Context) {
+        val prefs = newBase.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
+        val mode = prefs.getInt(Prefs.KEY_APP_LANGUAGE, Prefs.DEF_APP_LANGUAGE)
+        val context = if (mode != Prefs.APP_LANG_SYSTEM) {
+            val locale = if (mode == Prefs.APP_LANG_ZH) Locale.SIMPLIFIED_CHINESE else Locale.ENGLISH
+            Locale.setDefault(locale)
+            val config = newBase.resources.configuration
+            config.setLocale(locale)
+            newBase.createConfigurationContext(config)
+        } else {
+            newBase
+        }
+        super.attachBaseContext(context)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Explicit because targetSdk 37 draws every app edge to edge: this is what keeps
         // the bar icons following the theme rather than the flags baked into AppTheme.
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)

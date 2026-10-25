@@ -117,6 +117,16 @@ internal enum class ContentControl(val owner: TrioSettingsPart) {
      * so a frame rate that has no band of its own is drawn in a view beside the strip.
      */
     Fps(TrioSettingsPart.Readouts),
+    /**
+     * The battery current, in the same sheet as the other readouts.
+     *
+     * Placeable like the rest: it can live inside a band of the ring or the capsule, or
+     * stand beside them in the strip, and the unit and sign rows below it are what a
+     * number of milliamps needs to be readable.
+     */
+    Current(TrioSettingsPart.Readouts),
+    CurrentUnit(TrioSettingsPart.Readouts),
+    CurrentPositive(TrioSettingsPart.Readouts),
     Clock(TrioSettingsPart.Clock),
     HideStatusClock(TrioSettingsPart.Clock),
     ClockLunar(TrioSettingsPart.Clock),
@@ -423,6 +433,23 @@ internal fun ContentControlRow(
         ContentControl.Temperature -> ContentToggle(settings.perfTemp, R.string.perf_temp_title, null, emptyList()) { value -> update { it.setPerfTemp(value) } }
         ContentControl.Fps -> ContentToggle(checked = settings.perfFps, title = R.string.perf_fps_title, summaryRes = R.string.perf_fps_summary,
             dependencies = emptyList()) { value -> update { it.setPerfFps(value) } }
+        ContentControl.Current -> ContentToggle(
+            checked = settings.perfCurrent,
+            title = R.string.perf_current_title,
+            summaryRes = R.string.perf_current_summary,
+            dependencies = emptyList(),
+        ) { value -> update { it.setPerfCurrent(value) } }
+        ContentControl.CurrentUnit -> ContentChoice(
+            settings.currentUnit, R.string.current_unit_title, R.string.current_unit_summary,
+            listOf(R.string.current_unit_ma, R.string.current_unit_a),
+            listOf(settings.perfCurrent to R.string.perf_current_title),
+        ) { value -> update { it.setCurrentUnit(value) } }
+        ContentControl.CurrentPositive -> ContentToggle(
+            checked = settings.currentPositive,
+            title = R.string.current_positive_title,
+            summaryRes = R.string.current_positive_summary,
+            dependencies = listOf(settings.perfCurrent to R.string.perf_current_title),
+        ) { value -> update { it.setCurrentPositive(value) } }
         ContentControl.Clock -> Unit
         ContentControl.HideStatusClock -> ContentToggle(
             checked = settings.hideStatusClock,
@@ -693,6 +720,7 @@ private fun RingPositionControl(
         TrioZones.Part.TEMP -> R.string.ring_position_temp
         TrioZones.Part.RUNNING -> R.string.ring_position_running
         TrioZones.Part.FPS -> R.string.ring_position_fps
+        TrioZones.Part.CURRENT -> R.string.ring_position_current
     }
     ContentChoice(selected, title,
         null,
