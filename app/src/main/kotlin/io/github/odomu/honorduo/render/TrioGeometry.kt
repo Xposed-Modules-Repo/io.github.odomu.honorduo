@@ -1544,11 +1544,15 @@ object TrioGeometry {
      */
     @JvmStatic
     fun openingLaneCy(stroke: Float): Float {
-        // Dead on the path line, which is what the reference does: the label straddles the
-        // outline, half of it above and half below, so the gap the dot row opened in the
-        // stroke is exactly where the label sits. The band above the ink box is therefore
-        // only half a label tall, and the other half lives in the opening itself.
-        return 0f
+        // Straddling the gap was right, but centring it exactly on the path line wasted the
+        // band: the outward half is a whole band deep while the inward half only reaches the
+        // interior's dot clearance, so the line was sized by the smaller half. Moving the lane
+        // by half the difference makes the two halves equal and lets the piece use the band it
+        // was given. The sign is outward - negative, since y grows downwards - so a positive
+        // result here would push the top label into the interior instead.
+        val inward = capInteriorTop(stroke) - CAP_TOP
+        val outward = CAP_TOP - CAP_INK_TOP
+        return (inward - outward) * 0.5f
     }
 
     /**
@@ -1564,26 +1568,15 @@ object TrioGeometry {
      */
     @JvmStatic
     fun capOpeningTextRoomH(stroke: Float): Float {
-        // The budget is measured from the PATH LINE outwards on both sides, because that is
-        // where the reading is centred. Its inward half runs down to the interior's own top -
-        // the first thing it could collide with, which is the clock - and its outward half runs
-        // up to the box's edge. The two are not equal: the band is one stroke's worth taller
-        // than the interior's clearance, so the INWARD half is what binds.
-        //
-        // Note what is NOT subtracted again: the path line is the stroke's centre, so a piece
-        // centred on it has already cleared half the stroke by construction. Taking the
-        // stroke's half out a second time - which this did - charged the same clearance twice.
+        // Both halves of the lane, measured around the piece's own centre rather than around
+        // the path line: [openingLaneCy] has already moved the lane so the two are equal.
+        // Inward runs to the interior's dot clearance - the first thing a line could collide
+        // with - and outward to the ink box's own top.
         val inward = capInteriorTop(stroke) - CAP_TOP
         val outward = CAP_TOP - CAP_INK_TOP
-        val half = minOf(inward, outward) - CAP_OPENING_GAP
-        // Ink on both sides of the line, so the ink budget is twice the smaller half.
+        val half = (inward + outward) * 0.5f - CAP_OPENING_GAP
+        // Ink on both sides of the centre, so the ink budget is twice the half.
         val ink = 2f * half
-        // No extra reduction. The clearance to the interior already leaves this at about 0.81
-        // of the body's readings, which is the reference's own 0.82 - applying a ratio on top
-        // of that shrank the label twice for the same reason, which is what made the network
-        // type look wrong in the top opening. The proportion is a CONSEQUENCE of the geometry,
-        // not a second knob. This is an INK height - see [capOpeningTextEm], which is
-        // what the text fit actually wants.
         // Never smaller than a dot: a band that cannot draw a bead is not a band.
         return maxOf(CAP_DOT_R * 2f, ink)
     }
@@ -1637,6 +1630,7 @@ object TrioGeometry {
             // One line each, and the widest form each can take.
             Prefs.PART_POWER, Prefs.PART_RUNNING -> capTextReach("99.9W", stroke, roomH)
             Prefs.PART_TEMP -> capTextReach("45°C", stroke, roomH)
+            Prefs.PART_CURRENT -> capTextReach("-1999mA", stroke, roomH)
             Prefs.PART_FPS -> capTextReach("120", stroke, roomH)
             else -> 0f
         }
@@ -1654,12 +1648,10 @@ object TrioGeometry {
      */
     @JvmStatic
     fun capTextReach(text: String, stroke: Float, roomH: Float): Float {
-        // The em the renderer will actually draw at: the user's own size, clamped by the row's
-        // budget. Both are ems, so they compare directly. Clamping the reach and clamping the
-        // drawn size have to use the same number or the gap gets cut for a glyph that is not
-        // there - too narrow and the stroke runs through the label, too wide and the outline is
-        // interrupted for nothing.
-        val em = minOf(Prefs.DEF_VALUE_SIZE * CAP_TEXT_SCALE, roomH)
+        // The largest em the renderer can draw here: the opening's budget scaled by the
+        // biggest size the slider reaches. Cut for the ceiling on purpose - the outline must
+        // be clear at every setting, and the clearance term the caller adds covers the rest.
+        val em = roomH / CAP_HEIGHT_RATIO * Prefs.MAX_CAPSULE_READING_SIZE / Prefs.DEF_VALUE_SIZE
         // Average advance width of a digit in the condensed face the readings use, in ems.
         val half = maxOf(0, text.length) * em * 0.31f
         // Never eat more than a quarter of the capsule: the outline still has to read as an
@@ -1785,15 +1777,23 @@ object TrioGeometry {
         return capInteriorCy(stroke) - W_INK_CY * capWifiScale(stroke)
     }
 
+    /**
+     * The centre an icon in the right-hand cell is drawn on.
+     *
+     * The right cell hugs the same gutter the left cell does: `inset` is the spacing
+     * setting, applied to [capTextRight] exactly as [capTextLeft] is on the other side,
+     * so an icon never sits closer to the cap than a reading does. `inkHalf` is the
+     * half-width the piece will actually draw, which the caller already knows because it
+     * draws that piece.
+     */
     @JvmStatic
-    fun capRightIconCx(stroke: Float, part: Int): Float {
-        val edge = capTextRight(stroke)
-        val half = when (part) {
-            Prefs.PART_WIFI -> W_INK_W * capWifiScale(stroke) * 0.5f
-            Prefs.PART_BOLT -> 6.25f * capBoltScale(stroke)
-            else -> 0f
-        }
-        return edge - half
+    fun capRightIconCx(
+        stroke: Float,
+        right: Float,
+        inset: Float,
+        inkHalf: Float,
+    ): Float {
+        return capTextRight(stroke, right) - inset - inkHalf
     }
 
     /**

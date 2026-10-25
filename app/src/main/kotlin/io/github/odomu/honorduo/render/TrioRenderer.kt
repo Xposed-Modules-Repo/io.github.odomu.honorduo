@@ -571,6 +571,7 @@ object TrioRenderer {
                         Prefs.PART_POWER -> powerText()
                         Prefs.PART_RUNNING -> powerText()
                         Prefs.PART_TEMP -> tempText()
+                        Prefs.PART_CURRENT -> currentText(a)
                         Prefs.PART_FPS -> fpsText()
                         else -> TrioState.sClockText
                     }
@@ -579,7 +580,7 @@ object TrioRenderer {
                             Prefs.PART_VALUE -> a.valueWeight
                             Prefs.PART_TYPE -> a.typeWeight
                             Prefs.PART_POWER, Prefs.PART_RUNNING,
-                            Prefs.PART_TEMP, Prefs.PART_FPS,
+                            Prefs.PART_TEMP, Prefs.PART_CURRENT, Prefs.PART_FPS,
                             -> a.perfTypeWeight()
                             else -> a.clockWeight
                         }
@@ -587,7 +588,7 @@ object TrioRenderer {
                             Prefs.PART_VALUE -> maxOf(a.valueSize.toFloat(), 50f)
                             Prefs.PART_TYPE -> maxOf(a.typeSize.toFloat(), 46f)
                             Prefs.PART_POWER, Prefs.PART_RUNNING,
-                            Prefs.PART_TEMP, Prefs.PART_FPS,
+                            Prefs.PART_TEMP, Prefs.PART_CURRENT, Prefs.PART_FPS,
                             -> maxOf(a.perfReadingSize().toFloat(), 46f)
                             else -> maxOf(a.clockSize.toFloat(), 46f)
                         }
@@ -623,74 +624,22 @@ object TrioRenderer {
                         } else {
                             TEXT.textAlign = Paint.Align.CENTER
                             TEXT.textSize = fitted
-                            val tempIsHigh = a.roleColorsTemp && part == Prefs.PART_TEMP &&
-                                TrioState.sBatteryTempC != TrioState.TEMP_UNKNOWN &&
-                                TrioState.sBatteryTempC >= a.tempThreshold
-                            TEXT.color = if (tempIsHigh) (if (isDarkBackground(fg)) a.highTempOnDark else a.highTempOnLight) else fg
-                            c.drawText(text, 0f, baseline, TEXT)
+                            if (part == Prefs.PART_CLOCK) {
+                                drawTimeGlyphs(
+                                    c, TEXT, text, 0f, baseline,
+                                    if (isDarkBackground(fg)) a.clockDigitColorsOnDark else a.clockDigitColorsOnLight,
+                                    fg,
+                                )
+                            } else {
+                                val tempIsHigh = a.roleColorsTemp && part == Prefs.PART_TEMP &&
+                                    TrioState.sBatteryHot
+                                TEXT.color = if (tempIsHigh) (if (isDarkBackground(fg)) a.highTempOnDark else a.highTempOnLight) else fg
+                                c.drawText(text, 0f, baseline, TEXT)
+                            }
                         }
                     }
                 }
             }
-        }
-    }
-
-    /**
-     * One card's four level dots, laid along the ring's own curve.
-     *
-     * Drawn on the arc that passes through the slot, concentric with the battery
-     * ring, rather than on a horizontal line. The shipped level dots already bend
-     * (`TrioGeometry.DOTS` is 104.2, 111.2, 111.7, 105.8 - lowest in the middle),
-     * and a placed card that drew a straight row would read as a foreign shape
-     * inside a round glyph.
-     *
-     * Which way the curve bends depends on where the third sits. A row in the bottom
-     * third belongs to the ring's lower opening and bows *downward*, matching
-     * `DOTS`; a row in the top third belongs to the 12 o'clock opening and bows the
-     * other way, so it stays concentric instead of dipping toward the ring centre.
-     * The middle third has no opening of its own, so its row follows the ring's side
-     * curvature and bows toward the centre.
-     *
-     * The sagitta is derived from the arc's radius rather than picked: for a chord of
-     * half-width `w` on a circle of radius `R`, the rise is `R - sqrt(R^2 - w^2)`.
-     *
-     * @param active how many of the four dots are lit, 0..4
-     * @param zone `0` top, `1` middle, `2` bottom
-     * @param radius dot radius, already fitted to the slot
-     */
-    private fun drawArcDotRow(
-        c: Canvas, active: Int, zone: Int, radius: Float,
-        fg: Int, a: TrioAppearance,
-    ) {
-        val columns = a.signalColumns.coerceIn(4, 5)
-        val dotRadius = if (columns == 5) radius * 0.85f else radius
-        val inactive = withAlpha(fg, a.trackAlpha)
-        val halfDiv = (columns - 1) * 0.5f
-        if (zone == 1) {
-            val step = dotRadius * 3f
-            for (dot in 0 until columns) {
-                FILL.color = if (dot < active) fg else inactive
-                c.drawCircle((dot - halfDiv) * step, 0f, dotRadius, FILL)
-            }
-            return
-        }
-        val rho = TrioGeometry.B_R
-        val openingRad = Math.toRadians(TrioGeometry.GAP_WIDTH_DEG.toDouble()).toFloat()
-        val inset = (dotRadius + a.ringStroke * 0.5f + 1f) / rho
-        val halfAngle = max(0f, openingRad * 0.5f - inset)
-        val beadHalfAngle = Math.toRadians((TrioGeometry.BEAD_SPAN_DEG * 0.5f).toDouble()).toFloat()
-        val halfCentreAngle = min(halfAngle, beadHalfAngle)
-        for (dot in 0 until columns) {
-            val t = (dot - halfDiv) / halfDiv
-            val angle = t * halfCentreAngle
-            val sign = if (zone == 2) 1f else -1f
-            val ringX = TrioGeometry.B_CX + rho * sin(angle)
-            val ringY = TrioGeometry.B_CY + sign * rho * cos(angle)
-            FILL.color = if (dot < active) fg else inactive
-            c.drawCircle(
-                ringX - TrioGeometry.B_CX,
-                ringY - TrioGeometry.ZONE_CY[zone], dotRadius, FILL,
-            )
         }
     }
 
@@ -878,7 +827,13 @@ object TrioRenderer {
         }
         val isIcon = second == Prefs.PART_BOLT || second == Prefs.PART_WIFI
         val secondAnchorX = if (isIcon) {
-            TrioGeometry.capRightIconCx(stroke, second) + a.capsuleRightDx
+            val inkHalf = when (second) {
+                Prefs.PART_BOLT -> BOLT_INK_W * TrioGeometry.capBoltScale(stroke) *
+                    a.boltScaleFactor() * 0.5f
+                else -> TrioGeometry.W_INK_W * TrioGeometry.capWifiScale(stroke) *
+                    a.wifiScaleFactor() * 0.5f
+            }
+            TrioGeometry.capRightIconCx(stroke, right, inset, inkHalf) + a.capsuleRightDx
         } else {
             edgeRight + a.capsuleRightDx
         }
@@ -923,9 +878,9 @@ object TrioRenderer {
             Prefs.PART_CLOCK -> drawCapsuleTime(
                 c, stroke, fg, a, anchorX, cy, align, heightHint, width,
             )
-            Prefs.PART_POWER, Prefs.PART_RUNNING, Prefs.PART_TEMP, Prefs.PART_FPS ->
+            Prefs.PART_POWER, Prefs.PART_RUNNING, Prefs.PART_TEMP, Prefs.PART_CURRENT, Prefs.PART_FPS ->
                 drawCapsulePerf(
-                    c, stroke, capsulePerfText(part), fg, a, anchorX, cy, align,
+                    c, stroke, capsulePerfText(part, a), fg, a, anchorX, cy, align,
                     heightHint, width,
                 )
             else -> Unit
@@ -964,12 +919,11 @@ object TrioRenderer {
         applyWeight(a.perfTypeWeight())
         val size = capsuleTextSize(
             text, a.perfReadingSize(), width, 100,
-            effectiveHeightLimit(heightHint, stroke),
+            heightHint, stroke,
         )
         TEXT.textSize = size
         val tempIsHigh = a.roleColorsTemp && text == tempText() &&
-            TrioState.sBatteryTempC != TrioState.TEMP_UNKNOWN &&
-            TrioState.sBatteryTempC >= a.tempThreshold
+            TrioState.sBatteryHot
         TEXT.color = if (tempIsHigh) (if (isDarkBackground(fg)) a.highTempOnDark else a.highTempOnLight) else fg
         TEXT.textAlign = Paint.Align.CENTER
         val x = alignedCx(anchorX, TEXT.measureText(text), align)
@@ -981,10 +935,6 @@ object TrioRenderer {
         // See TrioGeometry.capOpeningTextEm.
         return if (band == TrioZones.Zone.CENTRE) -1f else TrioGeometry.capOpeningTextEm(stroke)
     }
-
-    /** `hint < 0` means "use the interior's own limit". */
-    private fun effectiveHeightLimit(hint: Float, stroke: Float): Float =
-        if (hint < 0f) TrioGeometry.capTextMaxSize(stroke) else hint
 
     /**
      * How far the outline is cut back at one opening: the half-width of whatever
@@ -1258,7 +1208,42 @@ object TrioRenderer {
         }
     }
 
-    /** The time of day, in a capsule cell centred on `(cx, cy)`. */
+    /**
+     * Draws the time one character at a time so each glyph can take its own colour.
+     *
+     * A single `drawText` cannot: one paint has one colour. The advances come from the
+     * same paint, so the run measures exactly like the plain draw it replaces. A glyph
+     * with no colour of its own (index beyond the list, or `0`) keeps [fallback].
+     *
+     * @param x the anchor the paint's own alignment is measured from
+     */
+    private fun drawTimeGlyphs(
+        c: Canvas, paint: Paint, text: String, x: Float, baseline: Float,
+        colors: IntArray, fallback: Int,
+    ) {
+        if (text.isEmpty()) return
+        val align = paint.textAlign
+        val width = paint.measureText(text)
+        val start = when (align) {
+            Paint.Align.CENTER -> x - width * 0.5f
+            Paint.Align.RIGHT -> x - width
+            else -> x
+        }
+        paint.textAlign = Paint.Align.LEFT
+        var cursor = start
+        for (i in text.indices) {
+            val picked = if (i < colors.size) colors[i] else 0
+            paint.color = if (picked != 0) picked else fallback
+            paint.getTextWidths(text, i, i + 1, GLYPH_ADVANCE)
+            c.drawText(text, i, i + 1, cursor, baseline, paint)
+            cursor += GLYPH_ADVANCE[0]
+        }
+        paint.textAlign = align
+    }
+
+    private val GLYPH_ADVANCE = FloatArray(1)
+
+    /** The time, in a capsule cell centred on `(cx, cy)`. */
     private fun drawCapsuleTime(
         c: Canvas, stroke: Float, fg: Int, a: TrioAppearance,
         anchorX: Float, cy: Float, align: CellAlign, heightHint: Float, width: Float,
@@ -1271,13 +1256,18 @@ object TrioRenderer {
         applyWeight(a.clockWeight)
         val size = capsuleTextSize(
             text, a.clockSize, width, 100,
-            effectiveHeightLimit(heightHint, stroke),
+            heightHint, stroke,
         )
         TEXT.textSize = size
         TEXT.color = fg
         TEXT.textAlign = Paint.Align.CENTER
         val x = alignedCx(anchorX, TEXT.measureText(text), align)
-        c.drawText(text, x, cy + (size * TrioGeometry.CAP_HEIGHT_RATIO) * 0.5f, TEXT)
+        val baseline = cy + (size * TrioGeometry.CAP_HEIGHT_RATIO) * 0.5f
+        drawTimeGlyphs(
+            c, TEXT, text, x, baseline,
+            if (isDarkBackground(fg)) a.clockDigitColorsOnDark else a.clockDigitColorsOnLight,
+            fg,
+        )
     }
 
     private fun drawCapsuleValue(
@@ -1289,7 +1279,7 @@ object TrioRenderer {
         applyWeight(a.valueWeight)
         val size = capsuleTextSize(
             text, a.valueSize, width, 100,
-            effectiveHeightLimit(heightHint, stroke),
+            heightHint, stroke,
         )
         TEXT.textSize = size
         TEXT.color = fg
@@ -1308,7 +1298,7 @@ object TrioRenderer {
         // TrioGeometry.capOpeningWidth: an opening spans the capsule, a slot does not.
         val size = capsuleTextSize(
             type, a.typeSize, width, a.typeSuffixScale,
-            effectiveHeightLimit(heightHint, stroke),
+            heightHint, stroke,
         )
         // The trailing "A" is drawn smaller, so the box the label occupies is measured the
         // way drawType lays it out rather than with a plain measureText.
@@ -1322,7 +1312,16 @@ object TrioRenderer {
 
     /**
      * The size a capsule reading is drawn at: its own setting, capped by the height the
-     * interior can hold, then fitted to the track it was handed.
+     * cell can hold, then fitted to the track it was handed.
+     *
+     * The two cells size themselves differently, and the difference is the whole point:
+     *
+     *  - In the **interior** (a negative hint) the setting is an absolute size, capped by
+     *    what a line of the interior's height can be.
+     *  - In an **opening** the band is the size: `hint` is the largest line the band can
+     *    hold, and the setting scales that. Measured against an absolute em instead - which
+     *    is what this did - every opening label was clamped to the band's own height and the
+     *    size slider did nothing at all up there, which is exactly what was reported.
      *
      * [slotWidth] is the track, not a share of it - see TrioGeometry.capReadingsWidth.
      * A reading is fitted to the room it could use if it were alone, which is what keeps
@@ -1330,9 +1329,16 @@ object TrioRenderer {
      */
     private fun capsuleTextSize(
         text: String?, setting: Int, slotWidth: Float, suffixPercent: Int,
-        heightLimit: Float,
+        heightHint: Float, stroke: Float,
     ): Float {
-        val requested = min(setting * TrioGeometry.CAP_TEXT_SCALE, heightLimit)
+        val requested = if (heightHint < 0f) {
+            min(
+                setting * TrioGeometry.CAP_TEXT_SCALE,
+                TrioGeometry.capTextMaxSize(stroke),
+            )
+        } else {
+            heightHint * setting / Prefs.DEF_VALUE_SIZE
+        }
         return fitSize(text, requested, slotWidth, suffixPercent)
     }
 
@@ -1576,8 +1582,9 @@ object TrioRenderer {
         if (TrioState.sFps <= 0) null else TrioState.sFps.toString()
 
     /** The one reading a capsule cell holds, which is one piece rather than a pair. */
-    private fun capsulePerfText(part: Int): String? = when (part) {
+    private fun capsulePerfText(part: Int, a: TrioAppearance): String? = when (part) {
         Prefs.PART_TEMP -> tempText()
+        Prefs.PART_CURRENT -> currentText(a)
         Prefs.PART_FPS -> fpsText()
         else -> powerText()
     }
@@ -1589,6 +1596,16 @@ object TrioRenderer {
         } else {
             TrioState.sBatteryTempC.toString() + "\u00B0C"
         }
+
+    /**
+     * The battery current as a slot piece: "420 mA" / "1.42 A", or empty when unknown.
+     *
+     * The magnitude is the point of the reading, so the sign is dropped unless the user
+     * asked for it; the unit choice is theirs as well, because milliamps are what a
+     * phone's currents are actually talked about in while amps stay readable past 1 A.
+     */
+    private fun currentText(a: TrioAppearance): String? =
+        TrioState.currentText(a.currentUnit, a.currentPositive)
 
     private fun drawRectValue(c: Canvas, level: Int, fg: Int, a: TrioAppearance) {
         val text = valueText(level, a)
@@ -2191,7 +2208,10 @@ object TrioRenderer {
             }
             TEXT.textSize = timeSize
             TEXT.color = fg
-            c.drawText(time, botX, timeBaseline, TEXT)
+            drawTimeGlyphs(
+                c, TEXT, time, botX, timeBaseline,
+                if (isDark) a.clockDigitColorsOnDark else a.clockDigitColorsOnLight, fg,
+            )
         } else {
             val step = lineSize * 0.2f
             val wordStep = lineSize * 0.16f
@@ -2246,7 +2266,10 @@ object TrioRenderer {
             }
             TEXT.textSize = timeSize
             TEXT.color = fg
-            c.drawText(time, currX, timeBaseline, TEXT)
+            drawTimeGlyphs(
+                c, TEXT, time, currX, timeBaseline,
+                if (isDark) a.clockDigitColorsOnDark else a.clockDigitColorsOnLight, fg,
+            )
             currX += TEXT.measureText(time) + step
             drawWeather(currX, captionBaseline, lineSize)
 
@@ -2403,7 +2426,6 @@ object TrioRenderer {
         return level.coerceIn(0, 4)
     }
 
-    private fun level4(level: Int): Int = level.coerceIn(0, TrioGeometry.STACK_COLUMNS)
 
     private fun outBarWidth(a: TrioAppearance?, dual: Boolean = true): Float =
         if (rowsStyle(a, dual)) {

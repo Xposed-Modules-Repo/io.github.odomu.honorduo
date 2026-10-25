@@ -44,7 +44,7 @@ object TrioZones {
 
     /** The pieces the editor can point at. */
     enum class Part {
-        BOLT, WIFI, MOBILE, VALUE, TYPE, SIM_1, SIM_2, CLOCK, POWER, TEMP, RUNNING, FPS,
+        BOLT, WIFI, MOBILE, VALUE, TYPE, SIM_1, SIM_2, CLOCK, POWER, TEMP, RUNNING, FPS, CURRENT,
     }
 
     /**
@@ -382,6 +382,7 @@ object TrioZones {
         Part.TEMP -> Prefs.PART_TEMP
         Part.RUNNING -> Prefs.PART_RUNNING
         Part.FPS -> Prefs.PART_FPS
+        Part.CURRENT -> Prefs.PART_CURRENT
         null -> Prefs.PART_NONE
     }
 
@@ -400,6 +401,7 @@ object TrioZones {
         Prefs.PART_TEMP -> Part.TEMP
         Prefs.PART_RUNNING -> Part.RUNNING
         Prefs.PART_FPS -> Part.FPS
+        Prefs.PART_CURRENT -> Part.CURRENT
         else -> null
     }
 
