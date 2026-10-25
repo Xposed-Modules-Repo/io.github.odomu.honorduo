@@ -20,6 +20,7 @@
 /.local/
 /.zcode/
 
+/.codegraph/
 # Build output
 /build/
 /app/build/

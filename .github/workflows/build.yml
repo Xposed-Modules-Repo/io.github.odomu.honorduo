@@ -19,11 +19,11 @@ on:
       versionName:
         description: versionName to stamp
         required: false
-        default: 1.0.0
+        default: 1.0.3
       versionCode:
         description: versionCode to stamp (must be higher than the installed one)
         required: false
-        default: '10000'
+        default: '10003'
 
 permissions:
   contents: write
@@ -136,7 +136,7 @@ jobs:
             IFS=. read -r major minor patch <<< "$name"
             code=$(( 10#${major:-0} * 10000 + 10#${minor:-0} * 100 + 10#${patch:-0} ))
           else
-            name="${INPUT_NAME:-1.0.2}"
+            name="${INPUT_NAME:-1.0.3}"
             IFS=. read -r major minor patch <<< "$name"
             code=$(( 10#${major:-0} * 10000 + 10#${minor:-0} * 100 + 10#${patch:-0} ))
           fi

@@ -1,0 +1,83 @@
+name: 问题反馈
+description: 显示异常、开关不生效、闪退等问题。必须附版本号、截图与 LSPosed 日志。
+title: "[问题] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        四项**必填**：版本号、问题说明、截图、LSPosed 日志。
+        缺少任何一项都无法定位问题，维护者会直接关闭 issue。
+
+        提交前请先自查一次：
+        1. 模块在 LSPosed 中已启用，作用域勾选了**系统界面**（`com.android.systemui`）；
+        2. 已用最新版 APK **覆盖安装**，并重启过系统界面；
+        3. 同一个位置没有其他状态栏模块（如 HyperDuo、其他改图标模块）同时在生效。
+
+  - type: input
+    id: module-version
+    attributes:
+      label: 模块版本号
+      description: 打开 HonorDuo → 关于模块 → 版本，形如 `1.0.2 (10002)`。填完整，不要只写「最新版」。
+      placeholder: 1.0.2 (10002)
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 问题说明
+      description: 说清三件事：看到什么现象、期望是什么、在什么界面/操作下出现。一两个开关的组合请写明。
+      placeholder: |
+        现象：下拉通知栏后，环内温度消失，状态栏右侧留白。
+        期望：温度始终显示。
+        出现场景：开启「温度」与「胶囊避让」，充电时下拉通知栏。
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: 截图
+      description: 直接把图片拖进这个框，或截图后粘贴。请拍**整条状态栏**（含时间与右侧图标），不要只裁剪出错的一小块；显示问题需要对比正常/异常两种状态时请各附一张。
+      placeholder: 把截图拖到这里……
+    validations:
+      required: true
+
+  - type: textarea
+    id: lsposed-log
+    attributes:
+      label: LSPosed 日志
+      description: |
+        LSPosed 管理器 → 日志 → 筛选 **HonorDuo** → 右上角保存/导出，把文件拖进来，或直接粘贴文本。
+        重启系统界面后立刻复现再取日志，旧日志会被冲掉。
+        日志里包含模块装载与 hook 结果，没有它无法判断是 hook 未生效还是逻辑出错。
+      placeholder: 粘贴日志文本，或把日志文件拖到这里……
+    validations:
+      required: true
+
+  - type: input
+    id: host
+    attributes:
+      label: 机型 / 系统版本
+      description: 机型、MagicOS 版本、Android 版本，例如「荣耀 Magic7 Pro / MagicOS 10.0 / Android 16」。
+      placeholder: 荣耀 Magic7 Pro / MagicOS 10.0.0 / Android 16
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 能稳定复现就写明步骤；偶发就说明频率（如「下拉通知栏 5 次出现 1 次」）。
+    validations:
+      required: false
+
+  - type: textarea
+    id: config
+    attributes:
+      label: 相关设置
+      description: 与问题有关的开关与数值（样式、字号、颜色、阈值、排布等）。可以用自带预览卡片截图代替文字。
+    validations:
+      required: false

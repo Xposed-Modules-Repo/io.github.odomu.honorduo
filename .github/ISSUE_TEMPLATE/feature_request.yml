@@ -1,0 +1,40 @@
+name: 功能建议
+description: 想要的新开关、新样式或行为调整。建议附上当前效果的截图，便于说明差距。
+title: "[建议] "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: want
+    attributes:
+      label: 想要什么
+      description: 说清最终效果，以及它在设置里应该出现在哪一页。实现方式不用你考虑。
+      placeholder: |
+        想在环内加一个「充电功率」读数的样式选项，能在数值和图标之间切换。
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: 为什么需要
+      description: 现在哪里不好用、缺什么。有现成的替代做法也写一下。
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: 参考截图
+      description: 现在的状态栏截图，或其他系统/模块里你想要的样子的截图。可选，但有图能省一轮沟通。
+    validations:
+      required: false
+
+  - type: input
+    id: host
+    attributes:
+      label: 机型 / 系统版本
+      description: 部分能力依赖宿主版本，写明机型与 MagicOS 版本便于判断可行性。
+      placeholder: 荣耀 Magic7 Pro / MagicOS 10.0.0 / Android 16
+    validations:
+      required: false

@@ -1,0 +1,11 @@
+# 关闭空白 issue：问题反馈必须带上版本号、截图与 LSPosed 日志，
+# 否则无法判断是模块问题还是宿主版本差异。
+blank_issues_enabled: false
+
+contact_links:
+  - name: 安装与使用说明
+    url: https://github.com/odomu/HonorDuo/blob/main/module-README.md
+    about: 安装步骤、作用域要求、支持的系统版本，先看这里。
+  - name: 更新日志
+    url: https://github.com/odomu/HonorDuo/tree/fork/docs/release-notes
+    about: 每个版本改了什么，升级前可以先对照。
