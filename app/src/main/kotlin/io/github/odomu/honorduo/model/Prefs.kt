@@ -11,8 +11,6 @@
 
 package io.github.odomu.honorduo.model
 
-import io.github.odomu.honorduo.render.TrioGeometry
-
 
 /**
  * The single source of truth for every setting shared between the settings app and
@@ -47,8 +45,8 @@ object Prefs {
      * daemon database held the new `enabled` value while SystemUI kept drawing from
      * the old one. The broadcast is a second, callback-independent path.
      *
-     * Lives here rather than in [TrioConfig] because the settings app must be able
-     * to name it, and [TrioConfig] references the Xposed API.
+     * Lives here rather than in [ModuleConfig] because the settings app must be able
+     * to name it, and [ModuleConfig] references the Xposed API.
      */
     const val ACTION_RELOAD = "io.github.odomu.honorduo.action.RELOAD"
 
@@ -58,6 +56,19 @@ object Prefs {
      */
     const val SYSTEMUI_PACKAGE = "com.android.systemui"
 
+    /** Application package name. */
+    const val PACKAGE_NAME = "io.github.odomu.honorduo"
+
+    /** The launcher alias component name for desktop icon toggling. */
+    const val LAUNCHER_ALIAS = "io.github.odomu.honorduo.ui.MainActivityAlias"
+
+    /** Unified module logging tag. */
+    const val TAG = "HonorDuo"
+
+    /** MagicOS weather ContentProvider URI and broadcast actions. */
+    const val WEATHER_URI = "content://com.hihonor.android.weather/weatherInfo"
+    const val ACTION_WEATHER_CHANGE = "com.hihonor.android.action.WEATHER_CHANGE"
+    const val ACTION_WIDGET_CHANGE = "com.hihonor.android.action.WIDGET_CHANGE"
     // Keys.
     const val KEY_ENABLED = "enabled"
     const val KEY_MERGE_ICONS = "merge_icons"
@@ -95,7 +106,7 @@ object Prefs {
      *
      * Whether Wi-Fi is up this instant is runtime state, so the flag is stored here but
      * applied by the renderer, which already reads the live levels - folding the
-     * decision into [TrioAppearance] would let the preview (a fixed scene) and the bar
+     * decision into [StatusAppearance] would let the preview (a fixed scene) and the bar
      * (live) draw one stored setting two ways.
      */
     const val KEY_TYPE_HIDE_ON_WIFI = "type_hide_on_wifi"
@@ -802,7 +813,6 @@ object Prefs {
     const val STACK_STYLE_DOTS = 0
     const val STACK_STYLE_ROWS = 1
 
-
     /**
      * How the charging bolt moves, in the ring and the capsule.
      *
@@ -835,7 +845,6 @@ object Prefs {
      * does not exist is not a choice.
      */
     const val KEY_BOLT_SPEED = "bolt_speed"
-
 
     const val KEY_OUT_SIGNAL_MARGIN = "out_signal_margin_dp"
 
@@ -917,6 +926,44 @@ object Prefs {
      * One key for both places the type is drawn, because the proportion is a property
      * of the label rather than of where it sits.
      */
+    /**
+     * Order of the performance readouts (Power, Temp, Current, FPS) based on their enable sequence.
+     */
+    const val KEY_PERF_ORDER = "perf_order"
+
+    const val PERF_ITEM_POWER = 1
+    const val PERF_ITEM_TEMP = 2
+    const val PERF_ITEM_CURRENT = 3
+    const val PERF_ITEM_FPS = 4
+    const val PERF_ITEM_COUNT = 4
+
+    @JvmField
+    val PERF_DEFAULT_ORDER = intArrayOf(
+        PERF_ITEM_POWER,
+        PERF_ITEM_TEMP,
+        PERF_ITEM_CURRENT,
+        PERF_ITEM_FPS,
+    )
+    const val PERF_DEFAULT_ORDER_STRING = "1,2,3,4"
+
+    @JvmStatic
+    fun decodePerfOrder(stored: String?): IntArray {
+        val ids = ArrayList<Int>()
+        if (!stored.isNullOrEmpty()) {
+            for (piece in stored.split(",")) {
+                val id = piece.trim().toIntOrNull() ?: continue
+                if (id !in PERF_ITEM_POWER..PERF_ITEM_COUNT) continue
+                if (id !in ids) ids.add(id)
+            }
+        }
+        for (id in PERF_DEFAULT_ORDER) if (id !in ids) ids.add(id)
+        return IntArray(PERF_ITEM_COUNT) { ids[it] }
+    }
+
+    @JvmStatic
+    fun encodePerfOrder(order: IntArray?): String =
+        decodePerfOrder((order ?: PERF_DEFAULT_ORDER).joinToString(",")).joinToString(",")
+
     const val KEY_TYPE_SUFFIX_SCALE = "type_suffix_scale"
 
     /**
@@ -936,7 +983,7 @@ object Prefs {
      * One key for the top and the bottom: the two rows are the same ink - four beads
      * threaded onto the ring's own openings - and the whole point of them is that they
      * read as the ring cut into segments. The reference size is the one
-     * [TrioGeometry.arcRowDotR] derives from the stroke, so 100% keeps that exactly.
+     * [IconGeometry.arcRowDotR] derives from the stroke, so 100% keeps that exactly.
      */
     const val KEY_DOT_SCALE = "dot_scale"
 
@@ -1239,8 +1286,6 @@ object Prefs {
     const val DEF_BOLT_SPEED = 100
 
     const val DEF_STACK_LABEL = STACK_LABEL_BESIDE
-
-
 
     /** 2dp is the value the single hard-coded gap used to hold. */
     const val DEF_OUT_TYPE_MARGIN_LEFT = 2

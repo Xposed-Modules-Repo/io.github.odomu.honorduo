@@ -11,13 +11,13 @@
 
 package io.github.odomu.honorduo.model
 
-import io.github.odomu.honorduo.render.TrioGeometry
-import io.github.odomu.honorduo.render.TrioRenderer
-import io.github.odomu.honorduo.render.TrioZones
+import io.github.odomu.honorduo.ui.render.IconGeometry
+import io.github.odomu.honorduo.ui.render.IconRenderer
+import io.github.odomu.honorduo.ui.render.IconZones
 import kotlin.math.roundToInt
 
 /**
- * Every decision about *what* the trio glyph puts on screen, resolved once from a
+ * Every decision about *what* the status glyph puts on screen, resolved once from a
  * single settings snapshot.
  *
  * This is the one place that rule lives: the renderer asks it what to draw, the
@@ -29,7 +29,7 @@ import kotlin.math.roundToInt
  * process and the settings app can both build it, cheaply enough to build per
  * frame. Immutable.
  */
-class TrioAppearance(c: TrioSettings) {
+class StatusAppearance(c: ModuleSettings) {
 
     /** [Prefs.STYLE_RING], [Prefs.STYLE_RECT] or [Prefs.STYLE_CAPSULE]. */
     @JvmField val style: Int = c.trioStyle
@@ -67,7 +67,7 @@ class TrioAppearance(c: TrioSettings) {
      *
      * The FLAG only, not the decision: whether Wi-Fi is up this instant is runtime
      * state, and this class is a snapshot of the settings that the preview and the
-     * settings process also read. [TrioRenderer], which already reads the live levels,
+     * settings process also read. [IconRenderer], which already reads the live levels,
      * applies the flag to the frame.
      */
     @JvmField val typeHideOnWifi: Boolean = c.typeHideOnWifi
@@ -97,19 +97,19 @@ class TrioAppearance(c: TrioSettings) {
         Prefs.clamp(wifiScale, Prefs.MIN_WIFI_SCALE, Prefs.MAX_WIFI_SCALE) / 100f
 
     /** The signal is drawn beside the glyph, i.e. handed back to the system. */
-    @JvmField val signalOutOfRing: Boolean = c.signalMode == Prefs.SIGNAL_OUT_RING
+    @JvmField val signalOutOfRing: Boolean = enabled && c.signalMode == Prefs.SIGNAL_OUT_RING
 
     /** While out of ring, the module draws its own stacked reading. */
-    @JvmField val stackedSignal: Boolean = c.stackedSignal
+    @JvmField val stackedSignal: Boolean = enabled && c.stackedSignal
 
     /** The user wants a second row of level dots; see [dualSimRows]. */
-    @JvmField val dualSim: Boolean = c.dualSim
+    @JvmField val dualSim: Boolean = enabled && c.dualSim
 
     /** SIM 1's own row of four dots is wanted, as a component of its own. */
-    @JvmField val showSim1: Boolean = c.showSim1
+    @JvmField val showSim1: Boolean = enabled && c.showSim1
 
     /** SIM 2's own row of four dots is wanted; see [showSim1]. */
-    @JvmField val showSim2: Boolean = c.showSim2
+    @JvmField val showSim2: Boolean = enabled && c.showSim2
 
     /** The user wants only the current data SIM in the out-of-ring reading. */
     @JvmField val dataSimOnly: Boolean = c.dataSimOnly
@@ -147,14 +147,14 @@ class TrioAppearance(c: TrioSettings) {
      * ring, and the type would otherwise vanish instead of moving to the place the layout
      * has for it.
      */
-    @JvmField val typeOutOfRing: Boolean = !typeInRing && c.mobileTypeMode == Prefs.MOBILE_TYPE_OUT_RING
+    @JvmField val typeOutOfRing: Boolean = enabled && !typeInRing && c.mobileTypeMode == Prefs.MOBILE_TYPE_OUT_RING
 
     /** The charging power is drawn in the out-of-ring strip; see [perfAnywhere]. */
-    @JvmField val perfPower: Boolean = c.perfPower
-    @JvmField val perfRunning: Boolean = c.perfRunning
+    @JvmField val perfPower: Boolean = enabled && c.perfPower
+    @JvmField val perfRunning: Boolean = enabled && c.perfRunning
     @JvmField val fontPath: String = c.fontPath
-    @JvmField val replaceWifiIcon: Boolean = c.replaceWifiIcon
-    @JvmField val replaceStatusIcon: Boolean = c.replaceStatusIcon
+    @JvmField val replaceWifiIcon: Boolean = enabled && c.replaceWifiIcon
+    @JvmField val replaceStatusIcon: Boolean = enabled && c.replaceStatusIcon
 
     /**
      * The bar's own clock is hidden outright, with nothing drawn in its place.
@@ -162,26 +162,26 @@ class TrioAppearance(c: TrioSettings) {
      * Separate from [hidesStatusClock], which answers "does the glyph need the slot
      * free" - this one is the user's own switch and works with the glyph off.
      */
-    @JvmField val barClockHidden: Boolean = c.hideStatusClock
+    @JvmField val barClockHidden: Boolean = enabled && c.hideStatusClock
 
     /** The bar's alarm icon is hidden; see [Prefs.KEY_HIDE_ALARM_ICON]. */
-    @JvmField val hideAlarmIcon: Boolean = c.hideAlarmIcon
+    @JvmField val hideAlarmIcon: Boolean = enabled && c.hideAlarmIcon
 
     /** The bar's Bluetooth icon is hidden; see [Prefs.KEY_HIDE_BLUETOOTH_ICON]. */
-    @JvmField val hideBluetoothIcon: Boolean = c.hideBluetoothIcon
-    @JvmField val clockSeconds: Boolean = c.clockSeconds
+    @JvmField val hideBluetoothIcon: Boolean = enabled && c.hideBluetoothIcon
+    @JvmField val clockSeconds: Boolean = enabled && c.clockSeconds
 
     /** The date is drawn on its own line above the time. */
-    @JvmField val clockDate: Boolean = c.clockDate
+    @JvmField val clockDate: Boolean = enabled && c.clockDate
 
     /** The weekday shares that line with the date. */
-    @JvmField val clockWeekday: Boolean = c.clockWeekday
+    @JvmField val clockWeekday: Boolean = enabled && c.clockWeekday
 
     @JvmField val clockTopOffsetX: Int = c.clockTopOffsetX
     @JvmField val clockBottomOffsetX: Int = c.clockBottomOffsetX
     @JvmField val clockLunarGap: Int = c.clockLunarGap
     @JvmField val clockRowGap: Int = c.clockRowGap
-    @JvmField val clockLunar: Boolean = c.clockLunar
+    @JvmField val clockLunar: Boolean = enabled && c.clockLunar
     @JvmField val clockDateFormat: Int = c.clockDateFormat
     @JvmField val clockWeekdayFormat: Int = c.clockWeekdayFormat
     @JvmField val clockWeekdayColorOnDark: Int = c.clockWeekdayColorOnDark
@@ -190,12 +190,11 @@ class TrioAppearance(c: TrioSettings) {
     @JvmField val clockDateColorOnLight: Int = c.clockDateColorOnLight
     @JvmField val clockLunarColorOnDark: Int = c.clockLunarColorOnDark
     @JvmField val clockLunarColorOnLight: Int = c.clockLunarColorOnLight
-    @JvmField val clockWeather: Boolean = c.clockWeather
+    @JvmField val clockWeather: Boolean = enabled && c.clockWeather
     @JvmField val clockWeatherStyle: Int = c.clockWeatherStyle
     @JvmField val clockStyle: Int = c.clockStyle
     @JvmField val clockWeatherColorOnDark: Int = c.clockWeatherColorOnDark
     @JvmField val clockWeatherColorOnLight: Int = c.clockWeatherColorOnLight
-
     /**
      * The colour of one character of the time, or `0` when that character has none.
      *
@@ -208,29 +207,28 @@ class TrioAppearance(c: TrioSettings) {
     }
 
     /** Control center: the header's power button is hidden. */
-    @JvmField val shadeHidePower: Boolean = c.shadeHidePower
+    @JvmField val shadeHidePower: Boolean = enabled && c.shadeHidePower
 
     /** Notification shade: the notification-management bell is hidden. */
-    @JvmField val shadeHideBell: Boolean = c.shadeHideBell
+    @JvmField val shadeHideBell: Boolean = enabled && c.shadeHideBell
 
     /** Notification shade: the date line carries the lunar date. */
-    @JvmField val shadeLunar: Boolean = c.shadeLunar
+    @JvmField val shadeLunar: Boolean = enabled && c.shadeLunar
 
     /** Notification shade: the date line carries the weather. */
-    @JvmField val shadeWeather: Boolean = c.shadeWeather
+    @JvmField val shadeWeather: Boolean = enabled && c.shadeWeather
 
     /** Notification shade: text, glyph or both for that weather. */
     @JvmField val shadeWeatherStyle: Int = c.shadeWeatherStyle
 
     /** The battery temperature is drawn in the same strip. */
-    @JvmField val perfTemp: Boolean = c.perfTemp
+    @JvmField val perfTemp: Boolean = enabled && c.perfTemp
 
     /** The screen's frame rate is drawn - in the glyph when placed, on its own otherwise. */
-    @JvmField val perfFps: Boolean = c.perfFps
+    @JvmField val perfFps: Boolean = enabled && c.perfFps
 
     /** Whether the battery current is one of the readings. */
-    @JvmField val perfCurrent: Boolean = c.perfCurrent
-
+    @JvmField val perfCurrent: Boolean = enabled && c.perfCurrent
     /** Milliamps or amps; see [Prefs.CURRENT_UNIT_MA]. */
     @JvmField val currentUnit: Int = c.currentUnit
 
@@ -302,7 +300,7 @@ class TrioAppearance(c: TrioSettings) {
      * over the first bar of each row, so it needs no label column of its own.
      */
     @JvmField val stackLabel: Int = c.stackLabel
-    @JvmField val antiBurnIn: Boolean = c.antiBurnIn
+    @JvmField val antiBurnIn: Boolean = enabled && c.antiBurnIn
     @JvmField val signalColumns: Int = c.signalColumns
 
     /** The gap the out-of-ring label keeps on each side, in dp. */
@@ -329,6 +327,8 @@ class TrioAppearance(c: TrioSettings) {
 
     /** The out-of-ring order, nearest the battery first - see [Prefs.KEY_OUT_ORDER]. */
     @JvmField val outOrder: IntArray = c.outOrder.clone()
+    /** Order of the performance readouts (Power, Temp, Current, FPS) - see [Prefs.KEY_PERF_ORDER]. */
+    @JvmField val perfOrder: IntArray = c.perfOrder.clone()
 
     @JvmField val typeWeight: Int = c.typeWeight
 
@@ -338,7 +338,7 @@ class TrioAppearance(c: TrioSettings) {
      * There is no second, switch-derived layout: every piece the ring draws is
      * whatever these lists resolve to.
      */
-    @JvmField val ringZones: Array<IntArray> = TrioSettings.copyZones(c.ringZones)
+    @JvmField val ringZones: Array<IntArray> = ModuleSettings.copyZones(c.ringZones)
 
     /**
      * Whether `part` appears anywhere in the layout, whatever its priority.
@@ -401,12 +401,12 @@ class TrioAppearance(c: TrioSettings) {
     /** Whether the glyph draws SIM 1's own row this frame. */
     fun drawsSim1(): Boolean =
         showSim1 && mobile && slotted && !signalOutOfRing && hasRingPart(Prefs.PART_SIM_1) &&
-            (!dataSimOnly || TrioState.sDataSlot != 1)
+            (!dataSimOnly || StatusState.sDataSlot != 1)
 
     /** Whether the glyph draws SIM 2's own row this frame; see [drawsSim1]. */
     fun drawsSim2(): Boolean =
         showSim2 && mobile && slotted && !signalOutOfRing && hasRingPart(Prefs.PART_SIM_2) &&
-            (!dataSimOnly || TrioState.sDataSlot == 1)
+            (!dataSimOnly || StatusState.sDataSlot == 1)
 
     /** Whether either per-card row is drawn, which is what the hooks must ask. */
     fun drawsAnySimRow(): Boolean = drawsSim1() || drawsSim2()
@@ -461,7 +461,7 @@ class TrioAppearance(c: TrioSettings) {
      * The loop's speed multiplier, 1.0 at the authored pace.
      *
      * A multiplier rather than a duration: every piece derives its motion from
-     * [TrioRenderer.animPhase], and a phase of 0..1 per loop is what they all read.
+     * [IconRenderer.animPhase], and a phase of 0..1 per loop is what they all read.
      */
     fun boltSpeedFactor(): Float =
         Prefs.clamp(boltSpeed, Prefs.MIN_BOLT_SPEED, Prefs.MAX_BOLT_SPEED) / 100f
@@ -531,7 +531,7 @@ class TrioAppearance(c: TrioSettings) {
         if (capsule) {
             val cap = capsule(level, charging, wifiLevel, mobileType, sims)
             if (cap.parts.any { it == id }) return true
-            return cap.second[TrioZones.Zone.CENTRE.ordinal] == id
+            return cap.second[IconZones.Zone.CENTRE.ordinal] == id
         }
         return ring(level, charging, wifiLevel, mobileType, sims).parts.any { it == id }
     }
@@ -579,7 +579,7 @@ class TrioAppearance(c: TrioSettings) {
      * Seconds and the date line are both written by the module; with neither on there
      * is nothing to add and the native clock is left alone.
      */
-    fun drawsBarClock(): Boolean = clockSeconds || clockDate || clockWeekday ||
+    fun drawsBarClock(): Boolean = enabled && (clockSeconds || clockDate || clockWeekday ||
         clockTopOffsetX != Prefs.DEF_CLOCK_TOP_OFFSET_X ||
         clockBottomOffsetX != Prefs.DEF_CLOCK_BOTTOM_OFFSET_X ||
         clockLunarGap != Prefs.DEF_CLOCK_LUNAR_GAP ||
@@ -588,7 +588,7 @@ class TrioAppearance(c: TrioSettings) {
         clockWeekdayColorOnDark != 0 || clockWeekdayColorOnLight != 0 ||
         clockDateColorOnDark != 0 || clockDateColorOnLight != 0 ||
         clockLunarColorOnDark != 0 || clockLunarColorOnLight != 0 ||
-        clockWeather || clockWeatherColorOnDark != 0 || clockWeatherColorOnLight != 0
+        clockWeather || clockWeatherColorOnDark != 0 || clockWeatherColorOnLight != 0)
 
     /**
      * Whether the bar's own clock has to step aside for this appearance.
@@ -635,19 +635,19 @@ class TrioAppearance(c: TrioSettings) {
      */
     fun capsuleRight(): Float {
         var placed = 0
-        for (id in ringZones[TrioZones.Zone.CENTRE.ordinal]) {
+        for (id in ringZones[IconZones.Zone.CENTRE.ordinal]) {
             if (id != Prefs.PART_NONE) placed++
         }
-        val extra = TrioGeometry.capExtra(this)
+        val extra = IconGeometry.capExtra(this)
         // The spacing setting is not a width knob any more: the cells hang off their own
         // edges, so padding them cannot require a wider shape. Reading it here made the
         // outline move whenever the slider did, while the ink inside stayed put.
-        return (if (placed < 2) TrioGeometry.CAP_RIGHT else TrioGeometry.CAP_RIGHT_PAIR) + extra
+        return (if (placed < 2) IconGeometry.CAP_RIGHT else IconGeometry.CAP_RIGHT_PAIR) + extra
     }
 
     /** Where each piece goes in the ring arrangement. */
     class Ring internal constructor(
-        a: TrioAppearance,
+        a: StatusAppearance,
         level: Int,
         charging: Boolean,
         wifiLevel: Int,
@@ -699,9 +699,9 @@ class TrioAppearance(c: TrioSettings) {
             // holding something else would change the outline's shape as a side effect of a
             // preference about a number.
             if (charging && a.chargingShowsValue && level >= 0 &&
-                parts[TrioZones.Zone.CENTRE.ordinal] != Prefs.PART_VALUE
+                parts[IconZones.Zone.CENTRE.ordinal] != Prefs.PART_VALUE
             ) {
-                parts[TrioZones.Zone.CENTRE.ordinal] = Prefs.PART_VALUE
+                parts[IconZones.Zone.CENTRE.ordinal] = Prefs.PART_VALUE
             }
             wifi = a.wifiInk(wifiLevel)
             drawWifi = wifi
@@ -718,29 +718,29 @@ class TrioAppearance(c: TrioSettings) {
         }
 
         fun gapStart(): Float = when {
-            !gapUsed -> TrioGeometry.GAP_NONE
-            dual -> TrioGeometry.GAP_START_DUAL
-            bolt -> TrioGeometry.GAP_START_CHARGE
-            else -> TrioGeometry.GAP_START_IDLE
+            !gapUsed -> IconGeometry.GAP_NONE
+            dual -> IconGeometry.GAP_START_DUAL
+            bolt -> IconGeometry.GAP_START_CHARGE
+            else -> IconGeometry.GAP_START_IDLE
         }
 
         fun gapEnd(): Float = when {
-            !gapUsed -> TrioGeometry.GAP_NONE
-            dual -> TrioGeometry.GAP_END_DUAL
-            bolt -> TrioGeometry.GAP_END_CHARGE
-            else -> TrioGeometry.GAP_END_IDLE
+            !gapUsed -> IconGeometry.GAP_NONE
+            dual -> IconGeometry.GAP_END_DUAL
+            bolt -> IconGeometry.GAP_END_CHARGE
+            else -> IconGeometry.GAP_END_IDLE
         }
 
         fun bottomOpen(): Boolean = parts[2] != Prefs.PART_NONE
 
-        fun sweep(): Float = if (bottomOpen()) TrioGeometry.B_SWEEP else 360f
+        fun sweep(): Float = if (bottomOpen()) IconGeometry.B_SWEEP else 360f
 
         fun arcStart(): Float = 270f - sweep() / 2f
     }
 
     /** The rectangular arrangement's slot assignment for one frame. */
     class Rect internal constructor(
-        a: TrioAppearance,
+        a: StatusAppearance,
         level: Int,
         charging: Boolean,
         wifiLevel: Int,
@@ -767,7 +767,7 @@ class TrioAppearance(c: TrioSettings) {
      * shipped arbitration runs instead, so an upgrading install looks unchanged.
      */
     class Capsule internal constructor(
-        a: TrioAppearance,
+        a: StatusAppearance,
         level: Int,
         charging: Boolean,
         wifiLevel: Int,
@@ -787,7 +787,7 @@ class TrioAppearance(c: TrioSettings) {
         @JvmField val dual: Boolean
 
         init {
-            val zones = TrioZones.Zone.entries
+            val zones = IconZones.Zone.entries
             for (band in zones) {
                 parts[band.ordinal] = firstInk(
                     a, a.ringZones[band.ordinal], level, charging, wifiLevel, mobileType,
@@ -796,8 +796,8 @@ class TrioAppearance(c: TrioSettings) {
             for (band in zones) dotBands[band.ordinal] = isDotRow(parts[band.ordinal])
 
             val anyPlaced = anyPlaced(parts) ||
-                dotBands[TrioZones.Zone.TOP.ordinal] ||
-                dotBands[TrioZones.Zone.BOTTOM.ordinal]
+                dotBands[IconZones.Zone.TOP.ordinal] ||
+                dotBands[IconZones.Zone.BOTTOM.ordinal]
             if (!anyPlaced) {
                 // Nothing has ever been placed: behave exactly as before these cells existed.
                 val boltWanted = charging && a.drawsBolt()
@@ -805,7 +805,7 @@ class TrioAppearance(c: TrioSettings) {
                 val valueWanted = !boltWanted && !wifiWanted && a.value && level >= 0
                 val typeWanted = !boltWanted && !wifiWanted && !valueWanted &&
                     a.typeInRing && !mobileType.isNullOrEmpty()
-                parts[TrioZones.Zone.CENTRE.ordinal] = when {
+                parts[IconZones.Zone.CENTRE.ordinal] = when {
                     boltWanted -> Prefs.PART_BOLT
                     wifiWanted -> Prefs.PART_WIFI
                     valueWanted -> Prefs.PART_VALUE
@@ -814,17 +814,17 @@ class TrioAppearance(c: TrioSettings) {
                 }
                 // And the shipped look's dot rows, which this arrangement always drew.
                 val legacyDots = a.signalDots()
-                dotBands[TrioZones.Zone.TOP.ordinal] = legacyDots
-                dotBands[TrioZones.Zone.BOTTOM.ordinal] = legacyDots
+                dotBands[IconZones.Zone.TOP.ordinal] = legacyDots
+                dotBands[IconZones.Zone.BOTTOM.ordinal] = legacyDots
             }
             for (band in zones) {
                 if (dotBands[band.ordinal]) parts[band.ordinal] = Prefs.PART_NONE
             }
-            second[TrioZones.Zone.CENTRE.ordinal] = secondInk(
-                a, a.ringZones[TrioZones.Zone.CENTRE.ordinal],
+            second[IconZones.Zone.CENTRE.ordinal] = secondInk(
+                a, a.ringZones[IconZones.Zone.CENTRE.ordinal],
                 level, charging, wifiLevel, mobileType,
             )
-            dots = dotBands[TrioZones.Zone.TOP.ordinal] || dotBands[TrioZones.Zone.BOTTOM.ordinal]
+            dots = dotBands[IconZones.Zone.TOP.ordinal] || dotBands[IconZones.Zone.BOTTOM.ordinal]
             dual = a.dualSimRows(false, charging, sims)
             bolt = parts.contains(Prefs.PART_BOLT)
             wifi = parts.contains(Prefs.PART_WIFI)
@@ -832,7 +832,7 @@ class TrioAppearance(c: TrioSettings) {
             type = parts.contains(Prefs.PART_TYPE)
         }
 
-        fun dotsIn(band: TrioZones.Zone?): Boolean =
+        fun dotsIn(band: IconZones.Zone?): Boolean =
             band != null && dotBands[band.ordinal]
 
         private companion object {
@@ -850,8 +850,8 @@ class TrioAppearance(c: TrioSettings) {
 
         /** The same appearance for `cfg`, or the shipped defaults when it is null. */
         @JvmStatic
-        fun of(cfg: TrioSettings?): TrioAppearance =
-            TrioAppearance(cfg ?: TrioSettings.defaults())
+        fun of(cfg: ModuleSettings?): StatusAppearance =
+            StatusAppearance(cfg ?: ModuleSettings.defaults())
 
         /**
          * Whether `part` has ink to draw on this frame, whatever cell it would go in.
@@ -860,7 +860,7 @@ class TrioAppearance(c: TrioSettings) {
          * question, and this only answers "does this piece want to be drawn at all".
          */
         private fun hasInk(
-            a: TrioAppearance,
+            a: StatusAppearance,
             part: Int,
             level: Int,
             charging: Boolean,
@@ -875,27 +875,27 @@ class TrioAppearance(c: TrioSettings) {
                 (!a.ring || a.hasRingPart(Prefs.PART_MOBILE))
             // The per-card rows are placeable in BOTH slot-based arrangements: the ring threads them onto its openings and the capsule lays them across its two.
             Prefs.PART_SIM_1 -> a.mobile && a.showSim1 && !a.signalOutOfRing && !a.rect &&
-                (!a.dataSimOnly || TrioState.sDataSlot != 1)
+                (!a.dataSimOnly || StatusState.sDataSlot != 1)
             Prefs.PART_SIM_2 -> a.mobile && a.showSim2 && !a.signalOutOfRing && !a.rect &&
-                (!a.dataSimOnly || TrioState.sDataSlot == 1)
+                (!a.dataSimOnly || StatusState.sDataSlot == 1)
             // The clock always has something to say; whether the arrangement shows it is
             // the renderer's business.
             Prefs.PART_CLOCK -> true
             // The two watt figures are one reading split by state: charging and running.
-            Prefs.PART_POWER -> charging && !TrioState.sChargePowerW.isNaN()
-            Prefs.PART_RUNNING -> !charging && !TrioState.sChargePowerW.isNaN()
-            Prefs.PART_TEMP -> TrioState.sBatteryTempC != TrioState.TEMP_UNKNOWN &&
+            Prefs.PART_POWER -> charging && !StatusState.sChargePowerW.isNaN()
+            Prefs.PART_RUNNING -> !charging && !StatusState.sChargePowerW.isNaN()
+            Prefs.PART_TEMP -> StatusState.sBatteryTempC != StatusState.TEMP_UNKNOWN &&
                 (!a.perfTempChargingOnly || charging)
             // Its own piece: a frame rate has nothing to do with the charger state, so it
             // is drawn whenever the reading is on.
-            Prefs.PART_FPS -> a.perfFps
+            Prefs.PART_FPS -> a.perfFps || a.placed(Prefs.PART_FPS) || StatusState.sFps > 0
             // Likewise independent of the charger: the current reads on both directions.
-            Prefs.PART_CURRENT -> a.perfCurrent && TrioState.sCurrentUa != TrioState.CURRENT_UNKNOWN
+            Prefs.PART_CURRENT -> (a.perfCurrent || a.placed(Prefs.PART_CURRENT)) && StatusState.sCurrentUa != StatusState.CURRENT_UNKNOWN
             else -> false
         }
 
         private fun firstInk(
-            a: TrioAppearance,
+            a: StatusAppearance,
             order: IntArray?,
             level: Int,
             charging: Boolean,
@@ -911,7 +911,7 @@ class TrioAppearance(c: TrioSettings) {
 
         /** The second piece with ink in `order`, which is what the body draws beside the first. */
         private fun secondInk(
-            a: TrioAppearance,
+            a: StatusAppearance,
             order: IntArray?,
             level: Int,
             charging: Boolean,
@@ -936,7 +936,7 @@ class TrioAppearance(c: TrioSettings) {
          * that never went through a decode, so the refusal is enforced here too.
          */
         private fun firstDrawableInk(
-            a: TrioAppearance,
+            a: StatusAppearance,
             order: IntArray?,
             band: Int,
             level: Int,

@@ -20,11 +20,11 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import androidx.core.content.ContextCompat
-import io.github.odomu.honorduo.hook.TrioHooks
-import io.github.odomu.honorduo.model.TrioConfig.prefs
-import io.github.odomu.honorduo.model.TrioConfig.publish
-import io.github.odomu.honorduo.model.TrioConfig.snapshot
 import io.github.libxposed.api.XposedInterface
+import io.github.odomu.honorduo.hook.core.StatusHooks
+import io.github.odomu.honorduo.model.ModuleConfig.prefs
+import io.github.odomu.honorduo.model.ModuleConfig.publish
+import io.github.odomu.honorduo.model.ModuleConfig.snapshot
 
 /**
  * Hook-side snapshot of the user's settings.
@@ -38,7 +38,7 @@ import io.github.libxposed.api.XposedInterface
  * Every read falls back to the [Prefs] default, which keeps the module working
  * when the framework is embedded and cannot serve remote preferences at all.
  */
-object TrioConfig {
+object ModuleConfig {
 
     /** Notified (on whatever thread the framework used) after a value changed. */
     fun interface Listener {
@@ -51,7 +51,7 @@ object TrioConfig {
      * Registered listeners, held strongly and on purpose.
      *
      * A weak list is tempting but silently wrong here: the only listeners are lambdas
-     * created inside [TrioHooks.install], so nothing else keeps them reachable. They were
+     * created inside [StatusHooks.install], so nothing else keeps them reachable. They were
      * collected on the first GC after install, after which a settings change updated the
      * snapshot but repainted nothing. The module lives in the hooked process for its whole
      * lifetime, so a strong reference cannot outlive its usefulness.
@@ -70,7 +70,7 @@ object TrioConfig {
 
     // Values are published together, so a reader never sees a mixed snapshot.
     @Volatile
-    private var snapshot: TrioSettings = TrioSettings.defaults()
+    private var snapshot: ModuleSettings = ModuleSettings.defaults()
 
     /**
      * [snapshot] resolved into the drawing rules, kept in step by [publish].
@@ -79,12 +79,12 @@ object TrioConfig {
      * SystemUI goes through the suppression rule - and resolving it allocates.
      */
     @Volatile
-    private var appearanceCache: TrioAppearance = TrioAppearance.of(snapshot)
+    private var appearanceCache: StatusAppearance = StatusAppearance.of(snapshot)
 
     /** Publishes a new snapshot and its resolved rules; the rules first, so a reader
      *  that sees the new snapshot never pairs it with the old rules. */
-    private fun publish(next: TrioSettings) {
-        appearanceCache = TrioAppearance.of(next)
+    private fun publish(next: ModuleSettings) {
+        appearanceCache = StatusAppearance.of(next)
         snapshot = next
     }
 
@@ -99,7 +99,7 @@ object TrioConfig {
             xposed.getRemotePreferences(Prefs.NAME)
         } catch (t: Throwable) {
             // Embedded framework (or a very old one): run on defaults.
-            TrioHooks.log(TrioHooks.LOG_WARN, "remote preferences unavailable: $t")
+            StatusHooks.log(StatusHooks.LOG_WARN, "remote preferences unavailable: $t")
             return
         }
 
@@ -108,7 +108,7 @@ object TrioConfig {
         try {
             remote.registerOnSharedPreferenceChangeListener(listener)
         } catch (t: Throwable) {
-            TrioHooks.log(TrioHooks.LOG_WARN, "cannot watch preferences: $t")
+            StatusHooks.log(StatusHooks.LOG_WARN, "cannot watch preferences: $t")
         }
 
         // Re-read once the framework has had time to serve the user's values.
@@ -141,11 +141,11 @@ object TrioConfig {
 
     /** Immutable view of every setting the renderer cares about. */
     @JvmStatic
-    fun get(): TrioSettings = snapshot
+    fun get(): ModuleSettings = snapshot
 
     /** The same snapshot resolved into the drawing and suppression rules. */
     @JvmStatic
-    fun appearance(): TrioAppearance = appearanceCache
+    fun appearance(): StatusAppearance = appearanceCache
 
     @JvmStatic
     fun debugLog(): Boolean = debugLog
@@ -191,7 +191,7 @@ object TrioConfig {
             )
         } catch (t: Throwable) {
             receiverInstalled = false
-            TrioHooks.log(TrioHooks.LOG_WARN, "cannot register reload receiver: $t")
+            StatusHooks.log(StatusHooks.LOG_WARN, "cannot register reload receiver: $t")
         }
     }
 
@@ -207,24 +207,25 @@ object TrioConfig {
         if (intent == null) return
         try {
             val extras: Bundle = intent.extras ?: run {
-                TrioHooks.log(TrioHooks.LOG_WARN, "reload broadcast without extras, ignored")
+                StatusHooks.log(StatusHooks.LOG_WARN, "reload broadcast without extras, ignored")
                 return
             }
             if (!extras.containsKey(Prefs.KEY_ENABLED)) {
                 // A bundle without the master switch is not one this module sent and would
                 // move state on a stranger's behalf.
-                TrioHooks.log(TrioHooks.LOG_WARN, "reload broadcast without extras, ignored")
+                StatusHooks.log(StatusHooks.LOG_WARN, "reload broadcast without extras, ignored")
                 return
             }
             // Seeded from the current snapshot: a key the sender omitted keeps the value it
             // already had instead of snapping back to a shared default.
             val previous = snapshot
-            val incoming = TrioSettings.fromBundle(extras, previous)
+            val incoming = ModuleSettings.fromBundle(extras, previous)
+            if (incoming == previous) return
             debugLog = incoming.debugLog
             publish(incoming)
             if (debugLog) {
-                TrioHooks.log(
-                    TrioHooks.LOG_INFO,
+                StatusHooks.log(
+                    StatusHooks.LOG_INFO,
                     "reload broadcast: enabled=${incoming.enabled} ring=${incoming.ringStroke}" +
                         " arc=${incoming.arcStroke} size=${incoming.valueSize}" +
                         " (was enabled=${previous.enabled})",
@@ -232,7 +233,7 @@ object TrioConfig {
             }
             notifyChanged()
         } catch (t: Throwable) {
-            TrioHooks.log(TrioHooks.LOG_WARN, "bad reload broadcast: $t")
+            StatusHooks.log(StatusHooks.LOG_WARN, "bad reload broadcast: $t")
         }
     }
 
@@ -244,8 +245,8 @@ object TrioConfig {
     private val listener = SharedPreferences.OnSharedPreferenceChangeListener { changed, key ->
         if (!applyKey(changed, key)) return@OnSharedPreferenceChangeListener
         if (debugLog) {
-            TrioHooks.log(
-                TrioHooks.LOG_INFO,
+            StatusHooks.log(
+                StatusHooks.LOG_INFO,
                 "remote pref changed: $key -> enabled=${snapshot.enabled}" +
                     " ring=${snapshot.ringStroke} arc=${snapshot.arcStroke}" +
                     " size=${snapshot.valueSize}",
@@ -260,13 +261,13 @@ object TrioConfig {
         return try {
             val next = snapshot.copy()
             // Not a key this module renders with; nothing to repaint.
-            if (!next.applyKeyFrom(TrioSettings.from(changed), key)) return false
+            if (!next.applyKeyFrom(ModuleSettings.from(changed), key)) return false
             debugLog = next.debugLog
             publish(next)
             true
         } catch (t: Throwable) {
             // A type mismatch in the framework's cast must never break drawing.
-            TrioHooks.log(TrioHooks.LOG_WARN, "cannot read preferences: $t")
+            StatusHooks.log(StatusHooks.LOG_WARN, "cannot read preferences: $t")
             false
         }
     }
@@ -279,10 +280,10 @@ object TrioConfig {
     private fun reload() {
         val changed = prefs ?: return
         try {
-            publish(TrioSettings.from(changed))
+            publish(ModuleSettings.from(changed))
             debugLog = changed.getBoolean(Prefs.KEY_DEBUG_LOG, Prefs.DEF_DEBUG_LOG)
         } catch (t: Throwable) {
-            TrioHooks.log(TrioHooks.LOG_WARN, "cannot read preferences: $t")
+            StatusHooks.log(StatusHooks.LOG_WARN, "cannot read preferences: $t")
         }
     }
 
@@ -294,7 +295,7 @@ object TrioConfig {
                 l.onConfigChanged()
             } catch (t: Throwable) {
                 // One bad listener must not stop the others.
-                TrioHooks.log(TrioHooks.LOG_WARN, "config listener failed: $t")
+                StatusHooks.log(StatusHooks.LOG_WARN, "config listener failed: $t")
             }
         }
     }

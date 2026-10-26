@@ -23,20 +23,20 @@ import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
 import android.view.View
 import androidx.core.content.ContextCompat
-import io.github.odomu.honorduo.hook.BatteryPresence
-import io.github.odomu.honorduo.hook.ClockTicker
-import io.github.odomu.honorduo.hook.FpsTicker
-import io.github.odomu.honorduo.hook.Refl
-import io.github.odomu.honorduo.hook.ScreenStateTracker
-import io.github.odomu.honorduo.hook.TrioHooks
-import io.github.odomu.honorduo.hook.WifiPresence
-import io.github.odomu.honorduo.hook.WeatherManager
-import io.github.odomu.honorduo.model.TrioState.Companion.SIMS_INTERVAL_MS
+import io.github.odomu.honorduo.hook.core.Refl
+import io.github.odomu.honorduo.hook.core.StatusHooks
+import io.github.odomu.honorduo.hook.statusbar.ClockTicker
+import io.github.odomu.honorduo.hook.tracker.BatteryPresence
+import io.github.odomu.honorduo.hook.tracker.FpsTicker
+import io.github.odomu.honorduo.hook.tracker.ScreenStateTracker
+import io.github.odomu.honorduo.hook.tracker.WeatherManager
+import io.github.odomu.honorduo.hook.tracker.WifiPresence
+import io.github.odomu.honorduo.model.StatusState.Companion.SIMS_INTERVAL_MS
 import java.lang.reflect.Field
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Snapshot of everything the trio glyph needs: battery level and charge state,
+ * Snapshot of everything the status glyph needs: battery level and charge state,
  * the Wi-Fi and mobile signal levels, and the ink MagicOS is drawing the status
  * bar icons in.
  *
@@ -53,7 +53,7 @@ import java.util.concurrent.ConcurrentHashMap
  *   call every signal icon on this ROM goes through;
  * - per-SIM levels from telephony, because the icons name no SIM.
  */
-internal class TrioState(val host: View) {
+internal class StatusState(val host: View) {
 
     @JvmField
     var level = -1
@@ -118,13 +118,13 @@ internal class TrioState(val host: View) {
             charging = Refl.getBool(hostCharging, host, charging)
             powerSave = Refl.getBool(hostPowerSave, host, powerSave)
         }
-        low = level >= 0 && level <= TrioConfig.appearance().lowThreshold
+        low = level >= 0 && level <= ModuleConfig.appearance().lowThreshold
 
         resolvePending(resourcesOf(host))
 
         // One telephony poll is enough for every host, so it is rate-limited here rather than expressed as a background subscription no host owns.
-        if (TrioConfig.get().dualSim || TrioConfig.appearance().drawsAnySimRow() ||
-            TrioConfig.appearance().stackedOut() || sMobileLevel < 0
+        if (ModuleConfig.get().dualSim || ModuleConfig.appearance().drawsAnySimRow() ||
+            ModuleConfig.appearance().stackedOut() || sMobileLevel < 0
         ) {
             sampleSimsIfDue()
         }
@@ -188,7 +188,7 @@ internal class TrioState(val host: View) {
 
     companion object {
 
-        /** Latest resolved signal levels; shared by every trio host. */
+        /** Latest resolved signal levels; shared by every status host. */
         @Volatile
         @JvmField
         var sWifiLevel = -1
@@ -448,7 +448,6 @@ internal class TrioState(val host: View) {
 
         private fun appContext(): Context? = sContextRef?.get()
 
-
         @Volatile
         private var sSimsDueAt = 0L
 
@@ -498,7 +497,7 @@ internal class TrioState(val host: View) {
                 // rate repaints.
                 FpsTicker.onSample = { fps ->
                     sFps = fps
-                    TrioHooks.invalidateHosts()
+                    StatusHooks.invalidateHosts()
                 }
                 FpsTicker.start(app)
                 startDataActivityListener(app)
@@ -847,7 +846,7 @@ internal class TrioState(val host: View) {
                         val direction = (method.invoke(tm) as? Number)?.toInt() ?: 0
                         if (sDataActivity != direction) {
                             sDataActivity = direction
-                            TrioHooks.invalidateHosts()
+                            StatusHooks.invalidateHosts()
                         }
                     } catch (_: Throwable) {
                         // Hidden on some builds; the callback above still covers those.
@@ -873,7 +872,7 @@ internal class TrioState(val host: View) {
                             override fun onDataActivity(direction: Int) {
                                 if (sDataActivity != direction) {
                                     sDataActivity = direction
-                                    TrioHooks.invalidateHosts()
+                                    StatusHooks.invalidateHosts()
                                 }
                             }
                         }

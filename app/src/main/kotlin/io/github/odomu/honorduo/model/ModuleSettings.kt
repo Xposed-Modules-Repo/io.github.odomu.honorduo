@@ -13,9 +13,9 @@ package io.github.odomu.honorduo.model
 
 import android.content.SharedPreferences
 import android.os.Bundle
-import io.github.odomu.honorduo.model.TrioSettings.Companion.readMobileTypeMode
-import io.github.odomu.honorduo.model.TrioSettings.Companion.readOutTypeSize
-import io.github.odomu.honorduo.model.TrioSettings.Companion.readRingLayout
+import io.github.odomu.honorduo.model.ModuleSettings.Companion.readMobileTypeMode
+import io.github.odomu.honorduo.model.ModuleSettings.Companion.readOutTypeSize
+import io.github.odomu.honorduo.model.ModuleSettings.Companion.readRingLayout
 import kotlin.math.roundToInt
 
 /**
@@ -29,7 +29,7 @@ import kotlin.math.roundToInt
  * whole; a published instance is never mutated afterwards, which is why a single
  * changed key copies the snapshot and republishes ([copy], [applyKeyFrom]).
  */
-class TrioSettings {
+class ModuleSettings {
 
     @JvmField
     var enabled = Prefs.DEF_ENABLED
@@ -119,7 +119,7 @@ class TrioSettings {
     /**
      * Which arrangement is drawn: [Prefs.STYLE_RING], [Prefs.STYLE_RECT] or
      * [Prefs.STYLE_CAPSULE]. The same keys feed all three; what differs is where
-     * each piece goes, and [TrioAppearance] is where that is resolved.
+     * each piece goes, and [StatusAppearance] is where that is resolved.
      */
     @JvmField
     var trioStyle = Prefs.DEF_TRIO_STYLE
@@ -241,8 +241,6 @@ class TrioSettings {
     var signalColumns = Prefs.DEF_SIGNAL_COLUMNS
     var fontPath: String = Prefs.DEF_FONT_PATH
 
-
-
     /** The gap the out-of-ring type label keeps on each side, in dp. */
     @JvmField
     var outTypeMarginLeft = Prefs.DEF_OUT_TYPE_MARGIN_LEFT
@@ -281,6 +279,9 @@ class TrioSettings {
      */
     @JvmField
     var outOrder: IntArray = Prefs.OUT_DEFAULT_ORDER.clone()
+
+    @JvmField
+    var perfOrder: IntArray = Prefs.PERF_DEFAULT_ORDER.clone()
 
     @JvmField
     var typeWeight = Prefs.DEF_TYPE_WEIGHT
@@ -394,7 +395,7 @@ class TrioSettings {
     @JvmField
     var glyphScale = Prefs.DEF_GLYPH_SCALE
 
-    /** Only used by the settings app; the hooked side reads it through [TrioConfig]. */
+    /** Only used by the settings app; the hooked side reads it through [ModuleConfig]. */
     @JvmField
     var debugLog = false
 
@@ -402,7 +403,7 @@ class TrioSettings {
 
         /** A snapshot holding every shipped default. */
         @JvmStatic
-        fun defaults(): TrioSettings = TrioSettings().apply {
+        fun defaults(): ModuleSettings = ModuleSettings().apply {
             enabled = Prefs.DEF_ENABLED
             mergeIcons = Prefs.DEF_MERGE_ICONS
             showWifi = Prefs.DEF_SHOW_WIFI
@@ -512,6 +513,7 @@ class TrioSettings {
             boltSpeed = Prefs.DEF_BOLT_SPEED
             dotScale = Prefs.DEF_DOT_SCALE
             outOrder = Prefs.OUT_DEFAULT_ORDER.clone()
+            perfOrder = Prefs.PERF_DEFAULT_ORDER.clone()
             typeWeight = Prefs.DEF_TYPE_WEIGHT
             trackAlpha = Prefs.DEF_TRACK_ALPHA
             fontPath = Prefs.DEF_FONT_PATH
@@ -520,7 +522,7 @@ class TrioSettings {
 
         /** Reads every key, falling back to the shared defaults. */
         @JvmStatic
-        fun from(p: SharedPreferences): TrioSettings = from(p, Prefs.AUTHORED_DENSITY)
+        fun from(p: SharedPreferences): ModuleSettings = from(p, Prefs.AUTHORED_DENSITY)
 
         /**
          * Reads every key, clamping the numeric ones here rather than at draw time
@@ -531,7 +533,7 @@ class TrioSettings {
          *   [Prefs.KEY_OUT_TYPE_SIZE_DP]
          */
         @JvmStatic
-        fun from(p: SharedPreferences, density: Float): TrioSettings = from(p, density, -1)
+        fun from(p: SharedPreferences, density: Float): ModuleSettings = from(p, density, -1)
 
         /**
          * The same read, for a stated style rather than the stored one.
@@ -542,8 +544,8 @@ class TrioSettings {
          * the stored style would push a bogus transient value at the hooked process.
          */
         @JvmStatic
-        fun from(p: SharedPreferences, density: Float, styleOverride: Int): TrioSettings {
-            val s = TrioSettings()
+        fun from(p: SharedPreferences, density: Float, styleOverride: Int): ModuleSettings {
+            val s = ModuleSettings()
             s.enabled = p.getBoolean(Prefs.KEY_ENABLED, Prefs.DEF_ENABLED)
             s.mergeIcons = p.getBoolean(Prefs.KEY_MERGE_ICONS, Prefs.DEF_MERGE_ICONS)
             // The style first: the component switches below are stored per
@@ -835,6 +837,9 @@ class TrioSettings {
             s.outOrder = Prefs.decodeOutOrder(
                 p.getString(Prefs.KEY_OUT_ORDER, Prefs.OUT_DEFAULT_ORDER_STRING),
             )
+            s.perfOrder = Prefs.decodePerfOrder(
+                p.getString(Prefs.KEY_PERF_ORDER, Prefs.PERF_DEFAULT_ORDER_STRING),
+            )
             s.typeWeight = Prefs.clamp(
                 p.getInt(Prefs.KEY_TYPE_WEIGHT, Prefs.DEF_TYPE_WEIGHT),
                 Prefs.MIN_TYPE_WEIGHT,
@@ -856,9 +861,9 @@ class TrioSettings {
          * its own.
          */
         @JvmStatic
-        fun fromBundle(bundle: Bundle?): TrioSettings {
+        fun fromBundle(bundle: Bundle?): ModuleSettings {
             if (bundle == null) return defaults()
-            val s = TrioSettings()
+            val s = ModuleSettings()
             s.enabled = bundle.getBoolean(Prefs.KEY_ENABLED, Prefs.DEF_ENABLED)
             s.mergeIcons = bundle.getBoolean(Prefs.KEY_MERGE_ICONS, Prefs.DEF_MERGE_ICONS)
             // The style first, for the same reason as the stored read.
@@ -1148,6 +1153,9 @@ class TrioSettings {
             s.outOrder = Prefs.decodeOutOrder(
                 bundle.getString(Prefs.KEY_OUT_ORDER, Prefs.OUT_DEFAULT_ORDER_STRING),
             )
+            s.perfOrder = Prefs.decodePerfOrder(
+                bundle.getString(Prefs.KEY_PERF_ORDER, Prefs.PERF_DEFAULT_ORDER_STRING),
+            )
             s.typeWeight = Prefs.clamp(
                 bundle.getInt(Prefs.KEY_TYPE_WEIGHT, Prefs.DEF_TYPE_WEIGHT),
                 Prefs.MIN_TYPE_WEIGHT,
@@ -1171,7 +1179,7 @@ class TrioSettings {
          * the user's configuration - including `enabled`.
          */
         @JvmStatic
-        fun fromBundle(bundle: Bundle?, base: TrioSettings?): TrioSettings {
+        fun fromBundle(bundle: Bundle?, base: ModuleSettings?): ModuleSettings {
             val s = base?.copy() ?: defaults()
             if (bundle == null) return s
             val delivered = fromBundle(bundle)
@@ -1370,7 +1378,7 @@ class TrioSettings {
     /**
      * An independent copy.
      */
-    fun copy(): TrioSettings = TrioSettings().also { s ->
+    fun copy(): ModuleSettings = ModuleSettings().also { s ->
         s.enabled = enabled
         s.mergeIcons = mergeIcons
         s.showWifi = showWifi
@@ -1479,6 +1487,7 @@ class TrioSettings {
         s.boltSpeed = boltSpeed
         s.dotScale = dotScale
         s.outOrder = outOrder.clone()
+        s.perfOrder = perfOrder.clone()
         s.typeWeight = typeWeight
         s.trackAlpha = trackAlpha
         s.debugLog = debugLog
@@ -1493,7 +1502,7 @@ class TrioSettings {
      * preview: a style tile that drew the current arrangement's values under the
      * other shape's name would advertise a look that clicking it does not produce.
      */
-    fun withComponentsFrom(other: TrioSettings?, style: Int): TrioSettings {
+    fun withComponentsFrom(other: ModuleSettings?, style: Int): ModuleSettings {
         if (other == null) return this
         return copy().also { s ->
             s.trioStyle = Prefs.normalizeTrioStyle(style)
@@ -1523,7 +1532,7 @@ class TrioSettings {
      *
      * @return true when the key maps to a field of this type
      */
-    fun applyKeyFrom(src: TrioSettings?, key: String?): Boolean {
+    fun applyKeyFrom(src: ModuleSettings?, key: String?): Boolean {
         if (src == null || key == null) return false
         // A per-arrangement key arrives suffixed when a capsule value changed, and
         // the field it writes is the same one the unsuffixed key writes: the snapshot
@@ -1638,6 +1647,7 @@ class TrioSettings {
             Prefs.KEY_BOLT_SPEED -> boltSpeed = src.boltSpeed
             Prefs.KEY_DOT_SCALE -> dotScale = src.dotScale
             Prefs.KEY_OUT_ORDER -> outOrder = src.outOrder.clone()
+            Prefs.KEY_PERF_ORDER -> perfOrder = src.perfOrder.clone()
             Prefs.KEY_TYPE_WEIGHT -> typeWeight = src.typeWeight
             Prefs.KEY_TRACK_ALPHA -> trackAlpha = src.trackAlpha
             Prefs.KEY_DEBUG_LOG -> debugLog = src.debugLog
@@ -1771,6 +1781,7 @@ class TrioSettings {
         putInt(Prefs.KEY_BOLT_SPEED, boltSpeed)
         putInt(Prefs.KEY_DOT_SCALE, dotScale)
         putString(Prefs.KEY_OUT_ORDER, Prefs.encodeOutOrder(outOrder))
+        putString(Prefs.KEY_PERF_ORDER, Prefs.encodePerfOrder(perfOrder))
         putInt(Prefs.KEY_TYPE_WEIGHT, typeWeight)
         putInt(Prefs.KEY_TRACK_ALPHA, trackAlpha)
         putBoolean(Prefs.KEY_DEBUG_LOG, debugLog)
@@ -1786,7 +1797,7 @@ class TrioSettings {
      */
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is TrioSettings) return false
+        if (other !is ModuleSettings) return false
         return enabled == other.enabled &&
             mergeIcons == other.mergeIcons &&
             showWifi == other.showWifi &&
@@ -1895,6 +1906,7 @@ class TrioSettings {
             boltSpeed == other.boltSpeed &&
             dotScale == other.dotScale &&
             outOrder.contentEquals(other.outOrder) &&
+            perfOrder.contentEquals(other.perfOrder) &&
             typeWeight == other.typeWeight &&
             trackAlpha == other.trackAlpha &&
             replaceWifiIcon == other.replaceWifiIcon &&
