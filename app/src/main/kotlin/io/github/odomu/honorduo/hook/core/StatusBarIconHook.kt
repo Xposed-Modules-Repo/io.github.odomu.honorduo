@@ -1,4 +1,4 @@
-package io.github.odomu.honorduo.hook
+package io.github.odomu.honorduo.hook.core
 
 import android.content.res.Resources
 import android.content.res.TypedArray
@@ -7,14 +7,13 @@ import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
+import androidx.core.graphics.drawable.toDrawable
 import io.github.libxposed.api.XposedModule
-import io.github.odomu.honorduo.model.TrioConfig
+import io.github.odomu.honorduo.model.ModuleConfig
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
-import androidx.core.graphics.drawable.toDrawable
-
 /**
  * Replaces native status bar icons with custom built-in assets for Wi-Fi and system status indicators.
  *
@@ -74,6 +73,8 @@ internal object StatusBarIconHook {
 
     private val sWifiCache = ConcurrentHashMap<String, Bitmap>()
     private val sStatusCache = ConcurrentHashMap<String, Bitmap>()
+    private val RES_ID_ENTRY_CACHE = ConcurrentHashMap<Int, String>()
+    private const val EMPTY_ENTRY_SENTINEL = ""
 
     /**
      * Installs resource drawable hooks into the target ClassLoader.
@@ -83,7 +84,7 @@ internal object StatusBarIconHook {
      * @return Total count of successfully installed hooks.
      */
     fun install(module: XposedModule, cl: ClassLoader): Int {
-        val a = TrioConfig.appearance()
+        val a = ModuleConfig.appearance()
         sWifiEnabled = a.replaceWifiIcon
         sStatusEnabled = a.replaceStatusIcon
         sHideAlarm = a.hideAlarmIcon
@@ -102,7 +103,7 @@ internal object StatusBarIconHook {
             Int::class.javaPrimitiveType!!,
             Resources.Theme::class.java,
         )
-        hooked += TrioHooks.hook(module, mDensity, "honorduo-icon-drawable-density") { chain ->
+        hooked += StatusHooks.hook(module, mDensity, "honorduo-icon-drawable-density") { chain ->
             val result = chain.proceed()
             val res = chain.thisObject as? Resources ?: return@hook result
             val resId = chain.getArg(0) as? Int ?: return@hook result
@@ -117,7 +118,7 @@ internal object StatusBarIconHook {
             Int::class.javaPrimitiveType!!,
             Resources.Theme::class.java,
         )
-        hooked += TrioHooks.hook(module, mDrawable, "honorduo-icon-drawable") { chain ->
+        hooked += StatusHooks.hook(module, mDrawable, "honorduo-icon-drawable") { chain ->
             val result = chain.proceed()
             val res = chain.thisObject as? Resources ?: return@hook result
             val resId = chain.getArg(0) as? Int ?: return@hook result
@@ -131,7 +132,7 @@ internal object StatusBarIconHook {
             "getDrawable",
             Int::class.javaPrimitiveType!!,
         )
-        hooked += TrioHooks.hook(module, mTypedArray, "honorduo-icon-ta-drawable") { chain ->
+        hooked += StatusHooks.hook(module, mTypedArray, "honorduo-icon-ta-drawable") { chain ->
             val result = chain.proceed()
             val ta = chain.thisObject as? TypedArray ?: return@hook result
             val index = chain.getArg(0) as? Int ?: return@hook result
@@ -166,8 +167,13 @@ internal object StatusBarIconHook {
         // The name below costs a reflective call, and this hook sees every drawable the
         // host resolves, so the switches are checked before it.
         if (!sWifiEnabled && !sStatusEnabled && !sHideAlarm && !sHideBluetooth) return null
-        val entry = runCatching { resources.getResourceEntryName(resId) }.getOrNull() ?: return null
-
+        val cached = RES_ID_ENTRY_CACHE[resId]
+        if (cached == EMPTY_ENTRY_SENTINEL) return null
+        val entry = cached ?: run {
+            val resolved = runCatching { resources.getResourceEntryName(resId) }.getOrNull()
+            RES_ID_ENTRY_CACHE[resId] = resolved ?: EMPTY_ENTRY_SENTINEL
+            resolved ?: return null
+        }
         // A hidden icon is handed back as a transparent drawable: the status bar draws
         // whatever this returns, and one with no intrinsic size collapses the slot
         // instead of leaving a gap where the icon was.

@@ -8,8 +8,10 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.hook
+package io.github.odomu.honorduo.hook.tracker
 
+import io.github.odomu.honorduo.hook.core.StatusHooks
+import io.github.odomu.honorduo.hook.statusbar.StatusBarRowManager
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -21,7 +23,7 @@ import java.util.concurrent.CopyOnWriteArrayList
  * fade. A hidden row is not drawn, so every producer of readings asks this first
  * and does nothing at all when it says no - the battery watchdog, the frame
  * sampler, the clock ticker, the weather query and the anti-burn-in stepping.
- * The one thing that survives being hidden is the state itself, and [TrioHooks]
+ * The one thing that survives being hidden is the state itself, and [StatusHooks]
  * repaints it once when the bar returns.
  *
  * Maintained by [StatusBarRowManager] from `View.isShown` of its own rows. Kept

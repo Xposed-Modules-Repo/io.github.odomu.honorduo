@@ -1,15 +1,17 @@
-package io.github.odomu.honorduo.hook
+package io.github.odomu.honorduo.hook.core
 
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import io.github.libxposed.api.XposedModule
-import io.github.odomu.honorduo.model.TrioConfig
-import io.github.odomu.honorduo.model.TrioState
-import io.github.odomu.honorduo.render.TrioRenderer
+import io.github.odomu.honorduo.hook.statusbar.BarClockManager
+import io.github.odomu.honorduo.hook.statusbar.StatusBarIconManager
+import io.github.odomu.honorduo.hook.statusbar.StatusBarRowManager
+import io.github.odomu.honorduo.hook.tracker.BarVisibility
+import io.github.odomu.honorduo.model.ModuleConfig
+import io.github.odomu.honorduo.model.StatusState
+import io.github.odomu.honorduo.ui.render.IconRenderer
 import java.lang.ref.WeakReference
-import java.util.ArrayList
-
 /**
  * Manages low-level hooks on MagicOS SystemUI status-bar host views and containers.
  *
@@ -48,7 +50,7 @@ internal object SystemBarHook {
         var n = 0
 
         // Intercept container inflation to register the row with StatusBarRowManager.
-        n += TrioHooks.hook(module, Refl.method(rowClass, "onFinishInflate"), "honorduo-row-inflate") { chain ->
+        n += StatusHooks.hook(module, Refl.method(rowClass, "onFinishInflate"), "honorduo-row-inflate") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is ViewGroup) {
@@ -58,7 +60,7 @@ internal object SystemBarHook {
         }
 
         // Intercept layout passes to synchronize custom components and check capsule encroachment.
-        n += TrioHooks.hook(
+        n += StatusHooks.hook(
             module, Refl.method(
                 rowClass, "onLayout",
                 Boolean::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!,
@@ -80,7 +82,7 @@ internal object SystemBarHook {
         }
 
         // Intercept icon alpha updates triggered by SystemUI animation controllers.
-        n += TrioHooks.hook(module, TrioHooks.methodNamed(rowClass, "updateIconsAlpha", 0), "honorduo-update-icons-alpha") { chain ->
+        n += StatusHooks.hook(module, Refl.methodNamed(rowClass, "updateIconsAlpha", 0), "honorduo-update-icons-alpha") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is ViewGroup) {
@@ -90,10 +92,10 @@ internal object SystemBarHook {
         }
 
         // Intercept dynamic capsule area notification boundaries (adaptive 5 or 6 arg overload).
-        val capsuleMethod = TrioHooks.methodNamed(rowClass, "setCapsuleArea", 6)
-            ?: TrioHooks.methodNamed(rowClass, "setCapsuleArea", 5)
+        val capsuleMethod = Refl.methodNamed(rowClass, "setCapsuleArea", 6)
+            ?: Refl.methodNamed(rowClass, "setCapsuleArea", 5)
         if (capsuleMethod != null) {
-            n += TrioHooks.hook(module, capsuleMethod, "honorduo-capsule-area") { chain ->
+            n += StatusHooks.hook(module, capsuleMethod, "honorduo-capsule-area") { chain ->
                 val result = chain.proceed()
                 val self = chain.thisObject
                 if (self is ViewGroup) {
@@ -106,7 +108,7 @@ internal object SystemBarHook {
         }
 
         // Intercept window attachment to track live container instances.
-        n += TrioHooks.hook(module, Refl.method(rowClass, "onAttachedToWindow"), "honorduo-row-attach") { chain ->
+        n += StatusHooks.hook(module, Refl.method(rowClass, "onAttachedToWindow"), "honorduo-row-attach") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is ViewGroup) {
@@ -116,7 +118,7 @@ internal object SystemBarHook {
         }
 
         // Intercept window detachment to clean up registered rows and prevent leaks.
-        n += TrioHooks.hook(module, Refl.method(rowClass, "onDetachedFromWindow"), "honorduo-row-detach") { chain ->
+        n += StatusHooks.hook(module, Refl.method(rowClass, "onDetachedFromWindow"), "honorduo-row-detach") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is ViewGroup) {
@@ -136,11 +138,11 @@ internal object SystemBarHook {
         var n = 0
 
         // Intercept stock battery update events to sync glyph state and hide stock icon.
-        n += TrioHooks.hook(module, Refl.method(battery, "onBatteryUpdate"), "honorduo-battery-update") { chain ->
+        n += StatusHooks.hook(module, Refl.method(battery, "onBatteryUpdate"), "honorduo-battery-update") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is View) {
-                if (TrioConfig.appearance().glyph) {
+                if (ModuleConfig.appearance().glyph) {
                     StatusBarIconManager.hide(self)
                 }
                 val row = StatusBarRowManager.rowOfBattery(self)
@@ -149,19 +151,19 @@ internal object SystemBarHook {
                 if (row != null && BarVisibility.shown) {
                     StatusBarRowManager.syncRow(row, false)
                 }
-                TrioHooks.invalidateHosts()
+                StatusHooks.invalidateHosts()
             }
             result
         }
 
         // Intercept battery view inflation to obtain a valid Context and start screen state tracking.
-        n += TrioHooks.hook(module, Refl.method(battery, "onFinishInflate"), "honorduo-battery-inflate") { chain ->
+        n += StatusHooks.hook(module, Refl.method(battery, "onFinishInflate"), "honorduo-battery-inflate") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is View) {
-                TrioState.attachContext(self.context)
-                TrioConfig.installReceiver(self.context)
-                TrioHooks.ensureScreenStateTracker(self.context)
+                StatusState.attachContext(self.context)
+                ModuleConfig.installReceiver(self.context)
+                StatusHooks.ensureScreenStateTracker(self.context)
             }
             result
         }
@@ -177,7 +179,7 @@ internal object SystemBarHook {
             View::class.java, "setFlags",
             Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!,
         ) ?: return 0
-        return TrioHooks.hook(module, method, "honorduo-visibility") { chain ->
+        return StatusHooks.hook(module, method, "honorduo-visibility") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is View) {
@@ -192,12 +194,12 @@ internal object SystemBarHook {
      */
     private fun hookContents(module: XposedModule, cl: ClassLoader): Int {
         val contents = Refl.cls("com.android.systemui.statusbar.HwStatusbarContents", cl) ?: return 0
-        return TrioHooks.hook(module, Refl.method(contents, "onAttachedToWindow"), "honorduo-contents-attach") { chain ->
+        return StatusHooks.hook(module, Refl.method(contents, "onAttachedToWindow"), "honorduo-contents-attach") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is ViewGroup) {
                 StatusBarIconManager.contents = WeakReference(self)
-                StatusBarIconManager.applyIconVisibility(TrioConfig.appearance())
+                StatusBarIconManager.applyIconVisibility(ModuleConfig.appearance())
             }
             result
         }
@@ -208,19 +210,19 @@ internal object SystemBarHook {
      */
     private fun hookClockFace(module: XposedModule, cl: ClassLoader): Int {
         val clock = Refl.cls("com.android.systemui.time.HwStatusBarClock", cl) ?: return 0
-        return TrioHooks.hook(
+        return StatusHooks.hook(
             module, Refl.method(clock, "onAttachedToWindow"), "honorduo-clock-face",
         ) { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is TextView) {
                 if (self.typeface != null) {
-                    TrioRenderer.adoptSystemTypeface(self.typeface)
-                    TrioHooks.invalidateHosts()
+                    IconRenderer.adoptSystemTypeface(self.typeface)
+                    StatusHooks.invalidateHosts()
                 }
                 BarClockManager.noteNativeClock(self)
                 BarClockManager.dropNow()
-                BarClockManager.sync(TrioConfig.appearance())
+                BarClockManager.sync(ModuleConfig.appearance())
             }
             result
         }
@@ -235,9 +237,9 @@ internal object SystemBarHook {
         if (contents != null) {
             val refreshMethod = Refl.method(contents, "refreshTint")
             if (refreshMethod != null) {
-                hooked += TrioHooks.hook(module, refreshMethod, "honorduo-contents-tint") { chain ->
+                hooked += StatusHooks.hook(module, refreshMethod, "honorduo-contents-tint") { chain ->
                     val result = chain.proceed()
-                    TrioHooks.invalidateHosts()
+                    StatusHooks.invalidateHosts()
                     result
                 }
             }
@@ -249,9 +251,9 @@ internal object SystemBarHook {
                 ArrayList::class.java, Float::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!,
             )
             if (method != null) {
-                hooked += TrioHooks.hook(module, method, "honorduo-tint") { chain ->
+                hooked += StatusHooks.hook(module, method, "honorduo-tint") { chain ->
                     val result = chain.proceed()
-                    TrioHooks.invalidateHosts()
+                    StatusHooks.invalidateHosts()
                     result
                 }
             }

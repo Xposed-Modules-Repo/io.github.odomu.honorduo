@@ -9,16 +9,24 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.hook
+package io.github.odomu.honorduo.hook.core
 
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
-import io.github.odomu.honorduo.model.TrioConfig
+import io.github.odomu.honorduo.hook.statusbar.BarClockManager
+import io.github.odomu.honorduo.hook.statusbar.StatusBarIconManager
+import io.github.odomu.honorduo.hook.statusbar.StatusBarRowManager
+import io.github.odomu.honorduo.hook.tracker.BarVisibility
+import io.github.odomu.honorduo.hook.tracker.BatteryPresence
+import io.github.odomu.honorduo.hook.tracker.FpsTicker
+import io.github.odomu.honorduo.hook.tracker.ScreenStateTracker
+import io.github.odomu.honorduo.model.ModuleConfig
+import io.github.odomu.honorduo.model.Prefs
+import io.github.odomu.honorduo.model.StatusState
 import java.lang.reflect.Method
-
 /**
  * Main Xposed hook coordinator and lifecycle dispatcher for MagicOS SystemUI.
  *
@@ -29,9 +37,8 @@ import java.lang.reflect.Method
  * - [BarClockManager]: status-bar clock styling, dual-row date/weekday stacking, and positioning.
  * - [StatusBarRowManager]: container management, glyph views, capsule avoidance, and anti-burn-in.
  */
-internal object TrioHooks {
+internal object StatusHooks {
 
-    const val TAG = "HonorDuo"
 
     const val LOG_INFO = 4
     const val LOG_WARN = 5
@@ -44,8 +51,8 @@ internal object TrioHooks {
 
     fun install(module: XposedModule, cl: ClassLoader) {
         sModule = module
-        TrioConfig.install(module)
-        TrioConfig.addListener { applyConfigChange() }
+        ModuleConfig.install(module)
+        ModuleConfig.addListener { applyConfigChange() }
 
         StatusBarRowManager.initFields(Refl.cls("com.android.systemui.statusbar.HwSystemIcons", cl) ?: Any::class.java)
 
@@ -58,7 +65,7 @@ internal object TrioHooks {
 
         log(
             module,
-            "HonorDuo installed, hooks=$hooked enabled=${TrioConfig.get().enabled}",
+            "HonorDuo installed, hooks=$hooked enabled=${ModuleConfig.get().enabled}",
         )
     }
 
@@ -67,7 +74,7 @@ internal object TrioHooks {
             Handler(Looper.getMainLooper()).post { applyConfigChange() }
             return
         }
-        val a = TrioConfig.appearance()
+        val a = ModuleConfig.appearance()
         if (debugLog()) {
             log(LOG_INFO, "config changed, rows=${StatusBarRowManager.rowsCount()} enabled=${a.glyph} style=${a.style}")
         }
@@ -80,6 +87,7 @@ internal object TrioHooks {
             a.hideAlarmIcon,
             a.hideBluetoothIcon,
         )
+        ShadeHook.onConfigChanged(a)
         FpsTicker.onConfigChanged()
         BatteryPresence.onConfigChanged()
     }
@@ -97,6 +105,7 @@ internal object TrioHooks {
         // callbacks, so replaying one turn later is what makes the single repaint
         // show the readings the hidden interval accumulated instead of the old ones.
         BarVisibility.addListener { shown ->
+            BarClockManager.onVisibilityChanged(shown)
             if (!shown) return@addListener
             Handler(Looper.getMainLooper()).post {
                 if (!BarVisibility.shown) return@post
@@ -104,7 +113,7 @@ internal object TrioHooks {
                 sRepaintPending = false
                 // Only a skipped update needs the text rebuilt; every return to the
                 // bar needs the repaint, if only for the ink the new surroundings ask for.
-                if (pending) StatusBarRowManager.syncAll(TrioConfig.appearance(), force = false)
+                if (pending) StatusBarRowManager.syncAll(ModuleConfig.appearance(), force = false)
                 invalidateHosts()
             }
         }
@@ -123,7 +132,7 @@ internal object TrioHooks {
      *
      * While the bar is hidden the request is only recorded: nothing painted into
      * an undrawn row reaches a display, and the work behind it - the telephony
-     * poll inside [TrioState.refresh] above all - is the expensive part. The one
+     * poll inside [StatusState.refresh] above all - is the expensive part. The one
      * repaint this defers is replayed by the visibility listener above, so the
      * bar cannot come back showing a stale reading.
      */
@@ -138,7 +147,7 @@ internal object TrioHooks {
         }
         sRepaintPending = false
         StatusBarRowManager.invalidateAll()
-        BarClockManager.sync(TrioConfig.appearance())
+        BarClockManager.sync(ModuleConfig.appearance())
     }
 
     /** Records that a repaint was skipped while the bar was hidden. */
@@ -170,19 +179,10 @@ internal object TrioHooks {
         }
     }
 
-    fun methodNamed(c: Class<*>?, name: String, arity: Int): Method? {
-        if (c == null) return null
-        return try {
-            c.declaredMethods.firstOrNull { it.name == name && it.parameterTypes.size == arity }
-                ?.also { it.isAccessible = true }
-        } catch (ignored: Throwable) {
-            null
-        }
-    }
 
     fun log(module: XposedModule, msg: String) {
         try {
-            module.log(LOG_INFO, TAG, msg)
+            module.log(LOG_INFO, Prefs.TAG, msg)
         } catch (ignored: Throwable) {
             // logging must never break hook installation.
         }
@@ -192,12 +192,12 @@ internal object TrioHooks {
     fun log(priority: Int, msg: String) {
         val module = sModule ?: return
         try {
-            module.log(priority, TAG, msg)
+            module.log(priority, Prefs.TAG, msg)
         } catch (ignored: Throwable) {
             // logging must never break a config change.
         }
     }
 
     /** True when the user asked for verbose logging. */
-    fun debugLog(): Boolean = TrioConfig.debugLog()
+    fun debugLog(): Boolean = ModuleConfig.debugLog()
 }

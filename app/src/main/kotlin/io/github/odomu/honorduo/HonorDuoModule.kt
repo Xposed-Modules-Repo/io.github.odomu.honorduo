@@ -11,9 +11,10 @@
 
 package io.github.odomu.honorduo
 
-import io.github.odomu.honorduo.hook.TrioHooks
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
+import io.github.odomu.honorduo.hook.core.StatusHooks
+import io.github.odomu.honorduo.model.Prefs
 
 /**
  * HonorDuo - folds the Wi-Fi signal and the mobile signal into the status bar of
@@ -26,25 +27,19 @@ import io.github.libxposed.api.XposedModuleInterface
 class HonorDuoModule : XposedModule() {
 
     override fun onPackageReady(param: XposedModuleInterface.PackageReadyParam) {
-        if (param.packageName != TARGET_PACKAGE) return
+        if (param.packageName != Prefs.SYSTEMUI_PACKAGE) return
         try {
-            TrioHooks.install(this, param.classLoader)
+            StatusHooks.install(this, param.classLoader)
         } catch (t: Throwable) {
-            log(LOG_WARN, "install failed: $t")
+            log(5, "install failed: $t")
         }
     }
 
     private fun log(priority: Int, message: String) {
         try {
-            log(priority, TAG, message)
+            log(priority, Prefs.TAG, message)
         } catch (_: Throwable) {
             // Logging must never break the module.
         }
-    }
-
-    private companion object {
-        const val TAG = "HonorDuo"
-        const val LOG_WARN = 5
-        const val TARGET_PACKAGE = "com.android.systemui"
     }
 }

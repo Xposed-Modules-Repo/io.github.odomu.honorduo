@@ -9,14 +9,18 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.hook
+package io.github.odomu.honorduo.hook.statusbar
 
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import io.github.odomu.honorduo.hook.core.StatusHooks
+import io.github.odomu.honorduo.hook.tracker.BarVisibility
+import io.github.odomu.honorduo.hook.tracker.ScreenStateTracker.addListener
+import io.github.odomu.honorduo.hook.tracker.ScreenStateTracker.isScreenOn
+import io.github.odomu.honorduo.model.ModuleConfig
 import io.github.odomu.honorduo.model.Prefs
-import io.github.odomu.honorduo.model.TrioConfig
-import io.github.odomu.honorduo.model.TrioState
+import io.github.odomu.honorduo.model.StatusState
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -51,9 +55,15 @@ internal object ClockTicker {
     private var dateFormat: java.text.DateFormat? = null
 
     private var weekdayFormat: SimpleDateFormat? = null
-
     private var is24Hour = true
 
+    private val ZH_DAYS = arrayOf("日", "一", "二", "三", "四", "五", "六")
+    private val FMT_SLASH_YMD = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
+    private val FMT_ZH_MD = SimpleDateFormat("M月d日", Locale.getDefault())
+    private val FMT_ZH_YMD = SimpleDateFormat("yyyy年M月d日", Locale.getDefault())
+    private val FMT_DEF_MD = SimpleDateFormat("MM/dd", Locale.getDefault())
+    private val FMT_EN_SHORT = SimpleDateFormat("EEE", Locale.ENGLISH)
+    private val FMT_EN_FULL = SimpleDateFormat("EEEE", Locale.ENGLISH)
     @Synchronized
     fun start(context: Context) {
         if (started) return
@@ -65,8 +75,18 @@ internal object ClockTicker {
         dateFormat = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM, locale)
         weekdayFormat = SimpleDateFormat("EEEE", locale)
         is24Hour = AndroidDateFormat.is24HourFormat(app)
+        addListener { screenOn ->
+            main.post {
+                if (screenOn) {
+                    main.removeCallbacks(tickRunnable)
+                    main.post(tickRunnable)
+                } else {
+                    main.removeCallbacks(tickRunnable)
+                }
+            }
+        }
         BarVisibility.addListener { shown ->
-            if (shown) {
+            if (shown && isScreenOn) {
                 main.removeCallbacks(tickRunnable)
                 main.post(tickRunnable)
             }
@@ -76,24 +96,23 @@ internal object ClockTicker {
 
     fun formatDate(now: java.util.Date, format: Int): String {
         return when (format) {
-            Prefs.CLOCK_DATE_SLASH_YMD -> SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(now)
-            Prefs.CLOCK_DATE_ZH_MD -> SimpleDateFormat("M月d日", Locale.getDefault()).format(now)
-            Prefs.CLOCK_DATE_ZH_YMD -> SimpleDateFormat("yyyy年M月d日", Locale.getDefault()).format(now)
-            else -> SimpleDateFormat("MM/dd", Locale.getDefault()).format(now)
+            Prefs.CLOCK_DATE_SLASH_YMD -> synchronized(FMT_SLASH_YMD) { FMT_SLASH_YMD.format(now) }
+            Prefs.CLOCK_DATE_ZH_MD -> synchronized(FMT_ZH_MD) { FMT_ZH_MD.format(now) }
+            Prefs.CLOCK_DATE_ZH_YMD -> synchronized(FMT_ZH_YMD) { FMT_ZH_YMD.format(now) }
+            else -> synchronized(FMT_DEF_MD) { FMT_DEF_MD.format(now) }
         }
     }
 
     fun formatWeekday(now: java.util.Date, format: Int): String {
         val cal = Calendar.getInstance().apply { time = now }
         val dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
-        val zhDays = arrayOf("日", "一", "二", "三", "四", "五", "六")
         val idx = (dayOfWeek - 1).coerceIn(0, 6)
         return when (format) {
-            Prefs.CLOCK_WEEKDAY_ZH_SHORT -> "周" + zhDays[idx]
-            Prefs.CLOCK_WEEKDAY_ZH_FULL -> "星期" + zhDays[idx]
-            Prefs.CLOCK_WEEKDAY_EN_SHORT -> SimpleDateFormat("EEE", Locale.ENGLISH).format(now)
-            Prefs.CLOCK_WEEKDAY_EN_FULL -> SimpleDateFormat("EEEE", Locale.ENGLISH).format(now)
-            else -> "周" + zhDays[idx]
+            Prefs.CLOCK_WEEKDAY_ZH_SHORT -> "周" + ZH_DAYS[idx]
+            Prefs.CLOCK_WEEKDAY_ZH_FULL -> "星期" + ZH_DAYS[idx]
+            Prefs.CLOCK_WEEKDAY_EN_SHORT -> synchronized(FMT_EN_SHORT) { FMT_EN_SHORT.format(now) }
+            Prefs.CLOCK_WEEKDAY_EN_FULL -> synchronized(FMT_EN_FULL) { FMT_EN_FULL.format(now) }
+            else -> "周" + ZH_DAYS[idx]
         }
     }
 
@@ -149,12 +168,9 @@ internal object ClockTicker {
     private val tickRunnable = Runnable { tick() }
 
     private fun tick() {
+        if (!isScreenOn) return
         var delay = MAX_LATENESS_MS
         try {
-            // The alignment below is still recomputed while hidden - one date
-            // comparison a minute - but the format and the repaint behind it wait
-            // for a bar that can show them. The visibility listener re-ticks on the
-            // way back, so the first visible minute is the current one.
             if (BarVisibility.shown && timeFormat != null && usesClock()) publishNow()
             // Recomputed either way: the style can be switched at any moment and
             // the next tick should already be aligned to the boundary.
@@ -174,7 +190,7 @@ internal object ClockTicker {
      * Asks the same rule the suppression asks, so the renderer drawing the time
      * and the hook hiding the bar's own copy cannot disagree.
      */
-    private fun usesClock(): Boolean = TrioConfig.appearance().hidesStatusClock()
+    private fun usesClock(): Boolean = ModuleConfig.appearance().hidesStatusClock()
 
     /**
      * The time in the user's own locale format.
@@ -183,7 +199,7 @@ internal object ClockTicker {
      * clock follows the system setting, and a second clock that disagreed with
      * every other one on the phone would read as a bug.
      */
-    private fun seconds(): Boolean = TrioConfig.appearance().clockSeconds
+    private fun seconds(): Boolean = ModuleConfig.appearance().clockSeconds
 
     private fun format(now: java.util.Date): String {
         if (!seconds()) {
@@ -209,15 +225,15 @@ internal object ClockTicker {
      */
     private fun publishNow() {
         val now = Calendar.getInstance().time
-        val a = TrioConfig.appearance()
-        TrioState.sClockDate = formatDate(now, a.clockDateFormat)
-        TrioState.sClockWeekday = formatWeekday(now, a.clockWeekdayFormat)
-        TrioState.sClockLunar = formatLunar(now)
+        val a = ModuleConfig.appearance()
+        StatusState.sClockDate = formatDate(now, a.clockDateFormat)
+        StatusState.sClockWeekday = formatWeekday(now, a.clockWeekdayFormat)
+        StatusState.sClockLunar = formatLunar(now)
         if (timeFormat == null) return
         val format = timeFormat ?: return
         val time = format.format(now)
-        TrioState.sClockText = time
-        TrioHooks.invalidateHosts()
+        StatusState.sClockText = time
+        StatusHooks.invalidateHosts()
     }
 
     /** The longest a tick may be late before the boundary is recomputed. */

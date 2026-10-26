@@ -9,7 +9,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.hook
+package io.github.odomu.honorduo.hook.tracker
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -23,7 +23,8 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import io.github.odomu.honorduo.model.TrioState
+import io.github.odomu.honorduo.hook.core.StatusHooks
+import io.github.odomu.honorduo.model.StatusState
 
 /**
  * Event-driven Wi-Fi presence, independent of the icons this module hides.
@@ -145,7 +146,7 @@ internal object WifiPresence {
 
             val next = network != null && network.isConnected
             publish(next)
-            TrioState.sWifiLevel = if (!next) {
+            StatusState.sWifiLevel = if (!next) {
                 -1
             } else {
                 // A hidden native icon may not rebind after a reconnect, so the
@@ -154,10 +155,10 @@ internal object WifiPresence {
                 if (info != null && info.rssi > -127) {
                     WifiManager.calculateSignalLevel(info.rssi, WIFI_LEVELS)
                 } else {
-                    TrioState.sWifiLevel
+                    StatusState.sWifiLevel
                 }
             }
-            TrioHooks.invalidateHosts()
+            StatusHooks.invalidateHosts()
         } catch (_: RuntimeException) {
             // Permissions or ROM differences must never crash SystemUI.
         }
@@ -165,8 +166,8 @@ internal object WifiPresence {
 
     private fun publish(next: Boolean) {
         connected = next
-        if (!next) TrioState.sWifiLevel = -1
-        if (TrioState.setWifiPresent(next)) TrioHooks.invalidateHosts()
+        if (!next) StatusState.sWifiLevel = -1
+        if (StatusState.setWifiPresent(next)) StatusHooks.invalidateHosts()
     }
 
     /** Levels the glyph draws: five states, 0..4. */

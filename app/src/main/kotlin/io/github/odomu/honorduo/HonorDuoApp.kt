@@ -13,9 +13,10 @@ package io.github.odomu.honorduo
 
 import android.app.Application
 import android.util.Log
-import io.github.odomu.honorduo.ui.SettingsRepository
 import io.github.libxposed.service.XposedService
 import io.github.libxposed.service.XposedServiceHelper
+import io.github.odomu.honorduo.model.Prefs
+import io.github.odomu.honorduo.ui.manager.SettingsRepository
 import java.util.concurrent.CopyOnWriteArraySet
 
 /**
@@ -33,7 +34,7 @@ class HonorDuoApp : Application(), XposedServiceHelper.OnServiceListener {
         // Must happen in onCreate: the framework broadcasts its binder to
         // whoever registered by the time the process starts.
         runCatching { XposedServiceHelper.registerListener(this) }
-            .onFailure { Log.w(TAG, "cannot register service listener", it) }
+            .onFailure { Log.w(Prefs.TAG, "cannot register service listener", it) }
     }
 
     override fun onServiceBind(service: XposedService) {
@@ -41,7 +42,7 @@ class HonorDuoApp : Application(), XposedServiceHelper.OnServiceListener {
         // The app may have been configured while the framework was absent, so
         // replay everything instead of relying on write-through alone.
         runCatching { SettingsRepository(this).syncAllToFramework() }
-            .onFailure { Log.w(TAG, "cannot push settings to framework", it) }
+            .onFailure { Log.w(Prefs.TAG, "cannot push settings to framework", it) }
         listeners.forEach { it(service) }
     }
 
@@ -54,7 +55,6 @@ class HonorDuoApp : Application(), XposedServiceHelper.OnServiceListener {
     }
 
     companion object {
-        private const val TAG = "HonorDuo"
 
         @Volatile
         var xposedService: XposedService? = null

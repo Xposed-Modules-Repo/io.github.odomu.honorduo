@@ -28,8 +28,8 @@ android {
         minSdk = 29
         //noinspection TargetSdkVersionUpdate
         targetSdk = 37
-        versionCode = tagVersionCode ?: 10003
-        versionName = tagVersionName ?: "1.0.3"
+        versionCode = tagVersionCode ?: 10004
+        versionName = tagVersionName ?: "1.0.4"
 
         buildConfigField("String", "REPO_SLUG", "\"$repoSlug\"")
     }
@@ -99,6 +99,8 @@ dependencies {
     compileOnly("io.github.libxposed:api:102.0.0")
     // Needed by the settings app to talk to the framework service.
     implementation("io.github.libxposed:service:102.0.0")
+    // LSPosed official tool library for high-performance hidden API access and reflection.
+    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.2")
 
     implementation("androidx.core:core-ktx:1.19.1")
     implementation("androidx.activity:activity-compose:1.13.0")

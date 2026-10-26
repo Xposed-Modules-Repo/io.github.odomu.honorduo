@@ -9,16 +9,16 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.hook
-
+package io.github.odomu.honorduo.hook.tracker
 import android.content.Context
+
 import android.hardware.display.DisplayManager
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.Choreographer
+import io.github.odomu.honorduo.model.ModuleConfig
 import io.github.odomu.honorduo.model.Prefs
-import io.github.odomu.honorduo.model.TrioConfig
 import kotlin.math.roundToInt
 
 /**
@@ -78,9 +78,9 @@ internal object FpsTicker {
     }
 
     private fun isFpsActive(): Boolean {
-        val a = TrioConfig.appearance()
+        val a = ModuleConfig.appearance()
         return ScreenStateTracker.isScreenOn && BarVisibility.shown && a.enabled &&
-            (a.perfFps || (!a.glyph && a.hasRingPart(Prefs.PART_FPS)))
+            (a.perfFps || a.placed(Prefs.PART_FPS) || (!a.glyph && a.hasRingPart(Prefs.PART_FPS)))
     }
 
     private fun onScreenStateChanged(screenOn: Boolean) {
@@ -94,8 +94,11 @@ internal object FpsTicker {
     fun onConfigChanged() {
         val handler = main ?: return
         handler.post {
-            if (isFpsActive()) {
-                schedulePoll(0L)
+            val active = isFpsActive()
+            if (active) {
+                if (!callbackRunning && !pollScheduled) {
+                    schedulePoll(0L)
+                }
             } else {
                 stopSampling()
             }

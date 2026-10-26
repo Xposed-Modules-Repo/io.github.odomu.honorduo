@@ -9,13 +9,12 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.hook
+package io.github.odomu.honorduo.hook.statusbar
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.res.Resources
-import android.graphics.Canvas
 import android.graphics.Paint
+import android.os.Build
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
@@ -27,14 +26,22 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import io.github.odomu.honorduo.hook.StatusBarRowManager.PERF_MIN_SIZE_RATIO
+import androidx.annotation.RequiresApi
+import io.github.odomu.honorduo.hook.core.Refl
+import io.github.odomu.honorduo.hook.core.StatusHooks
+import io.github.odomu.honorduo.hook.statusbar.StatusBarRowManager.PERF_MIN_SIZE_RATIO
+import io.github.odomu.honorduo.hook.tracker.BarVisibility
+import io.github.odomu.honorduo.hook.tracker.ScreenStateTracker
+import io.github.odomu.honorduo.model.ModuleConfig
 import io.github.odomu.honorduo.model.Prefs
-import io.github.odomu.honorduo.model.TrioAppearance
-import io.github.odomu.honorduo.model.TrioConfig
-import io.github.odomu.honorduo.model.TrioState
-import io.github.odomu.honorduo.render.GlyphView
-import io.github.odomu.honorduo.render.TrioGeometry
-import io.github.odomu.honorduo.render.TrioRenderer
+import io.github.odomu.honorduo.model.StatusAppearance
+import io.github.odomu.honorduo.model.StatusState
+import io.github.odomu.honorduo.ui.render.IconGeometry
+import io.github.odomu.honorduo.ui.render.IconRenderer
+import io.github.odomu.honorduo.ui.view.GlyphView
+import io.github.odomu.honorduo.ui.view.OutSignalView
+import io.github.odomu.honorduo.ui.view.OutTypeLabel
+import io.github.odomu.honorduo.ui.view.PerfLabel
 import java.lang.reflect.Field
 import java.util.Locale
 import kotlin.math.max
@@ -88,11 +95,12 @@ internal object StatusBarRowManager {
     fun firstRowResources(): Resources? = snapshot().firstOrNull()?.row?.resources
 
     /** Registers (or refreshes) the row for a `HwSystemIcons` instance. */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     fun register(row: ViewGroup) {
         if (find(row) != null) return
         val battery = idView(row, "battery") ?: return
         val parent = battery.parent as? ViewGroup ?: return
-        val created = Row(row, parent, battery, TrioState(battery))
+        val created = Row(row, parent, battery, StatusState(battery))
         synchronized(ROWS) { ROWS.add(created) }
         watchVisibility(row)
         row.post { syncRow(created, true) }
@@ -119,6 +127,7 @@ internal object StatusBarRowManager {
      * the window being hidden or shown, and attachment. All three are rare, and
      * every one of them means what the gate tracks actually moved.
      */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     private fun watchVisibility(row: ViewGroup) {
         row.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(v: View) = refreshShown()
@@ -158,7 +167,7 @@ internal object StatusBarRowManager {
         return null
     }
 
-    fun syncAll(a: TrioAppearance = TrioConfig.appearance(), force: Boolean = true) {
+    fun syncAll(a: StatusAppearance = ModuleConfig.appearance(), force: Boolean = true) {
         for (row in snapshot()) {
             row.row.post {
                 syncRow(row, force)
@@ -179,7 +188,7 @@ internal object StatusBarRowManager {
      *   wanted even if nothing about the row moved
      */
     fun syncRow(row: Row, force: Boolean) {
-        val a = TrioConfig.appearance()
+        val a = ModuleConfig.appearance()
         StatusBarIconManager.resolveIds(row.row.resources)
         if (!a.enabled) {
             unmountGlyph(row)
@@ -224,7 +233,7 @@ internal object StatusBarRowManager {
         // A hidden row lays out for nobody: the work below mounts and measures
         // children. The replay on the way back runs a full sync, so nothing is lost.
         if (!BarVisibility.shown) {
-            TrioHooks.markRepaintPending()
+            StatusHooks.markRepaintPending()
             return
         }
         synchronized(row) {
@@ -276,14 +285,11 @@ internal object StatusBarRowManager {
      * order the setting lists.
      */
     private fun syncOutViews(row: Row) {
-        val a = TrioConfig.appearance()
+        val a = ModuleConfig.appearance()
         for (slot in a.outOrder) {
             when (slot) {
                 Prefs.OUT_SLOT_SIGNAL -> syncSignal(row, a)
-                Prefs.OUT_SLOT_READOUTS -> {
-                    syncPerf(row, a)
-                    syncFps(row, a)
-                }
+                Prefs.OUT_SLOT_READOUTS -> syncPerfReadouts(row, a)
                 Prefs.OUT_SLOT_TYPE -> syncType(row, a)
                 else -> Unit
             }
@@ -299,7 +305,7 @@ internal object StatusBarRowManager {
      * one is re-inserted before the glyph in list order, which is what makes the last
      * entry in the list the one nearest the battery.
      */
-    private fun reorderOutViews(row: Row, a: TrioAppearance) {
+    private fun reorderOutViews(row: Row, a: StatusAppearance) {
         val order = a.outOrder
         val applied = row.outOrderApplied
         if (applied != null && applied.contentEquals(order)) return
@@ -325,7 +331,7 @@ internal object StatusBarRowManager {
     }
 
     /** The stacked SIM reading, or nothing when the signal is handed back. */
-    private fun syncSignal(row: Row, a: TrioAppearance) {
+    private fun syncSignal(row: Row, a: StatusAppearance) {
         if (!a.stackedOut()) {
             remove(row, row.signal)
             row.signal = null
@@ -343,9 +349,9 @@ internal object StatusBarRowManager {
         val rowHeight = row.row.height
         val reading = IntArray(2)
         row.state.refresh()
-        TrioRenderer.outSignalLevels(
+        IconRenderer.outSignalLevels(
             a.dataSimOnly, row.state.mobileLevel,
-            row.state.slotLevels, TrioState.sDataSlot, row.state.sims, reading,
+            row.state.slotLevels, StatusState.sDataSlot, row.state.sims, reading,
         )
         // Each card's icon name states its level, even when telephony cannot answer.
         val native = nativeSlotLevels(row.container)
@@ -353,7 +359,7 @@ internal object StatusBarRowManager {
             // "Data SIM only" still means one row: reading the cards must not quietly
             // undo it by putting the second card back.
             if (a.dataSimOnly) {
-                val slot = TrioState.sDataSlot
+                val slot = StatusState.sDataSlot
                 if (slot in native.indices) {
                     reading[0] = native[slot]
                 }
@@ -367,8 +373,8 @@ internal object StatusBarRowManager {
         if (reading[1] >= 0 && !a.showSim2) {
             reading[1] = -1
         }
-        val fallback = TrioState.sMobileType.ifEmpty { null }
-        val dataSlot = TrioState.sDataSlot.coerceIn(0, row.state.slotTypes.size - 1)
+        val fallback = StatusState.sMobileType.ifEmpty { null }
+        val dataSlot = StatusState.sDataSlot.coerceIn(0, row.state.slotTypes.size - 1)
         val slots = row.state.slotLevels
         val dual = reading[1] >= 0
         val firstSlot = when {
@@ -381,7 +387,7 @@ internal object StatusBarRowManager {
         signal.type2 = if (a.dataSimOnly || !dual) null else row.state.slotTypes[1].ifEmpty { fallback }
         signal.bars = max(0, reading[0])
         signal.dots = reading[1]
-        var height = TrioRenderer.outSignalHeight(a, a.outSignalSize, density, dual)
+        var height = IconRenderer.outSignalHeight(a, a.outSignalSize, density, dual)
         // The reading is centred in the row, and its caption is drawn flush with its TOP,
         // so anything taller than the row overflows UPWARD first and the bar's top edge
         // eats the caption before it touches the bars. The row's own height is not the
@@ -400,7 +406,7 @@ internal object StatusBarRowManager {
                 height = min(height, maxSafe)
             }
         }
-        val width = TrioRenderer.outSignalWidth(
+        val width = IconRenderer.outSignalWidth(
             height, a, signal.type, signal.type2, dual,
         )
         val marginDp = if (a.outSignalMargin in 0..16) a.outSignalMargin else Prefs.DEF_OUT_SIGNAL_MARGIN
@@ -424,7 +430,7 @@ internal object StatusBarRowManager {
         val group = root.findViewById<ViewGroup>(StatusBarIconManager.mobileGroupId)
             ?: StatusBarIconManager.contentsViewGroup?.findViewById(StatusBarIconManager.mobileGroupId)
             ?: return null
-        val count = minOf(group.childCount, TrioState.SIM_SLOTS)
+        val count = minOf(group.childCount, StatusState.SIM_SLOTS)
         if (count < 2) return null
         val levels = IntArray(count)
         for (i in 0 until count) {
@@ -466,117 +472,144 @@ internal object StatusBarRowManager {
         return ((raw * 4 + 2) / 5).coerceIn(0, 4)
     }
 
-    /** The charging-power / battery-temperature readout. */
-    private fun syncPerf(row: Row, a: TrioAppearance) {
-        if (!a.perfAnywhere()) {
-            remove(row, row.perf)
-            row.perf = null
-            return
-        }
-        val density = row.row.resources.displayMetrics.density
-        var perf = row.perf
-        if (perf == null) {
-            perf = PerfLabel(row.row.context)
-            insertBefore(row, perf)
-            row.perf = perf
-            row.outOrderApplied = null
-        }
-        perf.host = row.state
-        row.state.refresh()
-        val text = perfText(a, row.state)
-        if (text != perf.text.toString()) {
-            perf.text = text
-        }
-        applyTypeface(perf, a.perfTypeWeight())
-        perf.setTextSize(TypedValue.COMPLEX_UNIT_PX, perfTextSize(text, row, a, density))
-        // The stacked pair's extra breathing room: the platform adds this to every line
-        // beyond the first, so a single line is unaffected and the measured height above
-        // already accounts for it.
-        perf.setLineSpacing(a.perfLineGap * density, 1f)
-        val baseColor = row.state.foreground()
-        val tempIsHigh = a.roleColorsTemp && TrioState.sBatteryHot
-        if (tempIsHigh) {
-            val highColor = if (TrioRenderer.isDarkBackground(baseColor)) a.highTempOnDark else a.highTempOnLight
-            val tempStr = "${TrioState.sBatteryTempC}°C"
-            val idx = text.indexOf(tempStr)
-            if (idx >= 0) {
-                val span = SpannableStringBuilder(text)
-                span.setSpan(
-                    ForegroundColorSpan(highColor),
-                    idx, idx + tempStr.length,
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
-                )
-                perf.text = span
-            } else {
-                perf.text = text
-            }
-        } else {
-            perf.text = text
-            perf.setTextColor(baseColor)
-        }
-        size(perf, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, a.outTypeMarginRight, 0, density)
-        if (text.isEmpty()) {
-            StatusBarIconManager.hide(perf)
-        } else {
-            StatusBarIconManager.release(perf)
-        }
-    }
+    private class ActivePerfItem(
+        val id: Int,
+        val text: String,
+        val isTemp: Boolean = false,
+        val isHighTemp: Boolean = false,
+    )
 
     /**
-     * The frame rate, in its own view beside the readouts.
+     * Synchronises the out-of-ring performance readouts (Power, Temp, Current, FPS).
      *
-     * It prefers the readouts strip, which has a second line free whenever only one of the
-     * watt and the temperature is switched on. This view exists for the case that strip
-     * cannot take it: both lines in use, or no strip at all - then a third line would
-     * shrink all three readings, so the frame rate stands beside them instead.
+     * Items are ordered by [StatusAppearance.perfOrder] (reflecting the sequence in which
+     * they were enabled). At most two items stack in a single label:
+     * - 1 item: single readout in group 1.
+     * - 2 items: 2 stacked in group 1.
+     * - 3 items: 2 stacked in group 1, 3rd alone in group 2.
+     * - 4 items: 2 stacked in group 1, 2 stacked in group 2.
      */
-    private fun syncFps(row: Row, a: TrioAppearance) {
-        row.state.refresh()
-        val text = fpsText(a, row.state)
-        if (text.isEmpty()) {
+    private fun syncPerfReadouts(row: Row, a: StatusAppearance) {
+        if (!a.perfPairShown()) {
+            remove(row, row.perf)
             remove(row, row.fps)
+            row.perf = null
             row.fps = null
             return
         }
+        row.state.refresh()
         val density = row.row.resources.displayMetrics.density
-        var label = row.fps
+
+        val charging = StatusState.sChargingAttached
+        val wattsWanted = charging || a.perfRunning || (!a.glyph && a.hasRingPart(Prefs.PART_RUNNING))
+        val wattsInGlyph = a.glyph && a.placed(if (charging) Prefs.PART_POWER else Prefs.PART_RUNNING)
+        val showWatts = (a.perfPower || (!a.glyph && (a.hasRingPart(Prefs.PART_POWER) || a.hasRingPart(Prefs.PART_RUNNING)))) &&
+            wattsWanted && !wattsInGlyph && !StatusState.sChargePowerW.isNaN()
+        val powerItem = if (showWatts) {
+            ActivePerfItem(Prefs.PERF_ITEM_POWER, String.format(Locale.US, "%.1fW", StatusState.sChargePowerW))
+        } else null
+
+        val tempWanted = !a.perfTempChargingOnly || charging
+        val tempInGlyph = a.glyph && a.placed(Prefs.PART_TEMP)
+        val showTemp = (a.perfTemp || (!a.glyph && a.hasRingPart(Prefs.PART_TEMP))) &&
+            tempWanted && !tempInGlyph &&
+            StatusState.sBatteryTempC != StatusState.TEMP_UNKNOWN
+        val tempItem = if (showTemp) {
+            ActivePerfItem(
+                Prefs.PERF_ITEM_TEMP,
+                "${StatusState.sBatteryTempC}\u00B0C",
+                isTemp = true,
+                isHighTemp = a.roleColorsTemp && StatusState.sBatteryHot,
+            )
+        } else null
+
+        val currentInGlyph = a.glyph && a.placed(Prefs.PART_CURRENT)
+        val showCurrent = (a.perfCurrent || (!a.glyph && a.hasRingPart(Prefs.PART_CURRENT))) &&
+            !currentInGlyph && StatusState.sCurrentUa != StatusState.CURRENT_UNKNOWN
+        val currentText = if (showCurrent) StatusState.currentText(a.currentUnit, a.currentPositive) else null
+        val currentItem = if (!currentText.isNullOrEmpty()) {
+            ActivePerfItem(Prefs.PERF_ITEM_CURRENT, currentText)
+        } else null
+
+        val fpsWanted = a.perfFps || (!a.glyph && a.hasRingPart(Prefs.PART_FPS))
+        val fpsInGlyph = a.glyph && a.drawsPart(Prefs.PART_FPS, row.state.level, row.state.charging, row.state.wifiLevel, row.state.mobileType, row.state.sims)
+        val showFps = fpsWanted && !fpsInGlyph && StatusState.sFps > 0
+        val fpsItem = if (showFps) {
+            ActivePerfItem(Prefs.PERF_ITEM_FPS, StatusState.sFps.toString())
+        } else null
+
+        val activeList = ArrayList<ActivePerfItem>(4)
+        for (id in a.perfOrder) {
+            when (id) {
+                Prefs.PERF_ITEM_POWER -> powerItem?.let { activeList.add(it) }
+                Prefs.PERF_ITEM_TEMP -> tempItem?.let { activeList.add(it) }
+                Prefs.PERF_ITEM_CURRENT -> currentItem?.let { activeList.add(it) }
+                Prefs.PERF_ITEM_FPS -> fpsItem?.let { activeList.add(it) }
+            }
+        }
+
+        val group1 = activeList.take(2)
+        val group2 = if (activeList.size > 2) activeList.drop(2).take(2) else emptyList()
+
+        row.perf = applyReadoutGroup(row, a, row.perf, group1, density)
+        row.fps = applyReadoutGroup(row, a, row.fps, group2, density)
+    }
+
+    private fun applyReadoutGroup(
+        row: Row,
+        a: StatusAppearance,
+        existing: PerfLabel?,
+        items: List<ActivePerfItem>,
+        density: Float,
+    ): PerfLabel? {
+        if (items.isEmpty()) {
+            remove(row, existing)
+            return null
+        }
+        var label = existing
         if (label == null) {
             label = PerfLabel(row.row.context)
             insertBefore(row, label)
-            row.fps = label
             row.outOrderApplied = null
         }
         label.host = row.state
-        if (text != label.text.toString()) {
-            label.text = text
-        }
+        val text = items.joinToString(PERF_BREAK.toString()) { it.text }
         applyTypeface(label, a.perfTypeWeight())
-        val fpsSizePx = (a.outTypeSize * density * (a.perfScale / 100f)).roundToInt().toFloat()
-        label.setTextSize(TypedValue.COMPLEX_UNIT_PX, fpsSizePx)
-        label.setTextColor(row.state.foreground())
+        val targetSize = perfTextSize(text, row, a, density)
+        if (kotlin.math.abs(label.textSize - targetSize) > 0.05f) {
+            label.setTextSize(TypedValue.COMPLEX_UNIT_PX, targetSize)
+        }
+        label.setLineSpacing(a.perfLineGap * density, 1f)
+
+        val baseColor = row.state.foreground()
+        val highTempItem = items.firstOrNull { it.isHighTemp }
+        if (label.text.toString() != text) {
+            if (highTempItem != null) {
+                val highColor = if (IconRenderer.isDarkBackground(baseColor)) a.highTempOnDark else a.highTempOnLight
+                val tempStr = highTempItem.text
+                val idx = text.indexOf(tempStr)
+                if (idx >= 0) {
+                    val span = SpannableStringBuilder(text)
+                    span.setSpan(
+                        ForegroundColorSpan(highColor),
+                        idx, idx + tempStr.length,
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+                    )
+                    label.text = span
+                } else {
+                    label.text = text
+                }
+            } else {
+                label.text = text
+                label.setTextColor(baseColor)
+            }
+        }
         size(label, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, a.outTypeMarginRight, 0, density)
         StatusBarIconManager.release(label)
+        return label
     }
-
-    /**
-     * The frame rate as its own view draws it: "120", or empty.
-     *
-     * Empty in two cases: the glyph is drawing the piece itself, or the strip had a free
-     * second line and took it - one frame rate, drawn once. It is mounted only when the
-     * strip is already full (or empty), which is the case a third line would break.
-     */
-    private fun fpsText(a: TrioAppearance, s: TrioState): String {
-        val fpsWanted = a.perfFps || (!a.glyph && a.hasRingPart(Prefs.PART_FPS))
-        if (!fpsWanted || TrioState.sFps <= 0) return ""
-        if (a.glyph && a.drawsPart(Prefs.PART_FPS, s.level, s.charging, s.wifiLevel, s.mobileType, s.sims)) {
-            return ""
-        }
-        if (perfStripLines(a) == 1) return ""
-        return TrioState.sFps.toString()
-    }
-
     /** The network type, when it is drawn outside the glyph. */
-    private fun syncType(row: Row, a: TrioAppearance) {
+    private fun syncType(row: Row, a: StatusAppearance) {
         if (!a.typeOutOfRing || a.stackTypeShown() || a.labelInReading() ||
             (a.signalOutOfRing && !a.stackedSignal)
         ) {
@@ -632,11 +665,19 @@ internal object StatusBarRowManager {
      */
     private fun size(view: View, width: Int, height: Int, gapEndDp: Int, gapStartDp: Int, density: Float) {
         val lp = view.layoutParams as? LinearLayout.LayoutParams ?: LinearLayout.LayoutParams(width, height)
+        val endMargin = (gapEndDp * density).roundToInt()
+        val startMargin = (gapStartDp * density).roundToInt()
+        if (lp.width == width && lp.height == height &&
+            lp.marginEnd == endMargin && lp.marginStart == startMargin &&
+            lp.gravity == Gravity.CENTER_VERTICAL
+        ) {
+            return
+        }
         lp.width = width
         lp.height = height
         lp.gravity = Gravity.CENTER_VERTICAL
-        lp.marginEnd = (gapEndDp * density).roundToInt()
-        lp.marginStart = (gapStartDp * density).roundToInt()
+        lp.marginEnd = endMargin
+        lp.marginStart = startMargin
         view.layoutParams = lp
     }
 
@@ -662,7 +703,7 @@ internal object StatusBarRowManager {
     }
 
     private fun applyTypeface(view: TextView, weight: Int) {
-        val face = TrioRenderer.typefaceFor(weight)
+        val face = IconRenderer.typefaceFor(weight)
         if (view.typeface !== face) {
             view.typeface = face
         }
@@ -676,7 +717,7 @@ internal object StatusBarRowManager {
      * baseline for free.
      */
     private fun applyOutTypeText(label: OutTypeLabel, text: String, scalePercent: Int) {
-        if (!TrioGeometry.hasShrunkSuffix(text, scalePercent)) {
+        if (!IconGeometry.hasShrunkSuffix(text, scalePercent)) {
             label.text = text
         } else {
             val span = SpannableStringBuilder(text)
@@ -690,94 +731,6 @@ internal object StatusBarRowManager {
         label.suffixScale = scalePercent
     }
 
-    private fun perfText(a: TrioAppearance, s: TrioState): String {
-        if (!a.perfAnywhere()) return ""
-        val text = StringBuilder()
-        val charging = TrioState.sChargingAttached
-        val wattsWanted = charging || a.perfRunning || (!a.glyph && a.hasRingPart(Prefs.PART_RUNNING))
-        val wattsInGlyph = a.glyph && a.placed(if (charging) Prefs.PART_POWER else Prefs.PART_RUNNING)
-        val tempInGlyph = a.glyph && a.placed(Prefs.PART_TEMP)
-        val showWatts = (a.perfPower || (!a.glyph && (a.hasRingPart(Prefs.PART_POWER) || a.hasRingPart(Prefs.PART_RUNNING)))) &&
-            wattsWanted && !wattsInGlyph && !TrioState.sChargePowerW.isNaN()
-        if (showWatts) {
-            text.append(String.format(Locale.US, "%.1fW", TrioState.sChargePowerW))
-        }
-        val tempWanted = !a.perfTempChargingOnly || charging
-        val showTemp = (a.perfTemp || (!a.glyph && a.hasRingPart(Prefs.PART_TEMP))) &&
-            tempWanted && !tempInGlyph &&
-            TrioState.sBatteryTempC != TrioState.TEMP_UNKNOWN
-        if (showTemp) {
-            if (text.isNotEmpty()) {
-                text.append(PERF_BREAK)
-            }
-            text.append(TrioState.sBatteryTempC).append("\u00B0C")
-        }
-        val showCurrent = showCurrentLine(a)
-        if (showCurrent) {
-            val current = TrioState.currentText(a.currentUnit, a.currentPositive)
-            if (!current.isNullOrEmpty()) {
-                if (text.isNotEmpty()) {
-                    text.append(PERF_BREAK)
-                }
-                text.append(current)
-            }
-        }
-        if (text.isNotEmpty() && perfStripLines(a) == 1) {
-            val fps = stackedFps(a, s)
-            if (fps.isNotEmpty()) {
-                text.append(PERF_BREAK).append(fps)
-            }
-        }
-        return text.toString()
-    }
-
-    /**
-     * How many lines the watt and temperature pair occupies right now.
-     *
-     * Counted from what would actually be drawn - the switches, the readings that exist,
-     * and whether the glyph already owns one of them - because "two lines" is what decides
-     * whether the frame rate can join the strip.
-     */
-    private fun perfStripLines(a: TrioAppearance): Int {
-        val charging = TrioState.sChargingAttached
-        val wattsWanted = charging || a.perfRunning || (!a.glyph && a.hasRingPart(Prefs.PART_RUNNING))
-        val wattsInGlyph = a.glyph && a.placed(if (charging) Prefs.PART_POWER else Prefs.PART_RUNNING)
-        val showWatts = (a.perfPower || (!a.glyph && (a.hasRingPart(Prefs.PART_POWER) || a.hasRingPart(Prefs.PART_RUNNING)))) &&
-            wattsWanted && !wattsInGlyph && !TrioState.sChargePowerW.isNaN()
-        var lines = 0
-        if (showWatts) lines++
-        val tempWanted = !a.perfTempChargingOnly || charging
-        val showTemp = (a.perfTemp || (!a.glyph && a.hasRingPart(Prefs.PART_TEMP))) &&
-            tempWanted && !(a.glyph && a.placed(Prefs.PART_TEMP)) &&
-            TrioState.sBatteryTempC != TrioState.TEMP_UNKNOWN
-        if (showTemp) lines++
-        if (showCurrentLine(a)) lines++
-        return lines
-    }
-
-    /**
-     * Whether the current earns a line of the strip.
-     *
-     * Its own reading rather than a share with the watt figure: the two answer different
-     * questions - what the charger is delivering, and what the battery is taking - and a
-     * battery that is not being charged has no watt figure at all while still having a
-     * current.
-     */
-    private fun showCurrentLine(a: TrioAppearance): Boolean =
-        (a.perfCurrent || (!a.glyph && a.hasRingPart(Prefs.PART_CURRENT))) &&
-            !(a.glyph && a.placed(Prefs.PART_CURRENT)) &&
-            TrioState.sCurrentUa != TrioState.CURRENT_UNKNOWN
-
-    /** The frame rate as a line of the strip, or empty when it cannot join it. */
-    private fun stackedFps(a: TrioAppearance, s: TrioState): String {
-        val fpsWanted = a.perfFps || (!a.glyph && a.hasRingPart(Prefs.PART_FPS))
-        if (!fpsWanted || TrioState.sFps <= 0) return ""
-        if (a.glyph && a.drawsPart(Prefs.PART_FPS, s.level, s.charging, s.wifiLevel, s.mobileType, s.sims)) {
-            return ""
-        }
-        return TrioState.sFps.toString()
-    }
-
     private fun perfLines(text: String): Int {
         var lines = 1
         for (ch in text) {
@@ -787,7 +740,7 @@ internal object StatusBarRowManager {
     }
 
     private fun perfLineHeight(size: Float, weight: Int, gapDp: Float = 0f, density: Float = 0f): Float {
-        PERF_PROBE.typeface = TrioRenderer.typefaceFor(weight)
+        PERF_PROBE.typeface = IconRenderer.typefaceFor(weight)
         PERF_PROBE.textSize = size
         val metrics = PERF_PROBE.fontMetrics
         return metrics.descent - metrics.ascent + gapDp * density
@@ -802,7 +755,7 @@ internal object StatusBarRowManager {
      * is therefore scaled down proportionally until it fits, and never below
      * [PERF_MIN_SIZE_RATIO] of the base so an unmeasured row cannot make it illegible.
      */
-    private fun perfTextSize(text: String, row: Row, a: TrioAppearance, density: Float): Float {
+    private fun perfTextSize(text: String, row: Row, a: StatusAppearance, density: Float): Float {
         val base = PERF_TEXT_BASE_DP * density
         val lines = perfLines(text).coerceAtLeast(1)
         val requested = base * a.perfFit()
@@ -895,7 +848,7 @@ internal object StatusBarRowManager {
                 row.row.removeCallbacks(row.burnInTask)
             }
         } else {
-            val a = TrioConfig.appearance()
+            val a = ModuleConfig.appearance()
             for (row in snapshot()) {
                 if (a.enabled && a.antiBurnIn && row.row.isShown) {
                     row.row.removeCallbacks(row.burnInTask)
@@ -911,14 +864,14 @@ internal object StatusBarRowManager {
      * Repaints every reading from the live state.
      *
      * Skipped entirely while the bar is hidden: nothing painted into an undrawn row
-     * reaches a display, and [TrioState.refresh] behind it polls telephony - a binder
+     * reaches a display, and [StatusState.refresh] behind it polls telephony - a binder
      * round trip per call - which is exactly the work that must not run for a bar
-     * nobody is looking at. [TrioHooks.invalidateHosts] records the miss and replays
+     * nobody is looking at. [StatusHooks.invalidateHosts] records the miss and replays
      * one repaint when the bar comes back, so nothing stays stale.
      */
     fun invalidateAll() {
         if (!BarVisibility.shown) {
-            TrioHooks.markRepaintPending()
+            StatusHooks.markRepaintPending()
             return
         }
         for (row in snapshot()) {
@@ -936,17 +889,13 @@ internal object StatusBarRowManager {
     @SuppressLint("InternalInsetResource")
     private fun barHeight(view: View): Int {
         val res = view.resources
-        val id = res.getIdentifier("status_bar_height", "dimen", "android")
+        val id = Refl.resId(res, "status_bar_height", "dimen", "android")
         return if (id > 0) res.getDimensionPixelSize(id) else view.height
     }
 
     private fun idView(root: View, name: String): View? {
         val res = root.resources ?: return null
-        val id = try {
-            res.getIdentifier(name, "id", "com.android.systemui")
-        } catch (ignored: Throwable) {
-            0
-        }
+        val id = Refl.resId(res, name)
         return if (id != 0) root.findViewById(id) else null
     }
 
@@ -957,7 +906,7 @@ internal object StatusBarRowManager {
         /** The plain `LinearLayout` that actually holds the icons and the battery. */
         val container: ViewGroup,
         val battery: View,
-        val state: TrioState,
+        val state: StatusState,
     ) {
         var glyph: GlyphView? = null
         var signal: OutSignalView? = null
@@ -987,7 +936,7 @@ internal object StatusBarRowManager {
         val burnInTask: Runnable = object : Runnable {
             override fun run() {
                 if (!ScreenStateTracker.isScreenOn) return
-                val a = TrioConfig.appearance()
+                val a = ModuleConfig.appearance()
                 if (!a.antiBurnIn) {
                     resetBurnIn(this@Row)
                     return
@@ -1000,93 +949,6 @@ internal object StatusBarRowManager {
                     this@Row.row.postDelayed(this, Prefs.BURN_IN_INTERVAL_MS)
                 }
             }
-        }
-    }
-
-    /** The out-of-ring network type label. */
-    internal class OutTypeLabel(context: Context) : TextView(context) {
-        /** The row state supplying the ink. */
-        var host: TrioState? = null
-
-        /**
-         * The suffix scale the current text was built with; -1 until first applied.
-         * Remembered because a scale change leaves the *characters* identical, so a
-         * content comparison alone would skip the rebuild.
-         */
-        var suffixScale: Int = -1
-
-        init {
-            gravity = Gravity.CENTER
-            isSingleLine = true
-            includeFontPadding = false
-            letterSpacing = TrioGeometry.VALUE_LETTER_SPACING
-        }
-    }
-
-    /** The out-of-ring performance readout: charging power and battery temperature. */
-    internal class PerfLabel(context: Context) : TextView(context) {
-        /** The row state supplying the ink. */
-        var host: TrioState? = null
-
-        init {
-            gravity = Gravity.CENTER
-            includeFontPadding = false
-            letterSpacing = TrioGeometry.VALUE_LETTER_SPACING
-        }
-    }
-
-    /**
-     * The out-of-ring SIM reading: four/five ascending capsule bars, and the dot row beneath
-     * them when both SIMs have a reading.
-     *
-     * A view of our own rather than Honor's signal icon: that icon is one icon for one
-     * reading, while this mode draws a reading per SIM and has to place them itself.
-     */
-    internal class OutSignalView(context: Context) : View(context) {
-        init {
-            isClickable = false
-            isFocusable = false
-            importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
-        }
-        var host: TrioState? = null
-
-        /** Bars to light. */
-        var bars: Int = 0
-
-        /** Dots to light, or `-1` when there is no second reading. */
-        var dots: Int = -1
-
-        /** Each card's network type, when the labels are switched on. */
-        var type: String? = null
-        var type2: String? = null
-
-        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-            val a = TrioConfig.appearance()
-            val dual = dots >= 0
-            val density = resources.displayMetrics.density
-            val lp = layoutParams
-            val h = if (lp != null && lp.height > 0) {
-                lp.height
-            } else {
-                val specH = MeasureSpec.getSize(heightMeasureSpec)
-                if (specH > 0) specH else TrioRenderer.outSignalHeight(a, a.outSignalSize, density, dual)
-            }
-            val w = if (lp != null && lp.width > 0) {
-                lp.width
-            } else {
-                TrioRenderer.outSignalWidth(h, a, type, type2, dual)
-            }
-            setMeasuredDimension(
-                resolveSize(w, widthMeasureSpec),
-                resolveSize(h, heightMeasureSpec),
-            )
-        }
-        override fun onDraw(canvas: Canvas) {
-            val source = host ?: return
-            TrioRenderer.drawOutSignal(
-                canvas, width, height, bars, dots,
-                source.foreground(), TrioConfig.appearance(), type, type2,
-            )
         }
     }
 }

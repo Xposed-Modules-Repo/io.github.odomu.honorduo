@@ -9,18 +9,20 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.hook
+package io.github.odomu.honorduo.hook.statusbar
 
 import android.content.res.Resources
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewParent
 import androidx.core.view.isGone
-import io.github.odomu.honorduo.model.TrioAppearance
-import io.github.odomu.honorduo.model.TrioConfig
+import io.github.odomu.honorduo.hook.core.Refl
+import io.github.odomu.honorduo.hook.tracker.WifiPresence
+import io.github.odomu.honorduo.model.ModuleConfig
+import io.github.odomu.honorduo.model.Prefs
+import io.github.odomu.honorduo.model.StatusAppearance
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
-
 /**
  * Manages resource id resolution, ownership arbitration, suppression (hide),
  * and restoration (release) of native status bar icons (battery, wifi, mobile, clock).
@@ -65,7 +67,6 @@ internal object StatusBarIconManager {
     /** Views hidden by this module, so a detached row cannot leave one behind. */
     private val HIDDEN = ArrayList<WeakReference<View>>()
 
-
     /** Views hidden because of their slot, with the visibility they had before. */
     private val slotHidden = ArrayList<SlotHide>()
 
@@ -98,21 +99,11 @@ internal object StatusBarIconManager {
 
     /** A framework string by name, or "" when this ROM does not have it. */
     private fun frameworkString(res: Resources, name: String): String {
-        return try {
-            val key = res.getIdentifier(name, "string", "android")
-            if (key != 0) res.getString(key) else ""
-        } catch (ignored: Throwable) {
-            ""
-        }
+        val key = Refl.resId(res, name, "string", "android")
+        return if (key != 0) res.getString(key) else ""
     }
 
-    private fun id(res: Resources, name: String): Int {
-        return try {
-            res.getIdentifier(name, "id", "com.android.systemui")
-        } catch (ignored: Throwable) {
-            0
-        }
-    }
+    private fun id(res: Resources, name: String): Int = Refl.resId(res, name)
 
     /**
      * The one ownership rule: which status-bar icon this module replaces right now.
@@ -120,7 +111,7 @@ internal object StatusBarIconManager {
      * The visibility hook, the settings change and mounting a row all ask this and
      * nothing else, so hiding an icon and handing it back cannot disagree.
      */
-    fun isOwned(id: Int, a: TrioAppearance): Boolean = when {
+    fun isOwned(id: Int, a: StatusAppearance): Boolean = when {
         !a.enabled -> false
         id == wifiId -> a.glyph && a.ownsWifi()
         id == mobileId -> (a.glyph && (a.signalDots() || a.drawsAnySimRow())) || a.stackedOut()
@@ -130,7 +121,7 @@ internal object StatusBarIconManager {
     }
 
     /** Walks [root] and puts every icon in it into the state [isOwned] asks for. */
-    fun settle(root: View, a: TrioAppearance) {
+    fun settle(root: View, a: StatusAppearance) {
         if (root is ViewGroup) {
             for (i in 0 until root.childCount) {
                 settle(root.getChildAt(i), a)
@@ -159,7 +150,7 @@ internal object StatusBarIconManager {
      * view - and only on views this module hid, or turning the switch off would make an
      * icon the host itself had hidden reappear.
      */
-    private fun settleSlotIcon(view: View, a: TrioAppearance) {
+    private fun settleSlotIcon(view: View, a: StatusAppearance) {
         if (!a.hideAlarmIcon && !a.hideBluetoothIcon) {
             restoreSlotIcon(view)
             return
@@ -185,7 +176,7 @@ internal object StatusBarIconManager {
      */
     private fun restoreSlotIcon(view: View) {
         val previous = forgetSlotHidden(view) ?: return
-        if (view.visibility == View.GONE) view.visibility = previous
+        if (view.isGone) view.visibility = previous
     }
 
     /** The slot of a `StatusBarIconView`, or null for anything else. */
@@ -224,7 +215,8 @@ internal object StatusBarIconManager {
     }
 
     fun enforceSuppression(view: View) {
-        if (view.isGone) return
+        val a = ModuleConfig.appearance()
+        if (!a.enabled || view.isGone) return
         if (!idsResolved) {
             resolveIds(view.resources)
         }
@@ -239,14 +231,14 @@ internal object StatusBarIconManager {
         // share the id but are a plain TextView - out of it.
         if (id == clockId &&
             view.javaClass.name.endsWith(STATUS_BAR_CLOCK_SUFFIX) &&
-            isOwned(id, TrioConfig.appearance())
+            isOwned(id, ModuleConfig.appearance())
         ) {
             rememberHidden(view)
             hide(view)
             return
         }
         if (!insideOwnedContainer(view)) return
-        if (isOwned(id, TrioConfig.appearance())) {
+        if (isOwned(id, ModuleConfig.appearance())) {
             rememberHidden(view)
             hide(view)
         }
@@ -260,7 +252,7 @@ internal object StatusBarIconManager {
      * nor `GONE` to one already visible. Called from the settings change and from
      * mounting a row.
      */
-    fun applyIconVisibility(a: TrioAppearance = TrioConfig.appearance()) {
+    fun applyIconVisibility(a: StatusAppearance = ModuleConfig.appearance()) {
         if (a.hidesStatusClock()) {
             ClockTicker.refresh()
         }
@@ -320,7 +312,7 @@ internal object StatusBarIconManager {
         }
     }
 
-    fun release(view: View, a: TrioAppearance = TrioConfig.appearance()) {
+    fun release(view: View, a: StatusAppearance = ModuleConfig.appearance()) {
         val target = when (view.id) {
             wifiId -> if (WifiPresence.isConnected) View.VISIBLE else View.GONE
             // Ownership, not just the explicit hide switch: while the arrangement
@@ -342,7 +334,7 @@ internal object StatusBarIconManager {
      * visible on every repaint, and the clock placed inside the glyph flickered back
      * into the top-left corner whenever the suppression hook missed a write.
      */
-    fun settleClock(view: View, a: TrioAppearance = TrioConfig.appearance()) {
+    fun settleClock(view: View, a: StatusAppearance = ModuleConfig.appearance()) {
         if (isOwned(clockId, a)) {
             rememberHidden(view)
             hide(view)
@@ -359,7 +351,7 @@ internal object StatusBarIconManager {
      * layout, which is cheap (one id compare and one visibility read) and heals the
      * state within a frame.
      */
-    fun reassertClock(a: TrioAppearance = TrioConfig.appearance()) {
+    fun reassertClock(a: StatusAppearance = ModuleConfig.appearance()) {
         if (!idsResolved || !isOwned(clockId, a)) return
         val view = BarClockManager.nativeClock ?: return
         if (view.visibility != View.GONE) {

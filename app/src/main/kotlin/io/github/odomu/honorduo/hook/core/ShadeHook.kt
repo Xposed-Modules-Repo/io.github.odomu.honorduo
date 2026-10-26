@@ -8,19 +8,20 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.hook
+package io.github.odomu.honorduo.hook.core
 
 import android.view.View
 import android.view.ViewParent
 import android.view.ViewTreeObserver
 import io.github.libxposed.api.XposedModule
+import io.github.odomu.honorduo.hook.statusbar.ClockTicker
+import io.github.odomu.honorduo.hook.tracker.WeatherManager
+import io.github.odomu.honorduo.model.ModuleConfig
 import io.github.odomu.honorduo.model.Prefs
-import io.github.odomu.honorduo.model.TrioAppearance
-import io.github.odomu.honorduo.model.TrioConfig
-import io.github.odomu.honorduo.render.WeatherIconDrawer
+import io.github.odomu.honorduo.model.StatusAppearance
+import io.github.odomu.honorduo.ui.render.WeatherIconDrawer
 import java.lang.ref.WeakReference
 import java.util.concurrent.ConcurrentHashMap
-
 /**
  * The notification shade (left pull) and the control center (right pull): the two
  * header buttons the module can take away, and the extra readings it can print on
@@ -40,9 +41,14 @@ internal object ShadeHook {
     private const val FIELD_POWER_BUTTON = "mPowerButton"
     private const val METHOD_CLOCK_DATE = "getCurrentClockDate"
 
-    /** Views already carrying a re-assert listener, so one view is wired once. */
-    private val watched = ConcurrentHashMap<Int, WeakReference<View>>()
+    private class WatchedItem(
+        val view: WeakReference<View>,
+        val hidden: (StatusAppearance) -> Boolean,
+    )
 
+    /** Views already carrying a re-assert listener, so one view is wired once. */
+    private val watched = ConcurrentHashMap<Int, WatchedItem>()
+    @Volatile private var sInteractor: WeakReference<Any>? = null
     fun install(module: XposedModule, cl: ClassLoader): Int {
         var n = 0
         n += hookPowerButton(module, cl)
@@ -60,7 +66,7 @@ internal object ShadeHook {
      */
     private fun hookPowerButton(module: XposedModule, cl: ClassLoader): Int {
         val header = Refl.cls(CLS_CONTROL_HEADER, cl) ?: return 0
-        return TrioHooks.hook(module, Refl.method(header, "onFinishInflate"), "honorduo-cc-power") { chain ->
+        return StatusHooks.hook(module, Refl.method(header, "onFinishInflate"), "honorduo-cc-power") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject as? View
             if (self != null) {
@@ -81,7 +87,7 @@ internal object ShadeHook {
     private fun hookBell(module: XposedModule, cl: ClassLoader): Int {
         if (Refl.cls(CLS_NOTIF_BELL, cl) == null) return 0
         val attach = Refl.method(View::class.java, "onAttachedToWindow") ?: return 0
-        return TrioHooks.hook(module, attach, "honorduo-shade-attach") { chain ->
+        return StatusHooks.hook(module, attach, "honorduo-shade-attach") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject as? View
             if (self != null && self.javaClass.name == CLS_NOTIF_BELL) {
@@ -99,10 +105,10 @@ internal object ShadeHook {
      * its own refresh is overruled on the next frame. The listener unhooks itself once
      * the view leaves the hierarchy, so a rebuilt panel does not stack them.
      */
-    private fun watch(view: View, hidden: (TrioAppearance) -> Boolean) {
-        applyVisibility(view, hidden(TrioConfig.appearance()))
+    private fun watch(view: View, hidden: (StatusAppearance) -> Boolean) {
+        applyVisibility(view, hidden(ModuleConfig.appearance()))
         val key = System.identityHashCode(view)
-        if (watched.putIfAbsent(key, WeakReference(view)) != null) return
+        if (watched.putIfAbsent(key, WatchedItem(WeakReference(view), hidden)) != null) return
         view.viewTreeObserver.addOnPreDrawListener(object : ViewTreeObserver.OnPreDrawListener {
             override fun onPreDraw(): Boolean {
                 val parent: ViewParent? = view.parent
@@ -111,10 +117,66 @@ internal object ShadeHook {
                     watched.remove(key)
                     return true
                 }
-                applyVisibility(view, hidden(TrioConfig.appearance()))
+                applyVisibility(view, hidden(ModuleConfig.appearance()))
                 return true
             }
         })
+    }
+
+    fun onConfigChanged(a: StatusAppearance) {
+        val it = watched.entries.iterator()
+        while (it.hasNext()) {
+            val entry = it.next()
+            val view = entry.value.view.get()
+            if (view == null || view.parent == null) {
+                it.remove()
+            } else {
+                applyVisibility(view, entry.value.hidden(a))
+                view.requestLayout()
+                (view.parent as? View)?.requestLayout()
+            }
+        }
+        refreshDateLine(a)
+    }
+
+    private fun refreshDateLine(a: StatusAppearance) {
+        val interactor = sInteractor?.get() ?: return
+        try {
+            val updateMethod = interactor.javaClass.declaredMethods.firstOrNull {
+                it.parameterCount == 0 && (
+                    it.name.contains("update", ignoreCase = true) ||
+                    it.name.contains("refresh", ignoreCase = true) ||
+                    it.name.contains("clock", ignoreCase = true) ||
+                    it.name.contains("date", ignoreCase = true)
+                )
+            }
+            if (updateMethod != null) {
+                updateMethod.isAccessible = true
+                updateMethod.invoke(interactor)
+            } else {
+                for (field in interactor.javaClass.declaredFields) {
+                    field.isAccessible = true
+                    val value = field.get(interactor) ?: continue
+                    val flowClass = value.javaClass
+                    if (flowClass.name.contains("StateFlow")) {
+                        val setValueMethod = flowClass.methods.firstOrNull {
+                            it.name == "setValue" || it.name == "tryEmit"
+                        }
+                        val getMethod = Refl.methodNamed(interactor.javaClass, METHOD_CLOCK_DATE, 1)
+                            ?: Refl.methodNamed(interactor.javaClass, METHOD_CLOCK_DATE, 0)
+                        if (getMethod != null && setValueMethod != null) {
+                            getMethod.isAccessible = true
+                            val newDate = if (getMethod.parameterCount == 1) {
+                                getMethod.invoke(interactor, java.util.Date())
+                            } else {
+                                getMethod.invoke(interactor)
+                            }
+                            setValueMethod.invoke(value, newDate)
+                        }
+                    }
+                }
+            }
+        } catch (_: Throwable) {}
     }
 
     private fun applyVisibility(view: View, hidden: Boolean) {
@@ -133,13 +195,17 @@ internal object ShadeHook {
      */
     private fun hookDateLine(module: XposedModule, cl: ClassLoader): Int {
         val interactor = Refl.cls(CLS_NOTIF_INTERACTOR, cl) ?: return 0
-        val method = TrioHooks.methodNamed(interactor, METHOD_CLOCK_DATE, 1)
-            ?: TrioHooks.methodNamed(interactor, METHOD_CLOCK_DATE, 0)
+        val method = Refl.methodNamed(interactor, METHOD_CLOCK_DATE, 1)
+            ?: Refl.methodNamed(interactor, METHOD_CLOCK_DATE, 0)
             ?: return 0
-        return TrioHooks.hook(module, method, "honorduo-shade-date") { chain ->
+        return StatusHooks.hook(module, method, "honorduo-shade-date") { chain ->
+            val interactor = chain.thisObject
+            if (interactor != null) {
+                sInteractor = WeakReference(interactor)
+            }
             val original = chain.proceed() as? String
-            val a = TrioConfig.appearance()
-            if (original.isNullOrEmpty() || (!a.shadeLunar && !a.shadeWeather)) {
+            val a = ModuleConfig.appearance()
+            if (!a.enabled || original.isNullOrEmpty() || (!a.shadeLunar && !a.shadeWeather)) {
                 original
             } else {
                 decorateDateLine(original, a.shadeLunar, a.shadeWeather)
@@ -178,7 +244,7 @@ internal object ShadeHook {
      */
     private fun weatherText(): String {
         val data = WeatherManager.data ?: return ""
-        val style = TrioConfig.appearance().shadeWeatherStyle
+        val style = ModuleConfig.appearance().shadeWeatherStyle
         if (style == Prefs.WEATHER_STYLE_TEXT) return data.text()
         val glyph = WeatherIconDrawer.glyphFor(data.condition)
         return when (style) {

@@ -1,12 +1,12 @@
-package io.github.odomu.honorduo.hook
+package io.github.odomu.honorduo.hook.core
 
 import android.view.View
 import android.view.ViewGroup
 import io.github.libxposed.api.XposedModule
-import io.github.odomu.honorduo.model.TrioConfig
-import io.github.odomu.honorduo.model.TrioState
+import io.github.odomu.honorduo.hook.statusbar.StatusBarIconManager
+import io.github.odomu.honorduo.model.ModuleConfig
+import io.github.odomu.honorduo.model.StatusState
 import java.lang.reflect.Field
-
 /**
  * Intercepts cellular signal icons and network type indicators from SystemUI.
  *
@@ -42,9 +42,9 @@ internal object SignalIconHook {
         var n = 0
         // Adaptive signal icon utility: prefer modern HnSignalUtils, fallback to classic HwSignalUtil.
         val hn = Refl.cls("com.android.systemui.utils.HnSignalUtils", cl)
-        val hnMethod = TrioHooks.methodNamed(hn, "setIconForView", 2)
+        val hnMethod = Refl.methodNamed(hn, "setIconForView", 2)
         if (hnMethod != null) {
-            n += TrioHooks.hook(module, hnMethod, "honorduo-signal-new") { chain ->
+            n += StatusHooks.hook(module, hnMethod, "honorduo-signal-new") { chain ->
                 val result = chain.proceed()
                 val view = chain.getArg(0) as? View
                 val id = chain.getArg(1)
@@ -56,9 +56,9 @@ internal object SignalIconHook {
             }
         } else {
             val hw = Refl.cls("com.android.systemui.utils.HwSignalUtil", cl)
-            val hwMethod = TrioHooks.methodNamed(hw, "setIconForView", 2)
+            val hwMethod = Refl.methodNamed(hw, "setIconForView", 2)
             if (hwMethod != null) {
-                n += TrioHooks.hook(module, hwMethod, "honorduo-signal-classic") { chain ->
+                n += StatusHooks.hook(module, hwMethod, "honorduo-signal-classic") { chain ->
                     val result = chain.proceed()
                     noteIcon(chain.getArg(0) as? View, chain.getArg(1))
                     result
@@ -74,8 +74,8 @@ internal object SignalIconHook {
     private fun noteIcon(view: View?, idObj: Any?) {
         val id = (idObj as? Number)?.toInt() ?: return
         if (id > 0) {
-            TrioState.noteSignalIcon(view?.resources, id)
-            TrioHooks.invalidateHosts()
+            StatusState.noteSignalIcon(view?.resources, id)
+            StatusHooks.invalidateHosts()
         }
     }
 
@@ -83,14 +83,14 @@ internal object SignalIconHook {
      * Maps an icon resource ID to a cellular network type (e.g. 5G/4G/3G) and associates it with its SIM slot.
      */
     private fun noteSlotType(view: View, resId: Int) {
-        val type = TrioState.typeOfIcon(view.resources, resId) ?: return
+        val type = StatusState.typeOfIcon(view.resources, resId) ?: return
         val group = mobileGroupOf(view) ?: return
-        if (group.childCount !in 1..TrioState.SIM_SLOTS) return
+        if (group.childCount !in 1..StatusState.SIM_SLOTS) return
         var child: View = view
         while (child.parent !== group) {
             child = child.parent as? View ?: return
         }
-        TrioState.setSlotType(group.indexOfChild(child), type)
+        StatusState.setSlotType(group.indexOfChild(child), type)
     }
 
     /**
@@ -114,11 +114,11 @@ internal object SignalIconHook {
     private fun hookTypeViews(module: XposedModule, cl: ClassLoader): Int {
         val unit = Refl.cls("com.android.systemui.statusbar.SignalUnitNormalView", cl) ?: return 0
         sUnitTypeField = Refl.field(unit, "mMobileType")
-        return TrioHooks.hook(module, TrioHooks.methodNamed(unit, "updateView", 2), "honorduo-unit-type") { chain ->
+        return StatusHooks.hook(module, Refl.methodNamed(unit, "updateView", 2), "honorduo-unit-type") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             val target = chain.getArg(0)
-            val a = TrioConfig.appearance()
+            val a = ModuleConfig.appearance()
             if ((a.glyph || a.typeOutOfRing) && a.ownsType() && self != null && target != null) {
                 val type = Refl.get(sUnitTypeField, self)
                 if (type === target && type is View) {

@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.hook
+package io.github.odomu.honorduo.hook.tracker
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -36,7 +36,6 @@ internal object ScreenStateTracker {
     fun addListener(listener: (Boolean) -> Unit) {
         listeners.add(listener)
     }
-
 
     @Synchronized
     fun start(context: Context) {

@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.hook
+package io.github.odomu.honorduo.hook.tracker
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -19,19 +19,20 @@ import android.os.Handler
 import android.os.Looper
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
-import io.github.odomu.honorduo.model.TrioConfig
-import io.github.odomu.honorduo.model.TrioState
+import io.github.odomu.honorduo.hook.statusbar.BarClockManager
+import io.github.odomu.honorduo.model.ModuleConfig
+import io.github.odomu.honorduo.model.Prefs
+import io.github.odomu.honorduo.model.StatusState
 import java.net.URLDecoder
 import java.util.concurrent.Executors
 import kotlin.math.roundToInt
-
 /**
  * Manages real-time weather query from MagicOS TotemWeather ContentProvider,
  * listening for content updates and broadcasts with strict power-saving guards.
  */
 internal object WeatherManager {
 
-    private val WEATHER_URI = "content://com.hihonor.android.weather/weatherInfo".toUri()
+    private val WEATHER_URI = Prefs.WEATHER_URI.toUri()
     private val executor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "HonorDuo-Weather").apply { isDaemon = true }
     }
@@ -80,8 +81,8 @@ internal object WeatherManager {
 
         try {
             val filter = IntentFilter().apply {
-                addAction("com.hihonor.android.action.WEATHER_CHANGE")
-                addAction("com.hihonor.android.action.WIDGET_CHANGE")
+                addAction(Prefs.ACTION_WEATHER_CHANGE)
+                addAction(Prefs.ACTION_WIDGET_CHANGE)
             }
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(c: Context?, intent: Intent?) {
@@ -117,6 +118,8 @@ internal object WeatherManager {
         // off: a query costs a content-provider round trip plus a network path,
         // and nothing would be drawn from the answer.
         if (!ScreenStateTracker.isScreenOn || !BarVisibility.shown) return
+        val a = ModuleConfig.appearance()
+        if (!a.enabled || (!a.clockWeather && !a.shadeWeather)) return
         val now = System.currentTimeMillis()
         if (!force && now - lastFetchTime < CACHE_EXPIRY_MS && data != null) {
             return
@@ -131,9 +134,9 @@ internal object WeatherManager {
                     if (hasChanged) {
                         data = queried
                         currentWeather = queried.text()
-                        TrioState.sWeather = queried.text()
+                        StatusState.sWeather = queried.text()
                         main.post {
-                            BarClockManager.sync(TrioConfig.appearance())
+                            BarClockManager.sync(ModuleConfig.appearance())
                         }
                     }
                 }

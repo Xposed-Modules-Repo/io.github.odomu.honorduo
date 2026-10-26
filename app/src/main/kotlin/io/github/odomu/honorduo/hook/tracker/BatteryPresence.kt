@@ -9,7 +9,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.hook
+package io.github.odomu.honorduo.hook.tracker
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -19,11 +19,11 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import io.github.odomu.honorduo.hook.core.StatusHooks
+import io.github.odomu.honorduo.model.ModuleConfig
 import io.github.odomu.honorduo.model.Prefs
-import io.github.odomu.honorduo.model.TrioConfig
-import io.github.odomu.honorduo.model.TrioState
+import io.github.odomu.honorduo.model.StatusState
 import kotlin.math.roundToInt
-
 /**
  * Event-driven battery state for the out-of-ring readouts: charging power and
  * battery temperature.
@@ -48,7 +48,8 @@ internal object BatteryPresence {
     private var watchdogRunning = false
     private var pendingRefresh: Runnable? = null
     private var appContext: Context? = null
-
+    private var batteryManager: BatteryManager? = null
+    private var powerManager: android.os.PowerManager? = null
     private val watchdogTick = object : Runnable {
         override fun run() {
             val ctx = appContext ?: return
@@ -69,25 +70,34 @@ internal object BatteryPresence {
      */
     private fun watchdogDelay(): Long =
         Prefs.clamp(
-            TrioConfig.appearance().perfRefreshSec,
+            ModuleConfig.appearance().perfRefreshSec,
             Prefs.MIN_PERF_REFRESH_SEC,
             Prefs.MAX_PERF_REFRESH_SEC,
         ) * 1_000L
 
     private fun isWatchdogNeeded(): Boolean {
-        val a = TrioConfig.appearance()
+        val a = ModuleConfig.appearance()
         return ScreenStateTracker.isScreenOn && BarVisibility.shown && a.enabled && a.perfAnywhere()
     }
 
+    private var lastIntervalMs = 0L
+
     private fun ensureWatchdog() {
-        if (isWatchdogNeeded()) {
+        val needed = isWatchdogNeeded()
+        if (!needed) {
+            stopWatchdog()
+            return
+        }
+        val interval = watchdogDelay()
+        if (!watchdogRunning) {
             watchdogRunning = true
-            // Restarted rather than only started: the interval itself is a setting, and
-            // a timer already posted with the old pace has to be re-armed at the new one.
+            lastIntervalMs = interval
             main.removeCallbacks(watchdogTick)
             main.post(watchdogTick)
-        } else {
-            stopWatchdog()
+        } else if (lastIntervalMs != interval) {
+            lastIntervalMs = interval
+            main.removeCallbacks(watchdogTick)
+            main.postDelayed(watchdogTick, interval)
         }
     }
 
@@ -101,8 +111,8 @@ internal object BatteryPresence {
         main.post {
             // The threshold may have moved under the latch; recompute before the
             // watchdog's next read, so the next repaint already has the right ink.
-            if (TrioState.updateBatteryHot(TrioConfig.appearance().tempThreshold)) {
-                TrioHooks.invalidateHosts()
+            if (StatusState.updateBatteryHot(ModuleConfig.appearance().tempThreshold)) {
+                StatusHooks.invalidateHosts()
             }
             ensureWatchdog()
         }
@@ -112,8 +122,9 @@ internal object BatteryPresence {
     fun start(context: Context) {
         val app = context.applicationContext ?: context
         appContext = app
+        batteryManager = app.getSystemService(BatteryManager::class.java)
+        powerManager = app.getSystemService(android.os.PowerManager::class.java)
         ScreenStateTracker.addListener { screenOn ->
-            main.post {
                 if (screenOn) {
                     refresh(app)
                     ensureWatchdog()
@@ -121,7 +132,6 @@ internal object BatteryPresence {
                     stopWatchdog()
                 }
             }
-        }
         BarVisibility.addListener { shown ->
             main.post {
                 if (shown) {
@@ -137,10 +147,8 @@ internal object BatteryPresence {
 
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(ignored: Context?, intent: Intent?) {
-                // Re-read the sticky intent rather than trust this delivery's
-                // extras: the two must not be able to disagree.
-                refresh(context)
-                scheduleRefresh(context)
+                if (!BarVisibility.shown || !isWatchdogNeeded()) return
+                refresh(context, intent)
             }
         }
         try {
@@ -188,10 +196,10 @@ internal object BatteryPresence {
      * row is work with nothing to show for it; the state is re-read once when the
      * bar returns, which is also when it first needs to be right.
      */
-    private fun refresh(context: Context) {
-        if (!BarVisibility.shown) return
+    private fun refresh(context: Context, directIntent: Intent? = null) {
+        if (!BarVisibility.shown || !isWatchdogNeeded()) return
         try {
-            val battery = context.registerReceiver(
+            val battery = directIntent ?: context.registerReceiver(
                 null,
                 IntentFilter(Intent.ACTION_BATTERY_CHANGED),
             ) ?: return
@@ -215,7 +223,7 @@ internal object BatteryPresence {
                 status == BatteryManager.BATTERY_STATUS_CHARGING ||
                 status == BatteryManager.BATTERY_STATUS_FULL
             val whole = if (temperature == Int.MIN_VALUE) {
-                TrioState.TEMP_UNKNOWN
+                StatusState.TEMP_UNKNOWN
             } else {
                 (temperature / 10f).roundToInt()
             }
@@ -240,18 +248,18 @@ internal object BatteryPresence {
      * a user notices as stutter.
      */
     private fun thermalStatus(context: Context): Int = try {
-        context.getSystemService(android.os.PowerManager::class.java)
+        powerManager?.currentThermalStatus ?: context.getSystemService(android.os.PowerManager::class.java)
             ?.currentThermalStatus
-            ?: TrioState.THERMAL_UNKNOWN
+            ?: StatusState.THERMAL_UNKNOWN
     } catch (_: RuntimeException) {
-        TrioState.THERMAL_UNKNOWN
+        StatusState.THERMAL_UNKNOWN
     }
-
 
     /** The battery current in microamperes, or [Int.MIN_VALUE] when unknown. */
     private fun currentNow(context: Context): Int = try {
-        context.getSystemService(BatteryManager::class.java)
-            ?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
+        batteryManager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
+            ?: context.getSystemService(BatteryManager::class.java)
+                ?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
             ?: Int.MIN_VALUE
     } catch (_: RuntimeException) {
         Int.MIN_VALUE
@@ -267,12 +275,12 @@ internal object BatteryPresence {
      *
      * The sign of `current_now` is not portable - this platform answers
      * negative while charging - so only the magnitude is used. Being unable to ask
-     * is a different answer from zero and is [TrioState.POWER_UNKNOWN]; a real
+     * is a different answer from zero and is [StatusState.POWER_UNKNOWN]; a real
      * zero stays a real zero.
      */
     private fun wattsOf(currentUnits: Int, voltageMilliVolts: Int): Float {
         if (currentUnits == Int.MIN_VALUE || voltageMilliVolts <= 0) {
-            return TrioState.POWER_UNKNOWN
+            return StatusState.POWER_UNKNOWN
         }
         val microAmps = kotlin.math.abs(currentUnits).toFloat() * 1_000f
         return microAmps * (voltageMilliVolts / 1000f) / 1_000_000f
@@ -281,19 +289,19 @@ internal object BatteryPresence {
     private fun publish(
         attached: Boolean, watts: Float, temperature: Int, thermal: Int, currentUa: Int,
     ) {
-        val beforeAttached = TrioState.sChargingAttached
-        val beforeWatts = TrioState.sChargePowerW
-        val beforeTemperature = TrioState.sBatteryTempC
-        val beforeCurrent = TrioState.sCurrentUa
+        val beforeAttached = StatusState.sChargingAttached
+        val beforeWatts = StatusState.sChargePowerW
+        val beforeTemperature = StatusState.sBatteryTempC
+        val beforeCurrent = StatusState.sCurrentUa
 
-        TrioState.sChargingAttached = attached
-        TrioState.sChargePowerW = watts
-        TrioState.sBatteryTempC = temperature
-        TrioState.sThermalStatus = thermal
-        TrioState.sCurrentUa = currentUa
+        StatusState.sChargingAttached = attached
+        StatusState.sChargePowerW = watts
+        StatusState.sBatteryTempC = temperature
+        StatusState.sThermalStatus = thermal
+        StatusState.sCurrentUa = currentUa
         // The latch, not the raw comparison: the threshold has to hold across the
         // tenths-of-a-degree jitter that whole-degree rounding produces.
-        val hotMoved = TrioState.updateBatteryHot(TrioConfig.appearance().tempThreshold)
+        val hotMoved = StatusState.updateBatteryHot(ModuleConfig.appearance().tempThreshold)
 
         // Float.compare, not !=: the watts may be POWER_UNKNOWN (a NaN), and
         // NaN != NaN would make every frame look like a change and repaint the
@@ -302,7 +310,7 @@ internal object BatteryPresence {
             beforeWatts.compareTo(watts) != 0 ||
             beforeTemperature != temperature ||
             beforeCurrent != currentUa
-        if (moved || hotMoved) TrioHooks.invalidateHosts()
+        if (moved || hotMoved) StatusHooks.invalidateHosts()
     }
 
     private const val RECHECK_MS = 2_000L
