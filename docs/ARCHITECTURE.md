@@ -39,13 +39,13 @@ HwSystemIcons
 ```
 
 `register()` 通过资源名 `battery` 找到电池，取 `battery.parent` 作为容器，并建立一个 `Row`：
-行本身、容器、电池、该行自己的 `TrioState`，以及后续挂上去的字形、环外信号、性能读数、帧率与
+行本身、容器、电池、该行自己的 `StatusState`，以及后续挂上去的字形、环外信号、性能读数、帧率与
 制式视图。`mountGlyph()` 把 `GlyphView` 插到电池原来的位置，再把电池设为 `GONE`，行因此自己
 合拢并预留字形的宽度。
 
 这是一个真实子视图，不是覆盖层窗口，也不是电池的 drawable 槽：
 
-1. **宽度由模块申报**。`GlyphView.onMeasure` 以 17dp 为基准高度，按 `TrioGeometry.hostAspect()`
+1. **宽度由模块申报**。`GlyphView.onMeasure` 以 17dp 为基准高度，按 `IconGeometry.hostAspect()`
    给出的宽高比计算宽度；胶囊会在主体上下各加一条开孔带。旁边的图标由 `LinearLayout` 正常排布，
    自然让位。
 2. **画布、bounds 与裁剪都来自平台**。模块只往这一行里放一个自己画的视图，因此没有窗口需要在下拉
@@ -58,11 +58,11 @@ HwSystemIcons
 ### 2.1 三个位置与组件仲裁
 
 `KEY_RING_LAYOUT`（存储名 `ring_layout`）把上、中、下三个位置保存成 `"top|middle|bottom"` 的
-有序候选列表，每个位置内部按优先级排列组件 id。每一帧由 `TrioAppearance` 决定每个位置画什么：
+有序候选列表，每个位置内部按优先级排列组件 id。每一帧由 `StatusAppearance` 决定每个位置画什么：
 取第一个**这一帧真的有内容**的候选；前面的候选没有内容（没连 Wi-Fi、没在充电）时，后面的顶上。
 它只做决定，不画。
 
-`TrioZones` 负责两件与位置有关的事：
+`IconZones` 负责两件与位置有关的事：
 
 - 给出三个位置在设计空间里的包围盒，并通过与渲染相同的变换做命中测试，供设置页点击编辑；
 - 把已决定的组件编码 / 解码成槽位，并在用户改位置时求出新的布局。它不重新仲裁画什么，避免
@@ -86,7 +86,7 @@ HwSystemIcons
 
 ## 三、状态采样
 
-`TrioState` 是每一行的读取器。`GlyphView.onDraw` 每帧调用 `state.refresh()`，但真正昂贵的读取
+`StatusState` 是每一行的读取器。`GlyphView.onDraw` 每帧调用 `state.refresh()`，但真正昂贵的读取
 都做了限流或事件化。
 
 ### 3.1 电量、充电与省电
@@ -96,7 +96,7 @@ HwSystemIcons
 `mIsSuperQuickStatus`、`mIsTurboCharging`。三条快充字段任一为真即视为快充。
 
 单例或字段取不到时，回落到宿主电池视图自己的 `mLevel` / `mIsCharging` / `mIsPowerSave`，不会
-抛异常。低电量阈值来自 `TrioAppearance.lowThreshold`。
+抛异常。低电量阈值来自 `StatusAppearance.lowThreshold`。
 
 ### 3.2 墨色
 
@@ -117,7 +117,7 @@ HwSystemIcons
 - `HnSignalUtils.setIconForView`（pipeline 视图）；
 - `HwSignalUtil.setIconForView`（经典 cluster）。
 
-两个入口各挂一次，把第二个参数（资源 id）交给 `TrioState.noteSignalIcon` 分类。分类按资源名：
+两个入口各挂一次，把第二个参数（资源 id）交给 `StatusState.noteSignalIcon` 分类。分类按资源名：
 
 | 资源名 | 含义 |
 | --- | --- |
@@ -156,7 +156,7 @@ telephony：
 ### 3.5 数据活动
 
 `TelephonyCallback.DataActivityListener` 是精确来源，但在部分 ROM 上只投递给默认订阅，换卡或
-权限被拒后会静默停止。`TrioState` 因此另有一个 1 秒一次的 `TelephonyManager.getDataActivity()`
+权限被拒后会静默停止。`StatusState` 因此另有一个 1 秒一次的 `TelephonyManager.getDataActivity()`
 轮询作为兜底；两者都只在值变化时触发重绘。
 
 ### 3.6 充电功率、温度与帧率
@@ -204,17 +204,18 @@ telephony：
 
 环外读数是 `system_icons` 这个 `LinearLayout` 的普通子视图，和字形一样由行测量、由行预留宽度：
 
-- `OutSignalView`：移动信号。`TrioRenderer.drawOutSignal()` 画四根递增圆头柱与副卡圆点；副卡读数
+- `OutSignalView`：移动信号。`IconRenderer.drawOutSignal()` 画四根递增圆头柱与副卡圆点；副卡读数
   存在时切换为两排，或按 `KEY_STACK_STYLE` 改成双排柱。每张卡的电平先由 `outSignalLevels()` 从
   telephony 与数据卡状态算出，再用 `nativeSlotLevels()` 从原生信号组每张卡的图标名覆盖——后者就是
   状态栏此刻画出的电平，不会比用户看到的更旧；原生组读不到时才保留 telephony 的结果。数据活动
-  箭头由 `TrioState.sDataActivity` 驱动。
+  箭头由 `StatusState.sDataActivity` 驱动。
 - `OutTypeLabel`：独立的制式标签，可放在信号读数外侧，也可由 `drawOutSignal` 画在信号柱上方
   （`STACK_LABEL_BESIDE`），或单独成一项（`STACK_LABEL_ALONE`）。
-- `PerfLabel`：功率与温度。两行文本在同一块里，按可用高度自动缩小字号；温度未知时不显示，也可以
-  设置为只在充电时显示。
-- 帧率有两条路径：读数条还有第二行时并进去；两行都被占用（或根本没有读数条）时，另起一个
-  `PerfLabel` 视图放在旁边，避免第三行把三样读数一起压小。
+- `PerfLabel`：环外硬件读数（功率、温度、电流、电压、帧率）。支持**顺序感知自适应堆叠（order-aware dynamic stacking）**：
+  - 默认排序权重：`1:功率`、`2:温度`、`3:电流`、`4:电压`、`5:帧率`（`1,2,3,4,5`）；
+  - 维持最多两行的高度限制，避免过度压缩文字字号；
+  - 根据开启先后顺序动态自适应分组：前两项开启的指标成对堆叠在首个 `PerfLabel`（`row.perf`）中呈现；开启更多项时自动拆分至第二个 `PerfLabel`（`row.fps`）形成两两成对或独立单行显示；
+  - 功率、温度、电流与电压的回读严格受到刷新频率控制，未开启时零开销休眠。
 
 顺序由 `Prefs.KEY_OUT_ORDER`（存储名 `out_ring_order`）决定，值是三个槽位 id 的排列：
 `OUT_SLOT_SIGNAL`、`OUT_SLOT_READOUTS`、`OUT_SLOT_TYPE`。列表是**离电池最近的在最前**；每次
@@ -245,27 +246,31 @@ telephony：
 启动时打印 `HonorDuo installed, hooks=N`。某个方法在别的固件上改名时只打印
 `skip <id>: method not found`，其余钩子照常工作。
 
+所有底层类加载、成员反射与动态系统资源解析均由 `Refl`（基于 `HiddenApiBypass`）统一承载：
+- 进程初始化时豁免系统隐藏 API 黑名单，规避 ART 运行时的检查惩罚；
+- 对反射解析结果实施多级无锁并发字典缓存，避免每次回调产生垃圾回收与异常分配。
+
 ## 七、配置通道
 
 设置页与钩子进程通过两条路径同步：
 
 1. **remote preferences（权威源）**。设置页把自己的 `SharedPreferences`（文件名
-   `honorduo_settings`）里的值逐项写进框架的 remote group；`TrioConfig.install()` 在钩子进程里
+   `honorduo_settings`）里的值逐项写进框架的 remote group；`ModuleConfig.install()` 在钩子进程里
    `getRemotePreferences(Prefs.NAME)`，注册单键变更监听。框架每变更一个键就回调一次，
    `applyKeyFrom()` 把该键的新值合进当前快照，再整份发布。
 2. **重载广播（第二通道）**。设置页每次写入后发送 `io.github.odomu.honorduo.action.RELOAD`，目标包固定为
-   `com.android.systemui`，extras 是完整快照。`TrioConfig` 在电池 inflate 时用 application
+   `com.android.systemui`，extras 是完整快照。`ModuleConfig` 在电池 inflate 时用 application
    context 注册接收器；广播必须带 `KEY_ENABLED` 才会被接受，`fromBundle(extras, previous)` 以当前
    快照为底，因此发送方省略的键保持原值。
 
-`TrioConfig` 发布时先替换 `TrioAppearance` 缓存、再替换快照，读到的快照不会配到旧规则。
-监听器用强引用保存，因为唯一注册者是 `TrioHooks.install()` 里的 lambda，弱引用会在首次 GC 后
+`ModuleConfig` 发布时先替换 `StatusAppearance` 缓存、再替换快照，读到的快照不会配到旧规则。
+监听器用强引用保存，因为唯一注册者是 `StatusHooks.install()` 里的 lambda，弱引用会在首次 GC 后
 把重绘通知一起收走。
 
-冷启动时 remote 表可能还是默认值，而框架不会为「没有写入」发回调，所以 `TrioConfig` 在安装后
+冷启动时 remote 表可能还是默认值，而框架不会为「没有写入」发回调，所以 `ModuleConfig` 在安装后
 5 秒和 20 秒各补读一次，只有内容真的变化才通知。
 
-`TrioAppearance` 是绘制与抑制共同的唯一规则源：渲染器问它这一帧画什么，`TrioHooks` 问它谁该被
+`StatusAppearance` 是绘制与抑制共同的唯一规则源：渲染器问它这一帧画什么，`StatusHooks` 问它谁该被
 藏，设置界面问它哪些行有意义。它不可变、纯 Kotlin、不依赖 Android 类型，两个进程都能构建。
 
 ## 八、设置界面
@@ -306,6 +311,14 @@ telephony：
 - **清空**：垃圾桶按钮 + `OverlayDialog` 二次确认，确认后执行 `logcat -c` 并清空当前列表。
 - **分享**：把当前筛选结果写进 `cacheDir/logs/honorduo_<时间戳>.txt`，经 `FileProvider`
   （`file_paths.xml` 中的 `logs/`）以 `ACTION_SEND` + `EXTRA_STREAM` 交给系统分享面板。
+
+### 8.4 配置备份与恢复
+
+配置备份与恢复全生命周期由独立的 `BackupManager`（`ui/manager/ConfigBackupManager.kt`）托管：
+- 封装 Android 存储访问框架（SAF）的 `CreateDocument` 与 `OpenDocument` 活动契约；
+- 在 `Dispatchers.IO` 协程池执行 JSON 数据序列化与反序列化，防卡顿；
+- 导入完成后通过 `repository.syncAllToFramework()` 广播与远程属性直接推送到 Hook 进程即时刷新；
+- 界面层通过 `rememberBackupManager` 接入，彻底与底层文件流和 IO 解耦。
 
 ## 九、验证
 
