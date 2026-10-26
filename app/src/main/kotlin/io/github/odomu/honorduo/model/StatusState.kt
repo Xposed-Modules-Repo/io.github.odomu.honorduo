@@ -336,9 +336,10 @@ internal class StatusState(val host: View) {
          */
         @JvmStatic
         fun currentText(unit: Int, positive: Boolean): String? {
-            val micro = sCurrentUa
-            if (micro == CURRENT_UNKNOWN) return null
-            val milliamps = micro / 1_000f
+            val raw = sCurrentUa
+            if (raw == CURRENT_UNKNOWN) return null
+            val absRaw = kotlin.math.abs(raw)
+            val milliamps = if (absRaw > 10_000) raw / 1_000f else raw.toFloat()
             val shown = if (positive) kotlin.math.abs(milliamps) else milliamps
             return if (unit == Prefs.CURRENT_UNIT_A) {
                 String.format(java.util.Locale.US, "%.2fA", shown / 1_000f)
@@ -347,6 +348,19 @@ internal class StatusState(val host: View) {
             }
         }
 
+        /** The battery voltage in millivolts, or [VOLTAGE_UNKNOWN] before it is read. */
+        @Volatile
+        @JvmField
+        var sVoltageMv = VOLTAGE_UNKNOWN
+
+        const val VOLTAGE_UNKNOWN = 0
+
+        @JvmStatic
+        fun voltageText(): String? {
+            val mv = sVoltageMv
+            if (mv <= 0) return null
+            return String.format(java.util.Locale.US, "%.2fV", mv / 1_000f)
+        }
         /**
          * The platform's thermal status, or [THERMAL_UNKNOWN] before it is read.
          *

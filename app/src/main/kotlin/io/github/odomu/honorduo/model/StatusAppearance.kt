@@ -152,6 +152,7 @@ class StatusAppearance(c: ModuleSettings) {
     /** The charging power is drawn in the out-of-ring strip; see [perfAnywhere]. */
     @JvmField val perfPower: Boolean = enabled && c.perfPower
     @JvmField val perfRunning: Boolean = enabled && c.perfRunning
+    @JvmField val perfVoltage: Boolean = enabled && c.perfVoltage
     @JvmField val fontPath: String = c.fontPath
     @JvmField val replaceWifiIcon: Boolean = enabled && c.replaceWifiIcon
     @JvmField val replaceStatusIcon: Boolean = enabled && c.replaceStatusIcon
@@ -489,10 +490,9 @@ class StatusAppearance(c: ModuleSettings) {
      * every caller that mounts or measures that view has to ask - never [perfPower] or
      * [perfTemp] alone.
      */
-    fun perfAnywhere(): Boolean = perfPower || perfTemp || perfCurrent ||
+    fun perfAnywhere(): Boolean = perfPower || perfTemp || perfCurrent || perfVoltage ||
         (!glyph && (hasRingPart(Prefs.PART_POWER) || hasRingPart(Prefs.PART_TEMP) ||
             hasRingPart(Prefs.PART_RUNNING) || hasRingPart(Prefs.PART_CURRENT)))
-
     /**
      * Whether any performance reading is switched on, the frame rate included.
      *

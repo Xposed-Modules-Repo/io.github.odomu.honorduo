@@ -46,7 +46,6 @@ internal object BatteryPresence {
 
     private var registered = false
     private var watchdogRunning = false
-    private var pendingRefresh: Runnable? = null
     private var appContext: Context? = null
     private var batteryManager: BatteryManager? = null
     private var powerManager: android.os.PowerManager? = null
@@ -104,7 +103,6 @@ internal object BatteryPresence {
     private fun stopWatchdog() {
         watchdogRunning = false
         main.removeCallbacks(watchdogTick)
-        pendingRefresh?.let(main::removeCallbacks)
     }
 
     fun onConfigChanged() {
@@ -170,25 +168,6 @@ internal object BatteryPresence {
     }
 
     /**
-     * Coalesces a recheck.
-     *
-     * A broadcast can arrive before the charge counter and the current have
-     * both settled, so the frame after it is re-read once; the same coalescer
-     * serves a burst of deliveries.
-     */
-    private fun scheduleRefresh(context: Context) {
-        if (!BarVisibility.shown) return
-        main.post {
-            if (!BarVisibility.shown) return@post
-            refresh(context)
-            pendingRefresh?.let(main::removeCallbacks)
-            val again = Runnable { if (BarVisibility.shown) refresh(context) }
-            pendingRefresh = again
-            main.postDelayed(again, RECHECK_MS)
-        }
-    }
-
-    /**
      * Re-reads the platform's battery figures.
      *
      * Returns immediately while the bar is hidden. Every line below is either a
@@ -231,7 +210,7 @@ internal object BatteryPresence {
             // current readout takes it whole, sign included.
             val current = currentNow(context)
             publish(
-                attached, wattsOf(current, voltage), whole, thermalStatus(context), current,
+                attached, wattsOf(current, voltage), whole, thermalStatus(context), current, voltage,
             )
         } catch (_: RuntimeException) {
             // Permissions or ROM differences must never crash SystemUI.
@@ -255,63 +234,61 @@ internal object BatteryPresence {
         StatusState.THERMAL_UNKNOWN
     }
 
-    /** The battery current in microamperes, or [Int.MIN_VALUE] when unknown. */
-    private fun currentNow(context: Context): Int = try {
-        batteryManager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
-            ?: context.getSystemService(BatteryManager::class.java)
-                ?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
-            ?: Int.MIN_VALUE
-    } catch (_: RuntimeException) {
-        Int.MIN_VALUE
+    /** The battery current in microamperes or milliamperes, or [StatusState.CURRENT_UNKNOWN] when unknown. */
+    private fun currentNow(context: Context): Int {
+        val bm = batteryManager ?: context.getSystemService(BatteryManager::class.java) ?: return StatusState.CURRENT_UNKNOWN
+        val now = try {
+            bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
+        } catch (_: RuntimeException) {
+            StatusState.CURRENT_UNKNOWN
+        }
+        if (now != StatusState.CURRENT_UNKNOWN && now != 0) return now
+
+        // Fallback to average current when instantaneous current is 0 or unreadable
+        val avg = try {
+            bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE)
+        } catch (_: RuntimeException) {
+            StatusState.CURRENT_UNKNOWN
+        }
+        if (avg != StatusState.CURRENT_UNKNOWN && avg != 0) return avg
+        return now
     }
 
     /**
      * The power going into the battery, in watts, from its own current and voltage.
-     *
-     * Deliberately the battery's side of the circuit rather than the charger's
-     * negotiated limit: the negotiated figure is fixed for the whole session and
-     * would sit there unchanged while the real power tapered away, which is the
-     * opposite of what a performance readout is for.
-     *
-     * The sign of `current_now` is not portable - this platform answers
-     * negative while charging - so only the magnitude is used. Being unable to ask
-     * is a different answer from zero and is [StatusState.POWER_UNKNOWN]; a real
-     * zero stays a real zero.
      */
     private fun wattsOf(currentUnits: Int, voltageMilliVolts: Int): Float {
-        if (currentUnits == Int.MIN_VALUE || voltageMilliVolts <= 0) {
+        if (currentUnits == StatusState.CURRENT_UNKNOWN || voltageMilliVolts <= 0) {
             return StatusState.POWER_UNKNOWN
         }
-        val microAmps = kotlin.math.abs(currentUnits).toFloat() * 1_000f
-        return microAmps * (voltageMilliVolts / 1000f) / 1_000_000f
+        val absCurrent = kotlin.math.abs(currentUnits).toFloat()
+        val milliamps = if (absCurrent > 10_000f) absCurrent / 1_000f else absCurrent
+        val volts = voltageMilliVolts / 1_000f
+        return (milliamps * volts) / 1_000f
     }
 
     private fun publish(
-        attached: Boolean, watts: Float, temperature: Int, thermal: Int, currentUa: Int,
+        attached: Boolean, watts: Float, temperature: Int, thermal: Int, currentUa: Int, voltageMv: Int,
     ) {
         val beforeAttached = StatusState.sChargingAttached
         val beforeWatts = StatusState.sChargePowerW
         val beforeTemperature = StatusState.sBatteryTempC
         val beforeCurrent = StatusState.sCurrentUa
+        val beforeVoltage = StatusState.sVoltageMv
 
         StatusState.sChargingAttached = attached
         StatusState.sChargePowerW = watts
         StatusState.sBatteryTempC = temperature
         StatusState.sThermalStatus = thermal
         StatusState.sCurrentUa = currentUa
-        // The latch, not the raw comparison: the threshold has to hold across the
-        // tenths-of-a-degree jitter that whole-degree rounding produces.
+        StatusState.sVoltageMv = voltageMv
         val hotMoved = StatusState.updateBatteryHot(ModuleConfig.appearance().tempThreshold)
 
-        // Float.compare, not !=: the watts may be POWER_UNKNOWN (a NaN), and
-        // NaN != NaN would make every frame look like a change and repaint the
-        // bar once every few seconds for nothing.
         val moved = beforeAttached != attached ||
             beforeWatts.compareTo(watts) != 0 ||
             beforeTemperature != temperature ||
-            beforeCurrent != currentUa
+            beforeCurrent != currentUa ||
+            beforeVoltage != voltageMv
         if (moved || hotMoved) StatusHooks.invalidateHosts()
     }
-
-    private const val RECHECK_MS = 2_000L
 }

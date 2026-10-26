@@ -73,6 +73,7 @@ import io.github.odomu.honorduo.ui.dialog.zoneLabelRes
 import io.github.odomu.honorduo.ui.drawing.DrawingOutsideParts
 import io.github.odomu.honorduo.ui.drawing.PriorityPreferenceRow
 import io.github.odomu.honorduo.ui.drawing.SceneSelector
+import io.github.odomu.honorduo.ui.drawing.SceneChip
 import io.github.odomu.honorduo.ui.drawing.SignalOutOfRingNotice
 import io.github.odomu.honorduo.ui.manager.SettingsRepository
 import io.github.odomu.honorduo.ui.render.IconZones
@@ -318,7 +319,7 @@ private fun DrawingEditorCard(
             ) {
                 items(listOf(R.string.drawing_theme_system, R.string.drawing_theme_light,
                     R.string.drawing_theme_dark).withIndex().toList(), key = { it.index }) { entry ->
-                    BackgroundChip(stringResource(entry.value), previewTheme == entry.index) {
+                    SceneChip(stringResource(entry.value), previewTheme == entry.index) {
                         previewTheme = entry.index
                     }
                 }

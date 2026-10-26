@@ -185,6 +185,8 @@
     <string name="perf_fps_title">Frame rate</string>
     <string name="perf_current_title">Battery current</string>
     <string name="perf_current_summary" formatted="false">Show the battery\'s current. Placeable anywhere in the ring or capsule, or left in the out-of-ring strip.</string>
+    <string name="perf_voltage_title">Battery voltage</string>
+    <string name="perf_voltage_summary" formatted="false">Show the battery\'s live voltage (e.g. 3.85V) in the out-of-ring strip.</string>
     <string name="current_unit_title">Current unit</string>
     <string name="current_unit_summary">Milliamps read most naturally; amps keep two decimals.</string>
     <string name="current_unit_ma">Milliamps mA</string>
@@ -200,7 +202,7 @@
     <string name="perf_line_gap_title">Reading line gap</string>
     <string name="perf_line_gap_summary" formatted="false">Extra space between the two stacked lines. Default 0dp, adjustable 0–12dp.</string>
     <string name="perf_refresh_title">Refresh interval</string>
-    <string name="perf_refresh_summary" formatted="false">How often the charging power and battery temperature are re-read. Default 10s, adjustable 1–120s; longer saves power, and pushes from the system still update at once.</string>
+    <string name="perf_refresh_summary" formatted="false">How often charging power, battery temperature, current, and voltage are re-read. Default 10s, adjustable 1–120s; longer saves power, and pushes from the system still update at once.</string>
     <string name="perf_weight_title">Reading weight</string>
     <string name="perf_weight_summary">The default is 600 and the slider covers 100–900.</string>
 
@@ -279,8 +281,8 @@
 
     <string name="clock_weather_title">Show weather</string>
     <string name="clock_weather_summary">Show real-time weather and temperature in status bar clock.</string>
-    <string name="hide_status_clock_title">Hide clock</string>
-    <string name="hide_status_clock_summary">Master switch: with it on, neither the system clock nor the module\'s own clock is shown.</string>
+    <string name="hide_status_clock_title">Hide status bar clock</string>
+    <string name="hide_status_clock_summary">Forces hiding the stock status bar clock; useful when time is in the glyph or to resolve clock overlaps.</string>
     <string name="hide_alarm_icon_title">Hide alarm</string>
     <string name="hide_alarm_icon_summary">Hides the alarm icon in the status bar; the alarm still rings as usual.</string>
     <string name="hide_bluetooth_icon_title">Hide Bluetooth</string>

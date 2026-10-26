@@ -129,6 +129,7 @@ internal enum class ContentControl(val owner: SettingsPart) {
     Current(SettingsPart.Readouts),
     CurrentUnit(SettingsPart.Readouts),
     CurrentPositive(SettingsPart.Readouts),
+    Voltage(SettingsPart.Readouts),
     Clock(SettingsPart.Clock),
     HideStatusClock(SettingsPart.Clock),
     ClockLunar(SettingsPart.Clock),
@@ -452,6 +453,12 @@ internal fun ContentControlRow(
             summaryRes = R.string.current_positive_summary,
             dependencies = listOf(settings.perfCurrent to R.string.perf_current_title),
         ) { value -> update { it.setCurrentPositive(value) } }
+        ContentControl.Voltage -> ContentToggle(
+            checked = settings.perfVoltage,
+            title = R.string.perf_voltage_title,
+            summaryRes = R.string.perf_voltage_summary,
+            dependencies = emptyList(),
+        ) { value -> update { it.setPerfVoltage(value) } }
         ContentControl.Clock -> Unit
         ContentControl.HideStatusClock -> ContentToggle(
             checked = settings.hideStatusClock,

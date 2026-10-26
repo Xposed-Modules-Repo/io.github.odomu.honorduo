@@ -356,6 +356,25 @@ class SettingsRepository(val context: Context) {
         }
     }
 
+    /** Whether the battery voltage is drawn among the readouts. */
+    fun setPerfVoltage(value: Boolean) {
+        val current = read()
+        if (value && !current.perfVoltage) {
+            val order = touchPerfOrder(current.perfOrder, current, Prefs.PERF_ITEM_VOLTAGE)
+            preferences().edit(commit = true) {
+                putBoolean(Prefs.KEY_PERF_VOLTAGE, value)
+                putString(Prefs.KEY_PERF_ORDER, Prefs.encodePerfOrder(order))
+            }
+            push {
+                it.putBoolean(Prefs.KEY_PERF_VOLTAGE, value)
+                it.putString(Prefs.KEY_PERF_ORDER, Prefs.encodePerfOrder(order))
+            }
+            notifyModule()
+        } else {
+            writeBoolean(Prefs.KEY_PERF_VOLTAGE, value)
+        }
+    }
+
     /** Milliamps or amps for the current readout. */
     fun setCurrentUnit(value: Int) =
         writeInt(Prefs.KEY_CURRENT_UNIT, Prefs.clamp(value, Prefs.CURRENT_UNIT_MA, Prefs.CURRENT_UNIT_A))
@@ -710,6 +729,7 @@ class SettingsRepository(val context: Context) {
             Prefs.PERF_ITEM_POWER -> if (id == enabledItem) true else currentSettings.perfPower
             Prefs.PERF_ITEM_TEMP -> if (id == enabledItem) true else currentSettings.perfTemp
             Prefs.PERF_ITEM_CURRENT -> if (id == enabledItem) true else currentSettings.perfCurrent
+            Prefs.PERF_ITEM_VOLTAGE -> if (id == enabledItem) true else currentSettings.perfVoltage
             Prefs.PERF_ITEM_FPS -> if (id == enabledItem) true else currentSettings.perfFps
             else -> false
         }

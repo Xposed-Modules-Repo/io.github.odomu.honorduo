@@ -531,6 +531,13 @@ internal object StatusBarRowManager {
             ActivePerfItem(Prefs.PERF_ITEM_CURRENT, currentText)
         } else null
 
+        val voltageWanted = a.perfVoltage
+        val showVoltage = voltageWanted && StatusState.sVoltageMv > 0
+        val voltageText = if (showVoltage) StatusState.voltageText() else null
+        val voltageItem = if (!voltageText.isNullOrEmpty()) {
+            ActivePerfItem(Prefs.PERF_ITEM_VOLTAGE, voltageText)
+        } else null
+
         val fpsWanted = a.perfFps || (!a.glyph && a.hasRingPart(Prefs.PART_FPS))
         val fpsInGlyph = a.glyph && a.drawsPart(Prefs.PART_FPS, row.state.level, row.state.charging, row.state.wifiLevel, row.state.mobileType, row.state.sims)
         val showFps = fpsWanted && !fpsInGlyph && StatusState.sFps > 0
@@ -538,12 +545,13 @@ internal object StatusBarRowManager {
             ActivePerfItem(Prefs.PERF_ITEM_FPS, StatusState.sFps.toString())
         } else null
 
-        val activeList = ArrayList<ActivePerfItem>(4)
+        val activeList = ArrayList<ActivePerfItem>(5)
         for (id in a.perfOrder) {
             when (id) {
                 Prefs.PERF_ITEM_POWER -> powerItem?.let { activeList.add(it) }
                 Prefs.PERF_ITEM_TEMP -> tempItem?.let { activeList.add(it) }
                 Prefs.PERF_ITEM_CURRENT -> currentItem?.let { activeList.add(it) }
+                Prefs.PERF_ITEM_VOLTAGE -> voltageItem?.let { activeList.add(it) }
                 Prefs.PERF_ITEM_FPS -> fpsItem?.let { activeList.add(it) }
             }
         }
@@ -874,11 +882,15 @@ internal object StatusBarRowManager {
             StatusHooks.markRepaintPending()
             return
         }
+        val a = ModuleConfig.appearance()
         for (row in snapshot()) {
             row.state.refresh()
             val fg = row.state.foreground()
             row.glyph?.invalidate()
             row.signal?.invalidate()
+            if (a.perfPairShown()) {
+                syncPerfReadouts(row, a)
+            }
             row.perf?.setTextColor(fg)
             row.fps?.setTextColor(fg)
             row.type?.setTextColor(fg)

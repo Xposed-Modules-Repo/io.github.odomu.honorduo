@@ -308,8 +308,8 @@ object Prefs {
     const val CURRENT_UNIT_MA = 0
     const val CURRENT_UNIT_A = 1
 
-    /** Milliamps by default: that is the scale a phone's currents are talked about in. */
-    const val DEF_CURRENT_UNIT = CURRENT_UNIT_MA
+    /** Amps by default. */
+    const val DEF_CURRENT_UNIT = CURRENT_UNIT_A
 
     /**
      * Draw the current as a magnitude whatever its direction.
@@ -588,6 +588,9 @@ object Prefs {
     /** Show the battery current as one of the out-of-ring readings. */
     const val KEY_PERF_CURRENT = "perf_current"
 
+    /** Show the battery voltage as one of the out-of-ring readings. */
+    const val KEY_PERF_VOLTAGE = "perf_voltage"
+    const val DEF_PERF_VOLTAGE = false
     /**
      * Overall size of the two performance readouts, as a percentage of the size
      * [KEY_OUT_TYPE_SIZE_DP] and the adaptive fit settle on.
@@ -934,18 +937,19 @@ object Prefs {
     const val PERF_ITEM_POWER = 1
     const val PERF_ITEM_TEMP = 2
     const val PERF_ITEM_CURRENT = 3
-    const val PERF_ITEM_FPS = 4
-    const val PERF_ITEM_COUNT = 4
+    const val PERF_ITEM_VOLTAGE = 4
+    const val PERF_ITEM_FPS = 5
+    const val PERF_ITEM_COUNT = 5
 
     @JvmField
     val PERF_DEFAULT_ORDER = intArrayOf(
         PERF_ITEM_POWER,
         PERF_ITEM_TEMP,
         PERF_ITEM_CURRENT,
+        PERF_ITEM_VOLTAGE,
         PERF_ITEM_FPS,
     )
-    const val PERF_DEFAULT_ORDER_STRING = "1,2,3,4"
-
+    const val PERF_DEFAULT_ORDER_STRING = "1,2,3,4,5"
     @JvmStatic
     fun decodePerfOrder(stored: String?): IntArray {
         val ids = ArrayList<Int>()

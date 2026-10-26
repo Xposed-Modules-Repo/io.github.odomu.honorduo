@@ -367,6 +367,9 @@ class ModuleSettings {
     @JvmField
     var perfCurrent = Prefs.DEF_PERF_CURRENT
 
+    /** Show the battery voltage among the readouts. */
+    @JvmField
+    var perfVoltage = Prefs.DEF_PERF_VOLTAGE
     /** How the current is written: milliamps or amps. */
     @JvmField
     var currentUnit = Prefs.DEF_CURRENT_UNIT
@@ -473,7 +476,7 @@ class ModuleSettings {
             perfTemp = Prefs.DEF_PERF_TEMP
             perfFps = Prefs.DEF_PERF_FPS
             perfCurrent = Prefs.DEF_PERF_CURRENT
-            currentUnit = Prefs.DEF_CURRENT_UNIT
+            perfVoltage = Prefs.DEF_PERF_VOLTAGE
             currentPositive = Prefs.DEF_CURRENT_POSITIVE
             perfScale = Prefs.DEF_PERF_SCALE
             perfWeight = Prefs.DEF_PERF_WEIGHT
@@ -680,6 +683,7 @@ class ModuleSettings {
             s.perfTemp = p.getBoolean(Prefs.KEY_PERF_TEMP, Prefs.DEF_PERF_TEMP)
             s.perfFps = p.getBoolean(Prefs.KEY_PERF_FPS, Prefs.DEF_PERF_FPS)
             s.perfCurrent = p.getBoolean(Prefs.KEY_PERF_CURRENT, Prefs.DEF_PERF_CURRENT)
+            s.perfVoltage = p.getBoolean(Prefs.KEY_PERF_VOLTAGE, Prefs.DEF_PERF_VOLTAGE)
             s.currentUnit = p.getInt(Prefs.KEY_CURRENT_UNIT, Prefs.DEF_CURRENT_UNIT)
                 .coerceIn(Prefs.CURRENT_UNIT_MA, Prefs.CURRENT_UNIT_A)
             s.currentPositive = p.getBoolean(Prefs.KEY_CURRENT_POSITIVE, Prefs.DEF_CURRENT_POSITIVE)
@@ -995,6 +999,7 @@ class ModuleSettings {
             s.perfTemp = bundle.getBoolean(Prefs.KEY_PERF_TEMP, Prefs.DEF_PERF_TEMP)
             s.perfFps = bundle.getBoolean(Prefs.KEY_PERF_FPS, Prefs.DEF_PERF_FPS)
             s.perfCurrent = bundle.getBoolean(Prefs.KEY_PERF_CURRENT, Prefs.DEF_PERF_CURRENT)
+            s.perfVoltage = bundle.getBoolean(Prefs.KEY_PERF_VOLTAGE, Prefs.DEF_PERF_VOLTAGE)
             s.currentUnit = bundle.getInt(Prefs.KEY_CURRENT_UNIT, Prefs.DEF_CURRENT_UNIT)
                 .coerceIn(Prefs.CURRENT_UNIT_MA, Prefs.CURRENT_UNIT_A)
             s.currentPositive = bundle.getBoolean(Prefs.KEY_CURRENT_POSITIVE, Prefs.DEF_CURRENT_POSITIVE)
@@ -1444,7 +1449,7 @@ class ModuleSettings {
         s.perfTemp = perfTemp
         s.perfFps = perfFps
         s.perfCurrent = perfCurrent
-        s.currentUnit = currentUnit
+        s.perfVoltage = perfVoltage
         s.currentPositive = currentPositive
         s.perfScale = perfScale
         s.perfWeight = perfWeight
@@ -1604,7 +1609,7 @@ class ModuleSettings {
             Prefs.KEY_PERF_TEMP -> perfTemp = src.perfTemp
             Prefs.KEY_PERF_FPS -> perfFps = src.perfFps
             Prefs.KEY_PERF_CURRENT -> perfCurrent = src.perfCurrent
-            Prefs.KEY_CURRENT_UNIT -> currentUnit = src.currentUnit
+            Prefs.KEY_PERF_VOLTAGE -> perfVoltage = src.perfVoltage
             Prefs.KEY_CURRENT_POSITIVE -> currentPositive = src.currentPositive
             Prefs.KEY_PERF_SCALE -> perfScale = src.perfScale
             Prefs.KEY_PERF_WEIGHT -> perfWeight = src.perfWeight
@@ -1738,7 +1743,7 @@ class ModuleSettings {
         putBoolean(Prefs.KEY_PERF_TEMP, perfTemp)
         putBoolean(Prefs.KEY_PERF_FPS, perfFps)
         putBoolean(Prefs.KEY_PERF_CURRENT, perfCurrent)
-        putInt(Prefs.KEY_CURRENT_UNIT, currentUnit)
+        putBoolean(Prefs.KEY_PERF_VOLTAGE, perfVoltage)
         putBoolean(Prefs.KEY_CURRENT_POSITIVE, currentPositive)
         putInt(Prefs.KEY_PERF_SCALE, perfScale)
         putInt(Prefs.KEY_PERF_WEIGHT, perfWeight)
@@ -1798,123 +1803,67 @@ class ModuleSettings {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is ModuleSettings) return false
-        return enabled == other.enabled &&
-            mergeIcons == other.mergeIcons &&
-            showWifi == other.showWifi &&
-            showMobile == other.showMobile &&
-            showValue == other.showValue &&
-            showBolt == other.showBolt &&
-            typeHideOnWifi == other.typeHideOnWifi &&
-            chargingShowsValue == other.chargingShowsValue &&
-            perfTempChargingOnly == other.perfTempChargingOnly &&
-            wifiScale == other.wifiScale &&
-            capsuleLength == other.capsuleLength &&
-            capsuleLeftDx == other.capsuleLeftDx &&
-            capsuleLeftDy == other.capsuleLeftDy &&
-            capsuleRightDx == other.capsuleRightDx &&
-            capsuleRightDy == other.capsuleRightDy &&
-            ringSpacingX == other.ringSpacingX &&
-            ringSpacingY == other.ringSpacingY &&
-            mobileTypeMode == other.mobileTypeMode &&
-            showMobileActivity == other.showMobileActivity &&
-            valueCentred == other.valueCentred &&
-            navStyle == other.navStyle &&
-            navLabels == other.navLabels &&
-            trioStyle == other.trioStyle &&
-            ringZones.contentDeepEquals(other.ringZones) &&
-            dualSim == other.dualSim &&
-            signalMode == other.signalMode &&
-            stackedSignal == other.stackedSignal &&
-            showSim1 == other.showSim1 &&
-            showSim2 == other.showSim2 &&
-            dataSimOnly == other.dataSimOnly &&
-            showPercent == other.showPercent &&
-            capGap == other.capGap &&
-            perfPower == other.perfPower &&
-            perfRunning == other.perfRunning &&
-            clockSeconds == other.clockSeconds &&
-            clockDate == other.clockDate &&
-            clockWeekday == other.clockWeekday &&
-            clockTopOffsetX == other.clockTopOffsetX &&
-            clockBottomOffsetX == other.clockBottomOffsetX &&
-            clockLunarGap == other.clockLunarGap &&
-            clockRowGap == other.clockRowGap &&
-            clockLunar == other.clockLunar &&
-            clockDateFormat == other.clockDateFormat &&
-            clockWeekdayFormat == other.clockWeekdayFormat &&
-            clockWeekdayColorOnDark == other.clockWeekdayColorOnDark &&
-            clockWeekdayColorOnLight == other.clockWeekdayColorOnLight &&
-            clockDateColorOnDark == other.clockDateColorOnDark &&
-            clockDateColorOnLight == other.clockDateColorOnLight &&
-            clockLunarColorOnDark == other.clockLunarColorOnDark &&
-            clockLunarColorOnLight == other.clockLunarColorOnLight &&
-            clockWeather == other.clockWeather &&
-            clockWeatherStyle == other.clockWeatherStyle &&
-            clockStyle == other.clockStyle &&
-            clockWeatherColorOnDark == other.clockWeatherColorOnDark &&
-            clockWeatherColorOnLight == other.clockWeatherColorOnLight &&
-            shadeHidePower == other.shadeHidePower &&
-            shadeHideBell == other.shadeHideBell &&
-            shadeLunar == other.shadeLunar &&
-            shadeWeather == other.shadeWeather &&
-            shadeWeatherStyle == other.shadeWeatherStyle &&
-            perfTemp == other.perfTemp &&
-            perfFps == other.perfFps &&
-            perfCurrent == other.perfCurrent &&
-            currentUnit == other.currentUnit &&
-            currentPositive == other.currentPositive &&
-            perfScale == other.perfScale &&
-            perfWeight == other.perfWeight &&
-            perfLineGap == other.perfLineGap &&
-            perfRefreshSec == other.perfRefreshSec &&
-            clockDigitColorsOnDark.contentEquals(other.clockDigitColorsOnDark) &&
-            clockDigitColorsOnLight.contentEquals(other.clockDigitColorsOnLight) &&
-            glyphScale == other.glyphScale &&
-            roleColors == other.roleColors &&
-            criticalOnDark == other.criticalOnDark &&
-            criticalOnLight == other.criticalOnLight &&
-            chargingOnDark == other.chargingOnDark &&
-            chargingOnLight == other.chargingOnLight &&
-            lowOnDark == other.lowOnDark &&
-            lowOnLight == other.lowOnLight &&
-            lowThreshold == other.lowThreshold &&
-            roleColorsTemp == other.roleColorsTemp &&
-            tempThreshold == other.tempThreshold &&
-            highTempOnDark == other.highTempOnDark &&
-            highTempOnLight == other.highTempOnLight &&
-            ringStroke == other.ringStroke &&
-            arcStroke == other.arcStroke &&
-            valueSize == other.valueSize &&
-            valueWeight == other.valueWeight &&
-            clockSize == other.clockSize &&
-            clockWeight == other.clockWeight &&
-            typeSize == other.typeSize &&
-            outTypeSize == other.outTypeSize &&
-            outSignalSize == other.outSignalSize &&
-            outDotSize == other.outDotSize &&
-            stackStyle == other.stackStyle &&
-            stackLabel == other.stackLabel &&
-            antiBurnIn == other.antiBurnIn &&
-            signalColumns == other.signalColumns &&
-            fontPath == other.fontPath &&
-            outTypeMarginLeft == other.outTypeMarginLeft &&
-            outTypeMarginRight == other.outTypeMarginRight &&
-            outSignalMargin == other.outSignalMargin &&
-            typeSuffixScale == other.typeSuffixScale &&
-            boltScale == other.boltScale &&
-            boltAnim == other.boltAnim &&
-            boltSpeed == other.boltSpeed &&
-            dotScale == other.dotScale &&
-            outOrder.contentEquals(other.outOrder) &&
-            perfOrder.contentEquals(other.perfOrder) &&
-            typeWeight == other.typeWeight &&
-            trackAlpha == other.trackAlpha &&
-            replaceWifiIcon == other.replaceWifiIcon &&
-            replaceStatusIcon == other.replaceStatusIcon &&
-            hideStatusClock == other.hideStatusClock &&
-            hideAlarmIcon == other.hideAlarmIcon &&
+        // Content equality on arrays first
+        if (!ringZones.contentDeepEquals(other.ringZones)) return false
+        if (!outOrder.contentEquals(other.outOrder)) return false
+        if (!perfOrder.contentEquals(other.perfOrder)) return false
+        if (!clockDigitColorsOnDark.contentEquals(other.clockDigitColorsOnDark)) return false
+        if (!clockDigitColorsOnLight.contentEquals(other.clockDigitColorsOnLight)) return false
+
+        // Scalar fields grouped by domain
+        return enabled == other.enabled && mergeIcons == other.mergeIcons && fontPath == other.fontPath &&
+            debugLog == other.debugLog && antiBurnIn == other.antiBurnIn &&
+            // Styles & layout dimensions
+            trioStyle == other.trioStyle && navStyle == other.navStyle && navLabels == other.navLabels &&
+            glyphScale == other.glyphScale && dotScale == other.dotScale && ringStroke == other.ringStroke &&
+            arcStroke == other.arcStroke && ringSpacingX == other.ringSpacingX && ringSpacingY == other.ringSpacingY &&
+            capsuleLength == other.capsuleLength && capGap == other.capGap &&
+            capsuleLeftDx == other.capsuleLeftDx && capsuleLeftDy == other.capsuleLeftDy &&
+            capsuleRightDx == other.capsuleRightDx && capsuleRightDy == other.capsuleRightDy &&
+            // Components & display options
+            showWifi == other.showWifi && showMobile == other.showMobile && showMobileActivity == other.showMobileActivity &&
+            showValue == other.showValue && showBolt == other.showBolt && showPercent == other.showPercent &&
+            wifiScale == other.wifiScale && valueCentred == other.valueCentred && valueSize == other.valueSize &&
+            valueWeight == other.valueWeight && boltScale == other.boltScale && boltAnim == other.boltAnim &&
+            boltSpeed == other.boltSpeed && chargingShowsValue == other.chargingShowsValue &&
+            // Signal & mobile type
+            dualSim == other.dualSim && signalMode == other.signalMode && stackedSignal == other.stackedSignal &&
+            showSim1 == other.showSim1 && showSim2 == other.showSim2 && dataSimOnly == other.dataSimOnly &&
+            signalColumns == other.signalColumns && mobileTypeMode == other.mobileTypeMode &&
+            typeHideOnWifi == other.typeHideOnWifi && typeSize == other.typeSize && typeWeight == other.typeWeight &&
+            typeSuffixScale == other.typeSuffixScale && outTypeSize == other.outTypeSize &&
+            outTypeMarginLeft == other.outTypeMarginLeft && outTypeMarginRight == other.outTypeMarginRight &&
+            outSignalSize == other.outSignalSize && outDotSize == other.outDotSize && outSignalMargin == other.outSignalMargin &&
+            stackStyle == other.stackStyle && stackLabel == other.stackLabel && trackAlpha == other.trackAlpha &&
+            // Performance readings
+            perfPower == other.perfPower && perfRunning == other.perfRunning && perfTemp == other.perfTemp &&
+            perfTempChargingOnly == other.perfTempChargingOnly && perfFps == other.perfFps &&
+            perfCurrent == other.perfCurrent && perfVoltage == other.perfVoltage && currentPositive == other.currentPositive &&
+            currentUnit == other.currentUnit && perfScale == other.perfScale && perfWeight == other.perfWeight &&
+            perfLineGap == other.perfLineGap && perfRefreshSec == other.perfRefreshSec &&
+            // Clock & shade
+            clockSeconds == other.clockSeconds && clockDate == other.clockDate && clockWeekday == other.clockWeekday &&
+            clockLunar == other.clockLunar && clockDateFormat == other.clockDateFormat &&
+            clockWeekdayFormat == other.clockWeekdayFormat && clockWeather == other.clockWeather &&
+            clockWeatherStyle == other.clockWeatherStyle && clockStyle == other.clockStyle &&
+            clockTopOffsetX == other.clockTopOffsetX && clockBottomOffsetX == other.clockBottomOffsetX &&
+            clockLunarGap == other.clockLunarGap && clockRowGap == other.clockRowGap && clockSize == other.clockSize &&
+            clockWeight == other.clockWeight && hideStatusClock == other.hideStatusClock &&
+            shadeHidePower == other.shadeHidePower && shadeHideBell == other.shadeHideBell &&
+            shadeLunar == other.shadeLunar && shadeWeather == other.shadeWeather &&
+            shadeWeatherStyle == other.shadeWeatherStyle && replaceWifiIcon == other.replaceWifiIcon &&
+            replaceStatusIcon == other.replaceStatusIcon && hideAlarmIcon == other.hideAlarmIcon &&
             hideBluetoothIcon == other.hideBluetoothIcon &&
-            debugLog == other.debugLog
+            // Colors & thresholds
+            roleColors == other.roleColors && roleColorsTemp == other.roleColorsTemp && lowThreshold == other.lowThreshold &&
+            tempThreshold == other.tempThreshold && criticalOnDark == other.criticalOnDark &&
+            criticalOnLight == other.criticalOnLight && chargingOnDark == other.chargingOnDark &&
+            chargingOnLight == other.chargingOnLight && lowOnDark == other.lowOnDark && lowOnLight == other.lowOnLight &&
+            highTempOnDark == other.highTempOnDark && highTempOnLight == other.highTempOnLight &&
+            clockWeekdayColorOnDark == other.clockWeekdayColorOnDark && clockWeekdayColorOnLight == other.clockWeekdayColorOnLight &&
+            clockDateColorOnDark == other.clockDateColorOnDark && clockDateColorOnLight == other.clockDateColorOnLight &&
+            clockLunarColorOnDark == other.clockLunarColorOnDark && clockLunarColorOnLight == other.clockLunarColorOnLight &&
+            clockWeatherColorOnDark == other.clockWeatherColorOnDark && clockWeatherColorOnLight == other.clockWeatherColorOnLight
     }
 
     override fun hashCode(): Int {
@@ -1922,16 +1871,13 @@ class ModuleSettings {
         h = h * 31 + (if (perfPower) 1 else 0)
         h = h * 31 + (if (perfRunning) 1 else 0)
         h = h * 31 + (if (perfTemp) 1 else 0)
-        h = h * 31 + (if (perfFps) 1 else 0)
         h = h * 31 + (if (perfCurrent) 1 else 0)
+        h = h * 31 + (if (perfVoltage) 1 else 0)
+        h = h * 31 + (if (perfFps) 1 else 0)
         h = h * 31 + currentUnit
-        h = h * 31 + (if (currentPositive) 1 else 0)
         h = h * 31 + perfScale
-        h = h * 31 + perfWeight
-        h = h * 31 + perfLineGap
-        h = h * 31 + clockDigitColorsOnDark.contentHashCode()
-        h = h * 31 + clockDigitColorsOnLight.contentHashCode()
-        h = h * 31 + glyphScale
+        h = h * 31 + ringZones.contentDeepHashCode()
+        h = h * 31 + perfOrder.contentHashCode()
         return if (h != 0) h else 1
     }
 }

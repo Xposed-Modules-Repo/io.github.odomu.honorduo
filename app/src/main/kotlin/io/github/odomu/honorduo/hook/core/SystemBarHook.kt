@@ -199,6 +199,14 @@ internal object SystemBarHook {
             val self = chain.thisObject
             if (self is ViewGroup) {
                 StatusBarIconManager.contents = WeakReference(self)
+                val clockId = StatusBarIconManager.clockId
+                if (clockId != 0 && BarClockManager.nativeClock == null) {
+                    val native = self.findViewById<View>(clockId) as? TextView
+                    if (native != null) {
+                        BarClockManager.noteNativeClock(native)
+                        StatusBarIconManager.settleClock(native)
+                    }
+                }
                 StatusBarIconManager.applyIconVisibility(ModuleConfig.appearance())
             }
             result
@@ -209,7 +217,14 @@ internal object SystemBarHook {
      * Hooks `HwStatusBarClock` window attachment to extract system typeface and hand over clock view.
      */
     private fun hookClockFace(module: XposedModule, cl: ClassLoader): Int {
-        val clock = Refl.cls("com.android.systemui.time.HwStatusBarClock", cl) ?: return 0
+        val candidates = arrayOf(
+            "com.android.systemui.time.HwStatusBarClock",
+            "com.android.systemui.time.HnStatusBarClock",
+            "com.android.systemui.statusbar.phone.HnStatusBarClock",
+            "com.android.systemui.statusbar.views.HwStatusBarClock",
+            "com.android.systemui.statusbar.policy.Clock",
+        )
+        val clock = candidates.firstNotNullOfOrNull { Refl.cls(it, cl) } ?: return 0
         return StatusHooks.hook(
             module, Refl.method(clock, "onAttachedToWindow"), "honorduo-clock-face",
         ) { chain ->

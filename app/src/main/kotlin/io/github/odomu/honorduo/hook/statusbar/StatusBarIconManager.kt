@@ -230,8 +230,8 @@ internal object StatusBarIconManager {
         // match yet. The class check keeps the calling and projection clocks - which
         // share the id but are a plain TextView - out of it.
         if (id == clockId &&
-            view.javaClass.name.endsWith(STATUS_BAR_CLOCK_SUFFIX) &&
-            isOwned(id, ModuleConfig.appearance())
+            (view is android.widget.TextView || view.javaClass.name.endsWith(STATUS_BAR_CLOCK_SUFFIX)) &&
+            isOwned(id, a)
         ) {
             rememberHidden(view)
             hide(view)

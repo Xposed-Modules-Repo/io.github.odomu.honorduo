@@ -221,6 +221,8 @@
     <string name="perf_fps_title">帧率显示</string>
     <string name="perf_current_title">电池电流</string>
     <string name="perf_current_summary" formatted="false">显示电池当前电流；可拖入圆环、胶囊的任意位置，也可留在环外读数条。</string>
+    <string name="perf_voltage_title">电池电压</string>
+    <string name="perf_voltage_summary" formatted="false">显示电池实时电压；留在环外读数条或参与自适应堆叠。</string>
     <string name="current_unit_title">电流单位</string>
     <string name="current_unit_summary">毫安（mA）读数更直观，安培（A）保留两位小数。</string>
     <string name="current_unit_ma">毫安 mA</string>
@@ -236,7 +238,7 @@
     <string name="perf_line_gap_title">读数行距</string>
     <string name="perf_line_gap_summary" formatted="false">堆叠读数两行之间的额外间距，默认 0dp，可调 0–12dp。</string>
     <string name="perf_refresh_title">刷新频率</string>
-    <string name="perf_refresh_summary" formatted="false">充电功率与电池温度的回读间隔，默认 10s，可调 1–120s；调大更省电，系统推送的变化仍会即时更新。</string>
+    <string name="perf_refresh_summary" formatted="false">充电功率、电池温度、电流与电压的回读间隔，默认 10s，可调 1–120s；调大更省电，系统推送的变化仍会即时更新。</string>
     <string name="perf_weight_title">读数字重</string>
     <string name="perf_weight_summary">默认 600，可调 100–900。</string>
 
@@ -315,8 +317,8 @@
 
     <string name="clock_weather_title">显示天气</string>
     <string name="clock_weather_summary">在状态栏时钟显示实时天气与气温。</string>
-    <string name="hide_status_clock_title">隐藏时钟</string>
-    <string name="hide_status_clock_summary">时钟显示总开关：开启后系统时钟与三合一自绘时钟都不显示。</string>
+    <string name="hide_status_clock_title">隐藏状态栏时钟</string>
+    <string name="hide_status_clock_summary">强制隐藏状态栏原生系统时间；当时间已放入三合一字形或发生时间重叠时开启此项。</string>
     <string name="hide_alarm_icon_title">隐藏闹钟</string>
     <string name="hide_alarm_icon_summary">不在状态栏显示闹钟图标；闹钟本身仍会正常响铃。</string>
     <string name="hide_bluetooth_icon_title">隐藏蓝牙</string>
