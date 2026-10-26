@@ -1,6 +1,7 @@
-package io.github.odomu.honorduo.ui
+package io.github.odomu.honorduo.ui.dialog
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,10 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.state.ToggleableState
-import top.yukonga.miuix.kmp.basic.Checkbox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -38,12 +37,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.odomu.honorduo.BuildConfig
 import io.github.odomu.honorduo.R
+import io.github.odomu.honorduo.ui.manager.UpdateInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
@@ -323,7 +324,7 @@ internal fun ReleaseNotesDialog(
     }
 
     val currentDoc = doc
-    val targetVersionName = info?.version ?: currentDoc?.version?.takeIf { it.isNotBlank() } ?: currentVersion ?: "1.0.3"
+    val targetVersionName = info?.version ?: currentDoc?.version?.takeIf { it.isNotBlank() } ?: currentVersion ?: "1.0.4"
     val targetVersionCode = info?.versionCode ?: releaseCodeOf(targetVersionName)
     val versionBadgeText = if (targetVersionCode > 0) "v$targetVersionName ($targetVersionCode)" else "v$targetVersionName"
     val dialogTitle = "${stringResource(R.string.release_notes_title)} $versionBadgeText"

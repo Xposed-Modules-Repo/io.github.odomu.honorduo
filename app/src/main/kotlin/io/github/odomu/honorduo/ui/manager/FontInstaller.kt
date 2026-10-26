@@ -1,4 +1,4 @@
-package io.github.odomu.honorduo.ui
+package io.github.odomu.honorduo.ui.manager
 
 import android.content.Context
 import android.graphics.Typeface
@@ -93,15 +93,9 @@ internal object FontInstaller {
     }
 
     private fun destinationDir(context: Context): File? {
-        val roots = context.externalMediaDirs
-        for (root in roots) {
-            if (root == null) continue
-            val dir = File(root, DIR_NAME)
-            if (dir.isDirectory || dir.mkdirs()) {
-                return dir
-            }
-        }
-        return null
+        val root = context.getExternalFilesDir(null) ?: context.filesDir
+        val dir = File(root, DIR_NAME)
+        return if (dir.isDirectory || dir.mkdirs()) dir else null
     }
 
     private fun writeVerified(input: InputStream, target: File): String? {

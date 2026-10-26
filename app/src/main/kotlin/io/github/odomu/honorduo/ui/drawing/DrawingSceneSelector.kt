@@ -1,0 +1,65 @@
+package io.github.odomu.honorduo.ui.drawing
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import io.github.odomu.honorduo.ui.component.BackgroundChip
+import io.github.odomu.honorduo.ui.screen.PreviewScene
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+@Composable
+internal fun SceneSelector(
+    selected: PreviewScene,
+    onSelect: (PreviewScene) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp),
+    ) {
+        items(PreviewScene.entries) { scene ->
+            SceneChip(
+                scene = scene,
+                selected = scene == selected,
+                onClick = { onSelect(scene) },
+            )
+        }
+    }
+}
+
+@Composable
+internal fun SceneChip(
+    scene: PreviewScene,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    BackgroundChip(
+        label = stringResource(scene.labelRes),
+        selected = selected,
+        onClick = onClick,
+    )
+}
+
+@Composable
+internal fun SignalOutOfRingNotice() {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+    ) {
+        Text(
+            text = stringResource(io.github.odomu.honorduo.R.string.drawing_signal_out_of_ring_notice),
+            style = MiuixTheme.textStyles.footnote2,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        )
+    }
+}

@@ -9,19 +9,18 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.ui
-
-
+package io.github.odomu.honorduo.ui.manager
 import android.content.Context
+
 import android.content.Intent
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.core.content.edit
 import io.github.libxposed.service.XposedService
 import io.github.odomu.honorduo.HonorDuoApp
+import io.github.odomu.honorduo.model.ModuleSettings
 import io.github.odomu.honorduo.model.Prefs
-import io.github.odomu.honorduo.model.TrioSettings
-import io.github.odomu.honorduo.render.TrioZones
+import io.github.odomu.honorduo.ui.render.IconZones
 
 /**
  * Reads and writes every setting, and mirrors each write to the Xposed
@@ -52,7 +51,7 @@ class SettingsRepository(val context: Context) {
         appContext.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
 
     /** The current values, as the preview should render them. */
-    fun read(): TrioSettings = TrioSettings.from(preferences(), density)
+    fun read(): ModuleSettings = ModuleSettings.from(preferences(), density)
 
     /**
      * The snapshot for a style the user is *not* currently in.
@@ -64,8 +63,8 @@ class SettingsRepository(val context: Context) {
      * A pure read of the other arrangement's keys - the stored style is not touched, so
      * nothing observes a transient state and no write is pushed to the hooked process.
      */
-    fun readForStyle(style: Int): TrioSettings =
-        TrioSettings.from(preferences(), density, Prefs.normalizeTrioStyle(style))
+    fun readForStyle(style: Int): ModuleSettings =
+        ModuleSettings.from(preferences(), density, Prefs.normalizeTrioStyle(style))
 
     fun setEnabled(value: Boolean) = writeBoolean(Prefs.KEY_ENABLED, value)
     fun setMergeIcons(value: Boolean) = writeBoolean(Prefs.KEY_MERGE_ICONS, value)
@@ -124,7 +123,7 @@ class SettingsRepository(val context: Context) {
     }
 
     /** Publish one layout edit as a single local/remote transaction and one broadcast. */
-    fun applyRingAssignment(next: TrioSettings) {
+    fun applyRingAssignment(next: ModuleSettings) {
         // The arrangement being written is the snapshot's own, not the stored one: the caller
         // built `next` for a specific style, and a layout written under the wrong key would
         // show up in the other arrangement on the next style switch.
@@ -157,20 +156,20 @@ class SettingsRepository(val context: Context) {
      * type slot) removes the piece. The three ints are still the three zones, which is why
      * the mapping is kept - the ring's editor drives the priority lists directly.
      */
-    fun setRingPartPosition(part: TrioZones.Part, position: Int) {
-        val current = TrioSettings.from(preferences(), density)
+    fun setRingPartPosition(part: IconZones.Part, position: Int) {
+        val current = ModuleSettings.from(preferences(), density)
         if (position in 1..3) {
             applyRingAssignment(
-                TrioZones.withPiece(current, position - 1, part)
+                IconZones.withPiece(current, position - 1, part)
             )
         } else {
             val next = current.copy()
-            val id = TrioZones.encodePart(part)
-            next.ringZones = TrioSettings.copyZones(current.ringZones)
+            val id = IconZones.encodePart(part)
+            next.ringZones = ModuleSettings.copyZones(current.ringZones)
             for (zone in next.ringZones.indices) {
                 next.ringZones[zone] = next.ringZones[zone].filter { it != id }.toIntArray()
             }
-            if (part == TrioZones.Part.TYPE) {
+            if (part == IconZones.Part.TYPE) {
                 next.mobileTypeMode =
                     if (position == 4) Prefs.MOBILE_TYPE_OUT_RING else Prefs.MOBILE_TYPE_OFF
             }
@@ -186,18 +185,18 @@ class SettingsRepository(val context: Context) {
      * arcs it has no slot for, or hold a slot it will not fill.
      */
     fun setWifiPosition(position: Int) {
-        val current = TrioSettings.from(preferences(), density)
+        val current = ModuleSettings.from(preferences(), density)
         if (position in 1..3) {
-            val next = TrioZones.withPiece(
-                current, position - 1, TrioZones.Part.WIFI)
+            val next = IconZones.withPiece(
+                current, position - 1, IconZones.Part.WIFI)
             next.showWifi = true
             applyRingAssignment(next)
         } else {
             val next = current.copy()
             next.showWifi = false
-            val id = TrioZones.encodePart(
-                TrioZones.Part.WIFI)
-            next.ringZones = TrioSettings.copyZones(current.ringZones)
+            val id = IconZones.encodePart(
+                IconZones.Part.WIFI)
+            next.ringZones = ModuleSettings.copyZones(current.ringZones)
             for (zone in next.ringZones.indices) {
                 next.ringZones[zone] = next.ringZones[zone].filter { it != id }.toIntArray()
             }
@@ -248,7 +247,23 @@ class SettingsRepository(val context: Context) {
         writeBoolean(Prefs.KEY_PERF_TEMP_CHARGING_ONLY, value)
 
     /** Charging power in the out-of-ring strip - see [Prefs.KEY_PERF_POWER]. */
-    fun setPerfPower(value: Boolean) = writeBoolean(Prefs.KEY_PERF_POWER, value)
+    fun setPerfPower(value: Boolean) {
+        val current = read()
+        if (value && !current.perfPower) {
+            val order = touchPerfOrder(current.perfOrder, current, Prefs.PERF_ITEM_POWER)
+            preferences().edit(commit = true) {
+                putBoolean(Prefs.KEY_PERF_POWER, value)
+                putString(Prefs.KEY_PERF_ORDER, Prefs.encodePerfOrder(order))
+            }
+            push {
+                it.putBoolean(Prefs.KEY_PERF_POWER, value)
+                it.putString(Prefs.KEY_PERF_ORDER, Prefs.encodePerfOrder(order))
+            }
+            notifyModule()
+        } else {
+            writeBoolean(Prefs.KEY_PERF_POWER, value)
+        }
+    }
     /** Keep the power readout while unplugged - see [Prefs.KEY_PERF_RUNNING]. */
     fun setPerfRunning(value: Boolean) = writeBoolean(Prefs.KEY_PERF_RUNNING, value)
     /** Seconds in the drawn time - see [Prefs.KEY_CLOCK_SECONDS]. */
@@ -281,9 +296,41 @@ class SettingsRepository(val context: Context) {
     fun setColorClockWeatherOnDark(value: Int) = writeInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_DARK, value)
     fun setColorClockWeatherOnLight(value: Int) = writeInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_LIGHT, value)
     /** Battery temperature in the out-of-ring strip - see [Prefs.KEY_PERF_TEMP]. */
-    fun setPerfTemp(value: Boolean) = writeBoolean(Prefs.KEY_PERF_TEMP, value)
+    fun setPerfTemp(value: Boolean) {
+        val current = read()
+        if (value && !current.perfTemp) {
+            val order = touchPerfOrder(current.perfOrder, current, Prefs.PERF_ITEM_TEMP)
+            preferences().edit(commit = true) {
+                putBoolean(Prefs.KEY_PERF_TEMP, value)
+                putString(Prefs.KEY_PERF_ORDER, Prefs.encodePerfOrder(order))
+            }
+            push {
+                it.putBoolean(Prefs.KEY_PERF_TEMP, value)
+                it.putString(Prefs.KEY_PERF_ORDER, Prefs.encodePerfOrder(order))
+            }
+            notifyModule()
+        } else {
+            writeBoolean(Prefs.KEY_PERF_TEMP, value)
+        }
+    }
     /** The screen's frame rate - see [Prefs.KEY_PERF_FPS]. */
-    fun setPerfFps(value: Boolean) = writeBoolean(Prefs.KEY_PERF_FPS, value)
+    fun setPerfFps(value: Boolean) {
+        val current = read()
+        if (value && !current.perfFps) {
+            val order = touchPerfOrder(current.perfOrder, current, Prefs.PERF_ITEM_FPS)
+            preferences().edit(commit = true) {
+                putBoolean(Prefs.KEY_PERF_FPS, value)
+                putString(Prefs.KEY_PERF_ORDER, Prefs.encodePerfOrder(order))
+            }
+            push {
+                it.putBoolean(Prefs.KEY_PERF_FPS, value)
+                it.putString(Prefs.KEY_PERF_ORDER, Prefs.encodePerfOrder(order))
+            }
+            notifyModule()
+        } else {
+            writeBoolean(Prefs.KEY_PERF_FPS, value)
+        }
+    }
     /** Overall size of the two readouts, in percent - see [Prefs.KEY_PERF_SCALE]. */
     fun setPerfScale(value: Int) = writeInt(Prefs.KEY_PERF_SCALE, value)
     /** Weight of the two readouts - see [Prefs.KEY_PERF_WEIGHT]. */
@@ -291,7 +338,23 @@ class SettingsRepository(val context: Context) {
     fun setPerfLineGap(value: Int) = writeInt(Prefs.KEY_PERF_LINE_GAP, value)
 
     /** Whether the battery current is drawn among the readouts. */
-    fun setPerfCurrent(value: Boolean) = writeBoolean(Prefs.KEY_PERF_CURRENT, value)
+    fun setPerfCurrent(value: Boolean) {
+        val current = read()
+        if (value && !current.perfCurrent) {
+            val order = touchPerfOrder(current.perfOrder, current, Prefs.PERF_ITEM_CURRENT)
+            preferences().edit(commit = true) {
+                putBoolean(Prefs.KEY_PERF_CURRENT, value)
+                putString(Prefs.KEY_PERF_ORDER, Prefs.encodePerfOrder(order))
+            }
+            push {
+                it.putBoolean(Prefs.KEY_PERF_CURRENT, value)
+                it.putString(Prefs.KEY_PERF_ORDER, Prefs.encodePerfOrder(order))
+            }
+            notifyModule()
+        } else {
+            writeBoolean(Prefs.KEY_PERF_CURRENT, value)
+        }
+    }
 
     /** Milliamps or amps for the current readout. */
     fun setCurrentUnit(value: Int) =
@@ -481,7 +544,7 @@ class SettingsRepository(val context: Context) {
      */
     fun syncAllToFramework() {
         val current = preferences()
-        val snapshot = TrioSettings.from(current, density)
+        val snapshot = ModuleSettings.from(current, density)
         // The component switches go out under the CURRENT arrangement's key. The hooked
         // process reads the same way, so both sides agree about which set is live without
         // having to exchange two snapshots.
@@ -558,7 +621,7 @@ class SettingsRepository(val context: Context) {
             prefs.putInt(Prefs.KEY_VALUE_SIZE, snapshot.valueSize)
             prefs.putInt(Prefs.KEY_VALUE_WEIGHT, snapshot.valueWeight)
             // The clock's own pair. No migration is needed here even though the two
-            // keys are new: TrioSettings reads them with the value's size and weight
+            // keys are new: ModuleSettings reads them with the value's size and weight
             // as the fallback, so writing the snapshot's own clockSize - which the
             // repository has already defaulted to the value's - reproduces exactly
             // the look an install had when the two readings shared one size.
@@ -588,6 +651,7 @@ class SettingsRepository(val context: Context) {
             prefs.putInt(Prefs.KEY_BOLT_SPEED, snapshot.boltSpeed)
             prefs.putInt(Prefs.KEY_DOT_SCALE, snapshot.dotScale)
             prefs.putString(Prefs.KEY_OUT_ORDER, Prefs.encodeOutOrder(snapshot.outOrder))
+            prefs.putString(Prefs.KEY_PERF_ORDER, Prefs.encodePerfOrder(snapshot.perfOrder))
 
             prefs.putBoolean(Prefs.KEY_DEBUG_LOG, current.getBoolean(Prefs.KEY_DEBUG_LOG, Prefs.DEF_DEBUG_LOG))
         }
@@ -595,19 +659,25 @@ class SettingsRepository(val context: Context) {
     }
 
     private fun writeBoolean(key: String, value: Boolean) {
-        preferences().edit(commit = true) { putBoolean(key, value) }
+        val prefs = preferences()
+        if (prefs.contains(key) && prefs.getBoolean(key, false) == value) return
+        prefs.edit { putBoolean(key, value) }
         push { it.putBoolean(key, value) }
         notifyModule()
     }
 
     private fun writeInt(key: String, value: Int) {
-        preferences().edit(commit = true) { putInt(key, value) }
+        val prefs = preferences()
+        if (prefs.contains(key) && prefs.getInt(key, Int.MIN_VALUE) == value) return
+        prefs.edit { putInt(key, value) }
         push { it.putInt(key, value) }
         notifyModule()
     }
 
     private fun writeString(key: String, value: String) {
-        preferences().edit(commit = true) { putString(key, value) }
+        val prefs = preferences()
+        if (prefs.contains(key) && prefs.getString(key, null) == value) return
+        prefs.edit { putString(key, value) }
         push { it.putString(key, value) }
         notifyModule()
     }
@@ -630,11 +700,27 @@ class SettingsRepository(val context: Context) {
         runCatching {
             val intent = Intent(Prefs.ACTION_RELOAD)
                 .setPackage(Prefs.SYSTEMUI_PACKAGE)
-                .putExtras(TrioSettings.from(preferences(), density).toBundle())
+                .putExtras(ModuleSettings.from(preferences(), density).toBundle())
             appContext.sendBroadcast(intent)
-        }.onFailure { Log.w(TAG, "cannot notify the hooked process", it) }
+        }.onFailure { Log.w(Prefs.TAG, "cannot notify the hooked process", it) }
     }
 
+    private fun touchPerfOrder(currentOrder: IntArray, currentSettings: ModuleSettings, enabledItem: Int): IntArray {
+        fun isItemActive(id: Int): Boolean = when (id) {
+            Prefs.PERF_ITEM_POWER -> if (id == enabledItem) true else currentSettings.perfPower
+            Prefs.PERF_ITEM_TEMP -> if (id == enabledItem) true else currentSettings.perfTemp
+            Prefs.PERF_ITEM_CURRENT -> if (id == enabledItem) true else currentSettings.perfCurrent
+            Prefs.PERF_ITEM_FPS -> if (id == enabledItem) true else currentSettings.perfFps
+            else -> false
+        }
+        val activeOthers = currentOrder.filter { it != enabledItem && isItemActive(it) }
+        val inactive = currentOrder.filter { it != enabledItem && !isItemActive(it) }
+        val newOrder = ArrayList<Int>(Prefs.PERF_ITEM_COUNT)
+        newOrder.addAll(activeOthers)
+        newOrder.add(enabledItem)
+        newOrder.addAll(inactive)
+        return newOrder.toIntArray()
+    }
     /** Applies [block] to the framework's remote preferences, if connected. */
     private fun push(block: (SharedPreferences.Editor) -> Unit) {
         val bound = service
@@ -642,17 +728,13 @@ class SettingsRepository(val context: Context) {
             // Not fatal: onServiceBind replays every value through
             // syncAllToFramework(), so the write is not lost. Logged because a
             // silent return here looks exactly like "live updates are broken".
-            Log.w(TAG, "framework not bound, settings will sync on connect")
+            Log.w(Prefs.TAG, "framework not bound, settings will sync on connect")
             return
         }
         runCatching {
             bound.getRemotePreferences(Prefs.NAME).edit(commit = true) {
                 block(this)
             }
-        }.onFailure { Log.e(TAG, "cannot push settings to framework", it) }
-    }
-
-    private companion object {
-        const val TAG = "HonorDuo"
+        }.onFailure { Log.e(Prefs.TAG, "cannot push settings to framework", it) }
     }
 }

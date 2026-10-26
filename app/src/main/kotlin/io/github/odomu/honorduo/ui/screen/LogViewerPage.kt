@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.ui
+package io.github.odomu.honorduo.ui.screen
 
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
@@ -13,7 +13,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,16 +33,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -58,17 +53,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.FileProvider
 import io.github.odomu.honorduo.R
 import io.github.odomu.honorduo.model.Prefs
+import io.github.odomu.honorduo.ui.manager.SettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -93,6 +93,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.time.Duration.Companion.milliseconds
 
 private const val MAX_LOG_LINES = 2000
 private val LOG_LEVEL_REGEX = Regex("""\s([VDIWE])/LSPosedFramework""")
@@ -237,7 +238,7 @@ internal fun LogViewerPage(
         }
 
         while (isActive) {
-            delay(1000)
+            delay(1000.milliseconds)
             val delta = withContext<LogReadResult>(Dispatchers.IO) { readIncremental(all = true, lastOffset) }
             lastOffset = delta.newSize
             if (delta.lines.isNotEmpty()) {
@@ -622,7 +623,6 @@ private fun ClearLogsConfirmation(show: Boolean, onDismiss: () -> Unit, onConfir
     }
 }
 
-
 @Composable
 private fun LogMoreMenuPopup(
     isDark: Boolean,
@@ -853,5 +853,3 @@ private fun parseLspLine(raw: String): ParsedLspLog {
         message = message,
     )
 }
-
-

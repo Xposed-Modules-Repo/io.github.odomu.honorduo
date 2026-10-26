@@ -9,8 +9,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.ui
-
+package io.github.odomu.honorduo.ui.manager
 
 import android.content.Context
 import android.content.Intent

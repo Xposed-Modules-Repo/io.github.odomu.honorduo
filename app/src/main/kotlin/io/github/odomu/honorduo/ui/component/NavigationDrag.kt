@@ -9,8 +9,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.ui
-
+package io.github.odomu.honorduo.ui.component
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing

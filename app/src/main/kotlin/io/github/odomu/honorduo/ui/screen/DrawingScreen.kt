@@ -9,13 +9,11 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.ui
-
+package io.github.odomu.honorduo.ui.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,15 +25,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -49,12 +43,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -67,22 +58,33 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.odomu.honorduo.R
+import io.github.odomu.honorduo.model.ModuleSettings
 import io.github.odomu.honorduo.model.Prefs
-import io.github.odomu.honorduo.model.TrioAppearance
-import io.github.odomu.honorduo.model.TrioSettings
-import io.github.odomu.honorduo.render.TrioZones
+import io.github.odomu.honorduo.model.StatusAppearance
+import io.github.odomu.honorduo.ui.component.BackgroundChip
+import io.github.odomu.honorduo.ui.control.ContentControl
+import io.github.odomu.honorduo.ui.control.ContentControlRow
+import io.github.odomu.honorduo.ui.control.SettingsPart
+import io.github.odomu.honorduo.ui.dialog.PartSettingsSheet
+import io.github.odomu.honorduo.ui.dialog.RoleColor
+import io.github.odomu.honorduo.ui.dialog.ZonePickerDialog
+import io.github.odomu.honorduo.ui.dialog.occupantLabelRes
+import io.github.odomu.honorduo.ui.dialog.zoneLabelRes
+import io.github.odomu.honorduo.ui.drawing.DrawingOutsideParts
+import io.github.odomu.honorduo.ui.drawing.PriorityPreferenceRow
+import io.github.odomu.honorduo.ui.drawing.SceneSelector
+import io.github.odomu.honorduo.ui.drawing.SignalOutOfRingNotice
+import io.github.odomu.honorduo.ui.manager.SettingsRepository
+import io.github.odomu.honorduo.ui.render.IconZones
+import io.github.odomu.honorduo.ui.view.StatusPreviewView
 import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TabRowWithContour
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.preference.RadioButtonPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+private const val REMOVE = 0
 
 /**
  * The drawing page: the glyph rendered large, with its three parts tappable.
@@ -101,9 +103,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  *
  * Tap a third and a list opens of the components that could be drawn there; pick
  * one and it is placed, displacing whatever was there. The list is not a fixed table -
- * it is whatever [TrioZones.choices] reports as placeable in that zone, and choosing
- * an entry writes the switch combination [TrioZones.assign] solved for. Both live in
- * `TrioZones` rather than here because they have to agree with where the pieces
+ * it is whatever [IconZones.choices] reports as placeable in that zone, and choosing
+ * an entry writes the switch combination [IconZones.assign] solved for. Both live in
+ * `IconZones` rather than here because they have to agree with where the pieces
  * are actually drawn, and both are checked against real rendered pixels by
  * `tests/drawing-zones.ps1`.
  *
@@ -180,7 +182,7 @@ private val PreviewScene.previewSlots: IntArray
 private const val PREVIEW_TYPE = "5GA"
 
 /** Last placement, so a runtime override can be explained beside the preview. */
-private data class ZoneSelection(val zone: TrioZones.Zone, val part: TrioZones.Part)
+private data class ZoneSelection(val zone: IconZones.Zone, val part: IconZones.Part)
 
 /**
  * The drawing page's body.
@@ -190,7 +192,7 @@ private data class ZoneSelection(val zone: TrioZones.Zone, val part: TrioZones.P
  *   and the glyph is drawn from this same object.
  */
 internal fun LazyListScope.drawingTab(
-    settings: TrioSettings,
+    settings: ModuleSettings,
     update: ((SettingsRepository) -> Unit) -> Unit,
     onEditColor: (RoleColor) -> Unit,
     onResetColors: () -> Unit,
@@ -201,7 +203,7 @@ internal fun LazyListScope.drawingTab(
      * needs to READ one other snapshot, and a read accessor is what keeps that dependency
      * from turning into "the page may write anything".
      */
-    snapshotForStyle: (Int) -> TrioSettings,
+    snapshotForStyle: (Int) -> ModuleSettings,
 ) {
     item {
         DrawingEditorCard(
@@ -224,39 +226,39 @@ internal fun LazyListScope.drawingTab(
  */
 @Composable
 private fun DrawingEditorCard(
-    settings: TrioSettings,
+    settings: ModuleSettings,
     update: ((SettingsRepository) -> Unit) -> Unit,
     onEditColor: (RoleColor) -> Unit,
     onResetColors: () -> Unit,
-    snapshotForStyle: (Int) -> TrioSettings,
+    snapshotForStyle: (Int) -> ModuleSettings,
 ) {
     // Which component's settings dialog is open, if any.
-    var editing by remember { mutableStateOf<TrioSettingsPart?>(null) }
+    var editing by remember { mutableStateOf<SettingsPart?>(null) }
     var sheetVisible by remember(editing) { mutableStateOf(editing != null) }
     var pendingColor by remember { mutableStateOf<RoleColor?>(null) }
     var pendingReset by remember { mutableStateOf(false) }
     // The zone whose picker is open, if any. One at a time: the picker is a dialog,
     // and two stacked pickers would be a state with no sensible dismissal order.
-    var picking by remember { mutableStateOf<TrioZones.Zone?>(null) }
+    var picking by remember { mutableStateOf<IconZones.Zone?>(null) }
     // The third under the finger, so the guide can outline what a press would open.
-    var pressed by remember { mutableStateOf<TrioZones.Zone?>(null) }
+    var pressed by remember { mutableStateOf<IconZones.Zone?>(null) }
     var scene by rememberSaveable { mutableStateOf(PreviewScene.Normal) }
     var previewTheme by rememberSaveable { mutableIntStateOf(0) }
     var lastSelection by remember { mutableStateOf<ZoneSelection?>(null) }
 
-    val appearance = TrioAppearance.of(settings)
+    val appearance = StatusAppearance.of(settings)
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
     val dark = when (previewTheme) { 1 -> false; 2 -> true; else -> systemDark }
 
     // This page previews synthetic readings, independently of the switch being
     // edited. Counting the switch would make enabling the second row unreachable.
     val sims = scene.previewSlots.count { it >= 0 }
-    val ringSettings = TrioZones.editableRingSettings(settings, scene.level, scene.charging,
+    val ringSettings = IconZones.editableRingSettings(settings, scene.level, scene.charging,
         scene.wifiLevel, PREVIEW_TYPE, sims)
     // Which cell the page-level tabs show. Kept in the page rather than in a dialog so the
     // glyph above stays visible while the order is edited - which is the point of editing it.
-    var openZone by remember { mutableStateOf(TrioZones.Zone.CENTRE) }
-    val chooseZone: (TrioZones.Zone) -> Unit = { zone ->
+    var openZone by remember { mutableStateOf(IconZones.Zone.CENTRE) }
+    val chooseZone: (IconZones.Zone) -> Unit = { zone ->
         // One path for every zone now.
         openZone = zone
         pressed = zone
@@ -270,13 +272,13 @@ private fun DrawingEditorCard(
      * removed the candidate behind it takes over, which is the whole point of a fallback
      * chain.
      */
-    val reorderZone: (TrioZones.Zone, Int, Int) -> Unit = { zone, index, delta ->
+    val reorderZone: (IconZones.Zone, Int, Int) -> Unit = { zone, index, delta ->
         // A stale row (the list shrank since it was drawn) resolves to a no-op rather than
         // writing a list built from an index that no longer exists.
         val next = if (delta == 0) {
-            TrioZones.withoutAt(settings, zone.ordinal, index)
+            IconZones.withoutAt(settings, zone.ordinal, index)
         } else {
-            TrioZones.moveWithin(settings, zone.ordinal, index, delta)
+            IconZones.moveWithin(settings, zone.ordinal, index, delta)
         }
         if (next !== settings) {
             update { r -> applyZoneAssignment(next, r, settings) }
@@ -316,7 +318,7 @@ private fun DrawingEditorCard(
             ) {
                 items(listOf(R.string.drawing_theme_system, R.string.drawing_theme_light,
                     R.string.drawing_theme_dark).withIndex().toList(), key = { it.index }) { entry ->
-                    SceneChip(stringResource(entry.value), previewTheme == entry.index) {
+                    BackgroundChip(stringResource(entry.value), previewTheme == entry.index) {
                         previewTheme = entry.index
                     }
                 }
@@ -330,18 +332,18 @@ private fun DrawingEditorCard(
                 onPressChange = { pressed = it },
                 // A press on the glyph opens that zone's picker.
                 onEditZone = { zone ->
-                    val part = TrioZones.occupant(
+                    val part = IconZones.occupant(
                         zone, appearance, scene.level, scene.charging,
                         scene.wifiLevel, PREVIEW_TYPE, sims,
                     )
                     if (part == null) {
                         picking = zone
                     } else {
-                        editing = TrioSettingsPart.of(part)
+                        editing = SettingsPart.of(part)
                     }
                 },
-                onEditBattery = { editing = TrioSettingsPart.Battery },
-                onEditAppearance = { editing = TrioSettingsPart.Appearance },
+                onEditBattery = { editing = SettingsPart.Battery },
+                onEditAppearance = { editing = SettingsPart.Appearance },
                 modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
             )
 
@@ -383,7 +385,7 @@ private fun DrawingEditorCard(
             if (appearance.signalOutOfRing) {
                 SignalOutOfRingNotice()
             }
-            val actual = TrioZones.occupant(
+            val actual = IconZones.occupant(
                 openZone, appearance, scene.level, scene.charging,
                 scene.wifiLevel, PREVIEW_TYPE, sims,
             )
@@ -397,7 +399,7 @@ private fun DrawingEditorCard(
                     )
                 }
                 chain.forEachIndexed { index, id ->
-                    val part = TrioZones.decodePart(id) ?: return@forEachIndexed
+                    val part = IconZones.decodePart(id) ?: return@forEachIndexed
                     PriorityPreferenceRow(
                         index = index,
                         part = part,
@@ -407,7 +409,7 @@ private fun DrawingEditorCard(
                         onRemove = { reorderZone(openZone, index, REMOVE) },
                         // The same sheet the library opens, so the two entrances cannot
                         // disagree about what a piece's settings are.
-                        onEdit = { TrioSettingsPart.of(part)?.let { editing = it } },
+                        onEdit = { SettingsPart.of(part)?.let { editing = it } },
                     )
                 }
             }
@@ -425,33 +427,46 @@ private fun DrawingEditorCard(
         }
 
         DrawingSection(R.string.drawing_outside_title) {
-            DrawingOutsideParts(settings, scene, dark,
+            DrawingOutsideParts(
+                settings = settings,
+                scene = scene,
+                dark = dark,
                 onEdit = { editing = it },
                 onReorder = { order -> update { it.setOutOrder(order) } },
+                renderReadoutSample = { modifier -> DrawingReadoutSample(settings, dark, modifier) },
+                renderSmallPreview = { part, modifier ->
+                    val a = StatusAppearance.of(settings)
+                    DrawingSmallPreview(
+                        settings, scene, dark, modifier,
+                        outType = part == SettingsPart.Type && a.typeOutOfRing,
+                        outSignal = part == SettingsPart.Mobile && a.stackedOut(),
+                    )
+                },
             )
         }
-
-
     }
 
     val pickZone = picking
     if (pickZone != null) {
+        val actual = IconZones.occupant(
+            pickZone, appearance, scene.level, scene.charging,
+            scene.wifiLevel, PREVIEW_TYPE, sims,
+        )
         ZonePickerDialog(
             zone = pickZone,
             settings = settings,
             appearance = appearance,
-            scene = scene,
             sims = sims,
+            currentOccupant = actual,
             onChoose = { part ->
-                // Choosing a piece puts it at the FRONT of this zone's priority list; the pieces already there stay behind it as fallbacks.
-                val next = TrioZones.withPiece(settings, pickZone.ordinal, part)
+                val next = IconZones.withPiece(settings, pickZone.ordinal, part)
                 update { r -> applyZoneAssignment(next, r, settings) }
                 lastSelection = part?.let { ZoneSelection(pickZone, it) }
                 picking = null
             },
             onEdit = { part ->
                 picking = null
-                editing = TrioSettingsPart.of(part)
+                editing = SettingsPart.of(part)
             },
             onDismiss = { picking = null },
         )
@@ -515,17 +530,16 @@ private fun DrawingSection(
     }
 }
 
-
-private fun drawingPartLabel(part: TrioSettingsPart): Int = when (part) {
-    TrioSettingsPart.Appearance -> R.string.drawing_part_appearance
-    TrioSettingsPart.Readouts -> R.string.drawing_part_readouts
+private fun drawingPartLabel(part: SettingsPart): Int = when (part) {
+    SettingsPart.Appearance -> R.string.drawing_part_appearance
+    SettingsPart.Readouts -> R.string.drawing_part_readouts
     else -> part.part?.let(::occupantLabelRes) ?: part.labelRes
 }
 
 @Composable
 private fun DrawingStyleSelector(
-    settings: TrioSettings, scene: PreviewScene, dark: Boolean,
-    snapshotForStyle: (Int) -> TrioSettings, onSelect: (Int) -> Unit,
+    settings: ModuleSettings, scene: PreviewScene, dark: Boolean,
+    snapshotForStyle: (Int) -> ModuleSettings, onSelect: (Int) -> Unit,
 ) {
     val styles = listOf(Prefs.STYLE_RING, Prefs.STYLE_CAPSULE)
     val labels = listOf(R.string.trio_style_ring, R.string.trio_style_capsule)
@@ -551,10 +565,10 @@ private fun DrawingStyleSelector(
 
 @Composable
 private fun DrawingSmallPreview(
-    settings: TrioSettings, scene: PreviewScene, dark: Boolean, modifier: Modifier,
+    settings: ModuleSettings, scene: PreviewScene, dark: Boolean, modifier: Modifier,
     outType: Boolean = false, outSignal: Boolean = false,
 ) {
-    AndroidView(modifier = modifier, factory = { TrioPreviewView(it) }, update = { view ->
+    AndroidView(modifier = modifier, factory = { StatusPreviewView(it) }, update = { view ->
         view.setSettings(settings)
         view.setOutTypeOnly(outType)
         view.setOutSignalOnly(outSignal)
@@ -576,11 +590,11 @@ private fun DrawingSmallPreview(
  */
 @Composable
 internal fun DrawingSettingsPreview(
-    part: TrioSettingsPart, settings: TrioSettings, scene: PreviewScene, dark: Boolean,
+    part: SettingsPart, settings: ModuleSettings, scene: PreviewScene, dark: Boolean,
 ) {
-    val a = TrioAppearance.of(settings)
+    val a = StatusAppearance.of(settings)
     val shape = RoundedCornerShape(12.dp)
-    if (part == TrioSettingsPart.Readouts) {
+    if (part == SettingsPart.Readouts) {
         DrawingReadoutSample(settings, dark, Modifier.fillMaxWidth().height(92.dp))
         Text(stringResource(R.string.drawing_readout_sample_summary),
             style = MiuixTheme.textStyles.footnote2,
@@ -588,7 +602,7 @@ internal fun DrawingSettingsPreview(
             modifier = Modifier.padding(vertical = 4.dp))
     } else {
         // A piece that only exists in one state is previewed in that state.
-        val sample = if (part == TrioSettingsPart.Bolt && !scene.charging) {
+        val sample = if (part == SettingsPart.Bolt && !scene.charging) {
             PreviewScene.Charging
         } else {
             scene
@@ -603,9 +617,9 @@ internal fun DrawingSettingsPreview(
         DrawingSmallPreview(
             settings, sample, dark,
             Modifier.fillMaxWidth().height(92.dp).clip(shape),
-            outType = part == TrioSettingsPart.Type && a.typeOutOfRing,
+            outType = part == SettingsPart.Type && a.typeOutOfRing,
             // The cell follows what the signal actually is this frame: the stacked reading only exists out of ring with its switch on.
-            outSignal = part == TrioSettingsPart.Mobile && a.stackedOut(),
+            outSignal = part == SettingsPart.Mobile && a.stackedOut(),
         )
     }
 }
@@ -616,20 +630,20 @@ internal fun DrawingSettingsPreview(
  * Only Wi-Fi and the clock can be released to the system without being switched off, and
  * only they have anything to tune while released.
  */
-private fun releasedPart(part: TrioSettingsPart, settings: TrioSettings): Int {
+private fun releasedPart(part: SettingsPart, settings: ModuleSettings): Int {
     val piece = part.part ?: return 0
     val id = when (piece) {
-        TrioZones.Part.WIFI -> Prefs.PART_WIFI
-        TrioZones.Part.CLOCK -> Prefs.PART_CLOCK
+        IconZones.Part.WIFI -> Prefs.PART_WIFI
+        IconZones.Part.CLOCK -> Prefs.PART_CLOCK
         // The type has no placement to return from: outside IS its released position,
         // and that is exactly when its own sample should be shown on its own.
-        TrioZones.Part.TYPE -> {
-            val a = TrioAppearance.of(settings)
+        IconZones.Part.TYPE -> {
+            val a = StatusAppearance.of(settings)
             return if (a.typeOutOfRing) Prefs.PART_TYPE else 0
         }
         else -> return 0
     }
-    return if (TrioAppearance.of(settings).hasRingPart(id)) 0 else id
+    return if (StatusAppearance.of(settings).hasRingPart(id)) 0 else id
 }
 
 /**
@@ -640,9 +654,9 @@ private fun releasedPart(part: TrioSettingsPart, settings: TrioSettings): Int {
  */
 @Composable
 private fun DrawingPartPreview(
-    settings: TrioSettings, part: Int, dark: Boolean, modifier: Modifier,
+    settings: ModuleSettings, part: Int, dark: Boolean, modifier: Modifier,
 ) {
-    AndroidView(modifier = modifier, factory = { TrioPreviewView(it) }, update = { view ->
+    AndroidView(modifier = modifier, factory = { StatusPreviewView(it) }, update = { view ->
         view.setSettings(settings)
         view.setOutTypeOnly(false)
         view.setOutSignalOnly(false)
@@ -687,8 +701,8 @@ private fun DrawingPartPreview(
  * property that changes the shape of the text rather than just its size.
  */
 @Composable
-private fun DrawingReadoutSample(settings: TrioSettings, dark: Boolean, modifier: Modifier) {
-    val a = TrioAppearance.of(settings)
+private fun DrawingReadoutSample(settings: ModuleSettings, dark: Boolean, modifier: Modifier) {
+    val a = StatusAppearance.of(settings)
     // With neither switch on there is nothing to report, but the cell still has to show the type it sizes.
     val readings = listOfNotNull(
         if (settings.perfPower) "9.6W" else null,
@@ -761,162 +775,15 @@ private fun DrawingReadoutSample(settings: TrioSettings, dark: Boolean, modifier
  * The order is also the row's own layout order, so what the user arranges here is
  * what the status bar draws, nearest the battery last.
  */
-@Composable
-private fun DrawingOutsideParts(
-    settings: TrioSettings, scene: PreviewScene, dark: Boolean,
-    onEdit: (TrioSettingsPart) -> Unit, onReorder: (IntArray) -> Unit,
-) {
-    val a = TrioAppearance.of(settings)
-    val order = settings.outOrder
-    // Carried by the stacked reading, the type is not an out-of-ring piece.
-    val typeInside = a.stackTypeShown()
-    // Only what is actually outside the glyph can be ordered.
-    val visible = order.filter { slot ->
-        when (slot) {
-            Prefs.OUT_SLOT_SIGNAL -> a.signalOutOfRing
-            Prefs.OUT_SLOT_READOUTS -> a.perfAnywhere()
-            // Same rule as the bar: the standalone label exists only while the type is outside.
-            Prefs.OUT_SLOT_TYPE -> a.typeOutOfRing && !typeInside &&
-                !(a.signalOutOfRing && !a.stackedSignal)
-            else -> false
-        }
-    }.toIntArray()
-    if (visible.isEmpty()) {
-        return
-    }
-    // Screen order: outermost (furthest from the battery) on the left, nearest on the right.
-    val onScreen = visible.reversedArray()
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.Top,
-        ) {
-            onScreen.forEachIndexed { screenIndex, slot ->
-                val part = trioSettingsPartFor(slot) ?: return@forEachIndexed
-                val stored = visible.size - 1 - screenIndex
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MiuixTheme.colorScheme.surfaceContainerHigh)
-                        .clickable(role = Role.Button) { onEdit(part) }
-                        .padding(6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    val previewable = when (part) {
-                        // The type has exactly one reason to be unpaintable here: it is set to
-                        // draw inside the ring, so there is no out-of-ring label to show.
-                        TrioSettingsPart.Type -> a.typeOutOfRing
-                        // Both of these can always be drawn as a sample.
-                        else -> true
-                    }
-                    if (!previewable) {
-                        Box(Modifier.fillMaxWidth().height(58.dp), contentAlignment = Alignment.Center) {
-                            Text(stringResource(R.string.drawing_preview_hidden), style = MiuixTheme.textStyles.footnote2,
-                                textAlign = TextAlign.Center)
-                        }
-                    } else if (part == TrioSettingsPart.Readouts) {
-                        DrawingReadoutSample(settings, dark, Modifier.fillMaxWidth().height(58.dp))
-                    } else {
-                        DrawingSmallPreview(settings, scene, dark, Modifier.fillMaxWidth().height(58.dp),
-                            outType = part == TrioSettingsPart.Type, outSignal = part == TrioSettingsPart.Mobile)
-                    }
-                    Text(stringResource(drawingPartLabel(part)), style = MiuixTheme.textStyles.footnote2,
-                        textAlign = TextAlign.Center)
-                    OutOrderArrows(
-                        // Right = towards the battery, left = outwards, matching the tiles.
-                        canMoveRight = stored > 0,
-                        canMoveLeft = stored < visible.size - 1,
-                        onMoveRight = { onReorder(swappedVisible(order, visible, stored, stored - 1)) },
-                        onMoveLeft = { onReorder(swappedVisible(order, visible, stored, stored + 1)) },
-                    )
-                }
-            }
-        }
-        // Which end is the battery is the one thing a horizontal row cannot say by itself.
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.out_order_outwards),
-                style = MiuixTheme.textStyles.footnote2,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            )
-            Text(
-                text = stringResource(R.string.out_order_battery),
-                style = MiuixTheme.textStyles.footnote2,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                textAlign = TextAlign.End,
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-
-
-}
-
-/** One tile's left/right pair, disabled at the ends rather than hidden. */
-@Composable
-private fun OutOrderArrows(
-    canMoveRight: Boolean,
-    canMoveLeft: Boolean,
-    onMoveRight: () -> Unit,
-    onMoveLeft: () -> Unit,
-) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        OrderButton(
-            icon = ImageVector.vectorResource(R.drawable.ic_lucide_chevron_left),
-            description = R.string.out_order_move_out,
-            enabled = canMoveLeft,
-        ) { onMoveLeft() }
-        OrderButton(
-            icon = ImageVector.vectorResource(R.drawable.ic_lucide_chevron_right),
-            description = R.string.out_order_move_in,
-            enabled = canMoveRight,
-        ) { onMoveRight() }
-    }
-}
-
-/**
- * Exchanges two entries of the visible strip inside the full order.
- *
- * Hidden slots (the type, while the reading carries it) stay where they are: the pair
- * exchanged is taken from the visible list, so the arrows move a tile past its
- * neighbours rather than past a slot that is not on screen.
- */
-private fun swappedVisible(order: IntArray, visible: IntArray, from: Int, to: Int): IntArray {
-    if (from !in visible.indices || to !in visible.indices) return order.copyOf()
-    val next = order.copyOf()
-    val first = next.indexOf(visible[from])
-    val second = next.indexOf(visible[to])
-    if (first < 0 || second < 0) return next
-    next[first] = visible[to]
-    next[second] = visible[from]
-    return next
-}
-
-/** The tile a stored `OUT_SLOT_*` id stands for. */
-private fun trioSettingsPartFor(slot: Int): TrioSettingsPart? = when (slot) {
-    Prefs.OUT_SLOT_SIGNAL -> TrioSettingsPart.Mobile
-    Prefs.OUT_SLOT_READOUTS -> TrioSettingsPart.Readouts
-    Prefs.OUT_SLOT_TYPE -> TrioSettingsPart.Type
-    else -> null
-}
-
 /** Explain the saved component using the same runtime frame as the visible glyph. */
 @Composable
 private fun PlacementFeedback(
     selection: ZoneSelection,
-    appearance: TrioAppearance,
+    appearance: StatusAppearance,
     scene: PreviewScene,
     sims: Int,
 ) {
-    val actual = TrioZones.occupant(
+    val actual = IconZones.occupant(
         selection.zone, appearance, scene.level, scene.charging,
         scene.wifiLevel, PREVIEW_TYPE, sims,
     )
@@ -924,9 +791,9 @@ private fun PlacementFeedback(
 
     val messageRes = when {
 
-        scene.charging && selection.part != TrioZones.Part.BOLT -> R.string.drawing_feedback_charging
-        selection.part == TrioZones.Part.BOLT && !scene.charging -> R.string.drawing_feedback_bolt
-        selection.part == TrioZones.Part.WIFI && scene.wifiLevel < 0 -> R.string.drawing_feedback_wifi
+        scene.charging && selection.part != IconZones.Part.BOLT -> R.string.drawing_feedback_charging
+        selection.part == IconZones.Part.BOLT && !scene.charging -> R.string.drawing_feedback_bolt
+        selection.part == IconZones.Part.WIFI && scene.wifiLevel < 0 -> R.string.drawing_feedback_wifi
         else -> R.string.drawing_feedback_other
     }
     Text(
@@ -945,7 +812,7 @@ private fun PlacementFeedback(
 /**
  * Writes the switch combination already solved for the selected zone and component.
  *
- * The combination is solved by [TrioZones.assign] against the real arbitration
+ * The combination is solved by [IconZones.assign] against the real arbitration
  * rule, so nothing here decides which switches to move. That is deliberate: this
  * page asks for an outcome ("put the number in the middle") and the renderer decides
  * what that costs, which is the only arrangement that cannot drift.
@@ -955,12 +822,12 @@ private fun PlacementFeedback(
  * the hooked process and the broadcast all happen exactly once per changed switch.
  */
 private fun applyZoneAssignment(
-    next: TrioSettings,
+    next: ModuleSettings,
     repository: SettingsRepository,
-    settings: TrioSettings,
+    settings: ModuleSettings,
 ) {
     // The slot-driven arrangements write the whole layout in one transaction.
-    if (TrioZones.hasSlots(next)) {
+    if (IconZones.hasSlots(next)) {
         repository.applyRingAssignment(next)
         return
     }
@@ -983,7 +850,7 @@ private fun applyZoneAssignment(
 /**
  * The list of pieces that can be put in one zone.
  *
- * Every entry comes from [TrioZones.choices], which answers by asking the solver
+ * Every entry comes from [IconZones.choices], which answers by asking the solver
  * whether each piece is placeable - so the menu and the solver cannot disagree. A
  * piece the zone cannot hold at all is still listed, greyed out with the reason,
  * rather than hidden: a missing entry leaves the user wondering whether they opened
@@ -992,348 +859,6 @@ private fun applyZoneAssignment(
  * "Nothing here" is the first entry, because emptying a zone is a normal thing to
  * want and burying it at the bottom would push it out of sight on a long list.
  */
-@Composable
-private fun ZonePickerDialog(
-    zone: TrioZones.Zone,
-    settings: TrioSettings,
-    appearance: TrioAppearance,
-    scene: PreviewScene,
-    sims: Int,
-    onChoose: (TrioZones.Part?) -> Unit,
-    onEdit: (TrioZones.Part) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    // Asked of the frame the user is looking at, not of a fixed one.
-    val current = TrioZones.occupant(
-        zone, appearance, scene.level, scene.charging,
-        scene.wifiLevel, PREVIEW_TYPE, sims,
-    )
-    val solvable = TrioZones.placementChoices(zone, settings, sims)
-    // This third's saved list, which is what "already here" and "elsewhere" are judged against.
-    val chain = appearance.ringZones[zone.ordinal]
-    val canEmpty = TrioZones.place(zone, null, settings, sims) != null
-
-    // Taking a piece out of another third is the one tap here that is not reversible by tapping again.
-    var confirmingMove by remember { mutableStateOf<ZoneMove?>(null) }
-
-    OverlayDialog(
-        show = true,
-        title = stringResource(
-            R.string.drawing_pick_title,
-            stringResource(zoneLabelRes(zone)),
-            stringResource(occupantLabelRes(current)),
-        ),
-        onDismissRequest = onDismiss,
-    ) {
-        val windowHeight = with(LocalDensity.current) {
-            LocalWindowInfo.current.containerSize.height.toDp()
-        }
-        Column(modifier = Modifier.fillMaxWidth().heightIn(max = windowHeight * 0.68f)) {
-            Column(modifier = Modifier.weight(1f, fill = false)
-                .verticalScroll(rememberScrollState()).padding(horizontal = 4.dp)) {
-                // Emptying first: it is a normal request, and putting it last would push
-                // it off the bottom of a long list.
-                PickerRow(
-                    title = stringResource(R.string.drawing_occupant_none),
-                    summary = stringResource(if (canEmpty) R.string.drawing_pick_none_summary else R.string.drawing_clock_fixed),
-                    selected = current == null,
-                    enabled = canEmpty,
-                    onClick = { if (canEmpty) onChoose(null) },
-                    onLongClick = null,
-                )
-
-                // placeableParts, not Part.entries.
-                TrioZones.placeableParts().forEach { part ->
-                    val canPlace = solvable.contains(part)
-                    val id = TrioZones.encodePart(part)
-                    // Three questions, drawn differently: current   - being drawn in this third right now.
-                    val inZone = chain.contains(id)
-                    val elsewhere = if (inZone) null else TrioZones.Zone.entries.firstOrNull { z ->
-                        z != zone && appearance.ringZones[z.ordinal].contains(id)
-                    }
-                    // A refusal has two shapes here, and they are different sentences.
-                    val reason = when {
-                        canPlace -> null
-                        !TrioZones.accepts(zone, part, settings) -> stringResource(
-                            R.string.drawing_pick_signal_in_centre,
-                            stringResource(occupantLabelRes(part)),
-                        )
-                        else -> stringResource(
-                            R.string.drawing_pick_impossible,
-                            stringResource(zoneLabelRes(zone)),
-                        )
-                    }
-                    val summary = reason ?: when {
-                        current == part -> stringResource(R.string.drawing_pick_showing_now)
-                        inZone -> stringResource(R.string.drawing_pick_promote_summary)
-                        elsewhere != null -> stringResource(
-                            R.string.drawing_pick_move_summary,
-                            stringResource(zoneLabelRes(elsewhere)),
-                        )
-                        else -> stringResource(partSummaryRes(part))
-                    }
-                    PickerRow(
-                        title = stringResource(occupantLabelRes(part)),
-                        summary = summary,
-                        selected = current == part,
-                        inZone = inZone,
-                        elsewhere = elsewhere != null,
-                        enabled = canPlace,
-                        onClick = {
-                            if (canPlace) {
-                                if (elsewhere != null) {
-                                    confirmingMove = ZoneMove(part, elsewhere)
-                                } else {
-                                    onChoose(part)
-                                }
-                            }
-                        },
-                        onLongClick = if (canPlace) {
-                            { onEdit(part) }
-                        } else {
-                            null
-                        },
-                    )
-                }
-
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Button(
-                    onClick = onDismiss,
-                    colors = ButtonDefaults.buttonColorsPrimary(),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(text = stringResource(R.string.drawing_close))
-                }
-            }
-        }
-    }
-
-    confirmingMove?.let { move ->
-        OverlayDialog(
-            show = true,
-            title = stringResource(R.string.drawing_move_title),
-            summary = stringResource(
-                R.string.drawing_move_summary,
-                stringResource(occupantLabelRes(move.part)),
-                stringResource(zoneLabelRes(move.from)),
-            ),
-            onDismissRequest = { confirmingMove = null },
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                TextButton(
-                    text = stringResource(R.string.cancel),
-                    onClick = { confirmingMove = null },
-                    modifier = Modifier.weight(1f),
-                )
-                Button(
-                    onClick = {
-                        confirmingMove = null
-                        onChoose(move.part)
-                    },
-                    colors = ButtonDefaults.buttonColorsPrimary(),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(text = stringResource(R.string.drawing_move_confirm))
-                }
-            }
-        }
-    }
-}
-
-/** A pending "take this piece out of another third" request, named well enough to ask about. */
-private class ZoneMove(val part: TrioZones.Part, val from: TrioZones.Zone)
-
-/** One entry in the picker. */
-@Composable
-private fun PickerRow(
-    title: String,
-    summary: String,
-    selected: Boolean,
-    inZone: Boolean = false,
-    elsewhere: Boolean = false,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    onLongClick: (() -> Unit)?,
-) {
-    val content = if (enabled) {
-        MiuixTheme.colorScheme.onSurface
-    } else {
-        MiuixTheme.colorScheme.onSurfaceVariantSummary
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(
-                when {
-                    // Four states, four looks, because each answers a different question.
-                    selected -> MiuixTheme.colorScheme.primaryContainer
-                    inZone -> MiuixTheme.colorScheme.surfaceContainerHigh
-                    elsewhere -> MiuixTheme.colorScheme.surfaceContainer
-                    else -> Color.Transparent
-                },
-            )
-            .semantics { this.selected = selected }
-            .combinedClickable(enabled = enabled, role = Role.RadioButton,
-                onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = title,
-                    style = MiuixTheme.textStyles.body1,
-                    color = if (selected) MiuixTheme.colorScheme.onPrimaryContainer else content,
-                )
-                // A word rather than only a tint.
-                when {
-                    inZone && !selected -> Text(
-                        text = stringResource(R.string.drawing_pick_in_zone),
-                        style = MiuixTheme.textStyles.footnote2,
-                        color = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
-                    elsewhere -> Text(
-                        text = stringResource(R.string.drawing_pick_elsewhere),
-                        style = MiuixTheme.textStyles.footnote2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
-                }
-            }
-            Text(
-                text = summary,
-                style = MiuixTheme.textStyles.footnote2,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            )
-        }
-        when {
-            // Three marks, not three tints.
-            selected -> Icon(
-                imageVector = ImageVector.vectorResource(R.drawable.ic_lucide_check),
-                contentDescription = null,
-                tint = MiuixTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(18.dp),
-            )
-            inZone -> Icon(
-                imageVector = ImageVector.vectorResource(R.drawable.ic_lucide_circle_dot),
-                contentDescription = null,
-                tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp),
-            )
-            elsewhere -> Icon(
-                imageVector = ImageVector.vectorResource(R.drawable.ic_lucide_lock),
-                contentDescription = null,
-                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-    }
-}
-
-/** The page-tab handler's "remove this entry" delta; anything else moves by it. */
-private const val REMOVE = 0
-
-/**
- * One entry of a zone's priority list: a standard radio preference with reorder controls.
- *
- * The first row is marked selected because it is the one that WINS the third; [isDrawing]
- * marks whether it is the one actually on screen this frame. Those differ when the head has
- * nothing to draw - the fallback behind it is drawn while the head stays the chosen one.
- *
- * Order moves with the two arrows rather than by dragging. That is not a compromise: the
- * library has no sortable list (checked across `miuix-ui`, `miuix-preference` and
- * `miuix-icons`), and arrows sit exactly where a thumb already is, work one-handed, and stay
- * reachable for anyone who cannot drag.
- */
-@Composable
-private fun PriorityPreferenceRow(
-    index: Int,
-    part: TrioZones.Part,
-    lastIndex: Int,
-    isDrawing: Boolean,
-    onMove: (Int, Int) -> Unit,
-    onRemove: () -> Unit,
-    onEdit: () -> Unit,
-) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .clickable(onClick = onEdit),
-        ) {
-            RadioButtonPreference(
-                title = stringResource(occupantLabelRes(part)),
-                // Where this row sits in the chain, and - when it is the head - whether it is the one actually visible.
-                summary = when (index) {
-                    0 if isDrawing -> stringResource(R.string.drawing_priority_showing)
-                    0 -> stringResource(R.string.drawing_priority_first, 0 + 1)
-                    else -> stringResource(R.string.drawing_priority_fallback, index + 1)
-                },
-                selected = index == 0,
-                insideMargin = SettingsItemMargin,
-                onClick = onEdit,
-            )
-        }
-        Row(
-            modifier = Modifier.padding(end = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OrderButton(
-                icon = ImageVector.vectorResource(R.drawable.ic_lucide_chevron_up),
-                description = R.string.drawing_priority_move_up,
-                enabled = index > 0,
-            ) { onMove(index, -1) }
-            OrderButton(
-                icon = ImageVector.vectorResource(R.drawable.ic_lucide_chevron_down),
-                description = R.string.drawing_priority_move_down,
-                enabled = index < lastIndex,
-            ) { onMove(index, 1) }
-            OrderButton(
-                icon = ImageVector.vectorResource(R.drawable.ic_lucide_x),
-                description = R.string.drawing_priority_remove,
-                enabled = true,
-            ) { onRemove() }
-        }
-    }
-}
-
-/**
- * One of the three small controls beside a priority row.
- *
- * Disabled rather than hidden at the ends of the list: a row that loses its up arrow at the
- * top would look like a different row, and the user is clicking by position.
- */
-@Composable
-private fun OrderButton(
-    icon: ImageVector,
-    description: Int,
-    enabled: Boolean,
-    onClick: () -> Unit,
-) {
-    IconButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.size(28.dp),
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = stringResource(description),
-            tint = if (enabled) MiuixTheme.colorScheme.onSurfaceVariantSummary
-                else MiuixTheme.colorScheme.outline,
-            modifier = Modifier.size(15.dp),
-        )
-    }
-}
 
 /**
  * The zones are resolved by the *view*, because it is what knows the
@@ -1356,12 +881,12 @@ private fun OrderButton(
  */
 @Composable
 private fun DrawingGlyph(
-    settings: TrioSettings,
+    settings: ModuleSettings,
     scene: PreviewScene,
     dark: Boolean,
-    pressed: TrioZones.Zone?,
-    onPressChange: (TrioZones.Zone?) -> Unit,
-    onEditZone: (TrioZones.Zone) -> Unit,
+    pressed: IconZones.Zone?,
+    onPressChange: (IconZones.Zone?) -> Unit,
+    onEditZone: (IconZones.Zone) -> Unit,
     onEditBattery: () -> Unit,
     onEditAppearance: () -> Unit,
     modifier: Modifier = Modifier,
@@ -1372,10 +897,10 @@ private fun DrawingGlyph(
     val currentAppearance = rememberUpdatedState(onEditAppearance)
 
     // The view the gestures interrogate. A plain holder rather than a MutableState.
-    val holder = remember { arrayOfNulls<TrioPreviewView>(1) }
+    val holder = remember { arrayOfNulls<StatusPreviewView>(1) }
     // Resolved against the view that is actually laid out, so a gesture arriving
     // before the first layout finds no zone instead of guessing one.
-    val zoneAt: (Offset) -> TrioZones.Zone? = { offset ->
+    val zoneAt: (Offset) -> IconZones.Zone? = { offset ->
         holder[0]?.zoneAt(offset.x, offset.y)
     }
 
@@ -1410,7 +935,7 @@ private fun DrawingGlyph(
             // gesture detector covers exactly the area the glyph is drawn in.
             modifier = Modifier.fillMaxSize(),
             factory = { context ->
-                TrioPreviewView(context).also { holder[0] = it }
+                StatusPreviewView(context).also { holder[0] = it }
             },
             update = { view ->
                 view.setSettings(settings)
@@ -1429,142 +954,4 @@ private fun DrawingGlyph(
     }
 }
 
-/** The short name for a piece, for the zone rows and the picker. */
-private fun occupantLabelRes(part: TrioZones.Part?): Int = when (part) {
-    TrioZones.Part.WIFI -> R.string.drawing_occupant_wifi
-    TrioZones.Part.MOBILE -> R.string.drawing_occupant_mobile
-    TrioZones.Part.VALUE -> R.string.drawing_occupant_value
-    TrioZones.Part.BOLT -> R.string.drawing_occupant_bolt
-    TrioZones.Part.TYPE -> R.string.drawing_occupant_type
-    TrioZones.Part.SIM_1 -> R.string.drawing_occupant_sim_1
-    TrioZones.Part.SIM_2 -> R.string.drawing_occupant_sim_2
-    TrioZones.Part.CLOCK -> R.string.drawing_occupant_clock
-    TrioZones.Part.POWER -> R.string.drawing_occupant_power
-    TrioZones.Part.TEMP -> R.string.drawing_occupant_temp
-    TrioZones.Part.RUNNING -> R.string.drawing_occupant_running
-    TrioZones.Part.FPS -> R.string.drawing_occupant_fps
-    TrioZones.Part.CURRENT -> R.string.perf_current_title
-    null -> R.string.drawing_occupant_none
-}
-
-/**
- * The zone's own name, for the picker's title and its refusals.
- *
- * One name set for every style: top, middle, bottom. The three arrangements differ in
- * their shape, not in the question the user is asking - "where on the icon does this go" -
- * so giving the capsule its own vocabulary ("top opening", "inside") said the same thing
- * less directly and implied a difference that does not exist.
- *
- * The `appearance` parameter is kept because callers already have it to hand and a future
- * style that genuinely needs a different word should change it here rather than at six call
- * sites; nothing in this function reads it today.
- */
-private fun zoneLabelRes(zone: TrioZones.Zone): Int = when (zone) {
-    TrioZones.Zone.TOP -> R.string.drawing_hint_top
-    TrioZones.Zone.CENTRE -> R.string.drawing_hint_centre
-    TrioZones.Zone.BOTTOM -> R.string.drawing_hint_bottom
-}
-
-/** The zones this arrangement shows, in tab order. All three styles have the same three. */
-private fun zonesFor(a: TrioAppearance): List<TrioZones.Zone> = TrioZones.Zone.entries.toList()
-
-/**
- * Says that the signal rows are drawn outside the ring, whatever this list holds.
- *
- * Shown inside the order card rather than as a dialog: it is a standing explanation of why
- * nothing here is producing dots, not an event to acknowledge. A user who has just switched
- * module broke.
- */
-@Composable
-private fun SignalOutOfRingNotice() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Icon(
-            imageVector = ImageVector.vectorResource(R.drawable.ic_lucide_info),
-            contentDescription = null,
-            tint = MiuixTheme.colorScheme.primary,
-            modifier = Modifier.size(16.dp),
-        )
-        Text(
-            text = stringResource(R.string.drawing_signal_out_of_ring_notice),
-            style = MiuixTheme.textStyles.footnote2,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        )
-    }
-}
-
-/** One line saying what a piece is, for the picker. */
-private fun partSummaryRes(part: TrioZones.Part): Int = when (part) {
-    TrioZones.Part.WIFI -> R.string.show_wifi_summary
-    TrioZones.Part.MOBILE -> R.string.show_mobile_summary
-    TrioZones.Part.VALUE -> R.string.show_value_summary
-    TrioZones.Part.BOLT -> R.string.show_bolt_summary
-    TrioZones.Part.TYPE -> R.string.show_mobile_type_summary
-    TrioZones.Part.SIM_1 -> R.string.show_sim_1_summary
-    TrioZones.Part.SIM_2 -> R.string.show_sim_2_summary
-    TrioZones.Part.CLOCK -> R.string.clock_size_summary
-    TrioZones.Part.POWER -> R.string.perf_power_summary
-    TrioZones.Part.TEMP -> R.string.perf_temp_summary
-    TrioZones.Part.RUNNING -> R.string.perf_running_summary
-    TrioZones.Part.FPS -> R.string.perf_fps_summary
-    TrioZones.Part.CURRENT -> R.string.perf_current_summary
-}
-
-/**
- * The preview-state chips.
- *
- * A horizontal strip rather than a dropdown: there are six, their labels are
- * short, and seeing the whole set is what tells the user that a charging frame is
- * reachable at all - which is the only way the bolt becomes tappable.
- */
-@Composable
-internal fun SceneSelector(
-    selected: PreviewScene,
-    onSelect: (PreviewScene) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    LazyRow(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        items(PreviewScene.entries, key = { it.name }) { entry ->
-            SceneChip(
-                label = stringResource(entry.labelRes),
-                selected = entry == selected,
-                onClick = { onSelect(entry) },
-            )
-        }
-    }
-}
-
-/** One state chip. */
-@Composable
-private fun SceneChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(
-                if (selected) {
-                    MiuixTheme.colorScheme.primary
-                } else {
-                    MiuixTheme.colorScheme.surfaceContainerHigh
-                },
-            )
-            .semantics { this.selected = selected }
-            .clickable(role = Role.RadioButton, onClick = onClick)
-            .padding(horizontal = 13.dp, vertical = 6.dp),
-    ) {
-        Text(
-            text = label,
-            style = MiuixTheme.textStyles.body2,
-            color = if (selected) {
-                MiuixTheme.colorScheme.onPrimary
-            } else {
-                MiuixTheme.colorScheme.onSurfaceContainerHigh
-            },
-            textAlign = TextAlign.Center,
-        )
-    }
-}
+private fun zonesFor(a: StatusAppearance): List<IconZones.Zone> = IconZones.Zone.entries.toList()

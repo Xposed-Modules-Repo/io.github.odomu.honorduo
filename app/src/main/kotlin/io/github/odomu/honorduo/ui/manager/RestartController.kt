@@ -9,12 +9,12 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.ui
-
+package io.github.odomu.honorduo.ui.manager
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import io.github.odomu.honorduo.model.Prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,7 +28,7 @@ import kotlinx.coroutines.withContext
  * shell that hosts it is named differently across versions, and `killall`
  * matches the process's own name.
  */
-private const val SYSTEM_UI_PACKAGE = "com.android.systemui"
+
 
 /**
  * The root shell's name, as shipped by Magisk, KernelSU and APatch alike.
@@ -109,7 +109,7 @@ internal class RestartController {
      * would never return.
      */
     private fun killSystemUi() {
-        val process = ProcessBuilder(ROOT_SHELL, "-c", "killall $SYSTEM_UI_PACKAGE")
+        val process = ProcessBuilder(ROOT_SHELL, "-c", "killall ${Prefs.SYSTEMUI_PACKAGE}")
             .redirectErrorStream(true)
             .start()
         val output = process.inputStream.bufferedReader().use { it.readText() }.trim()

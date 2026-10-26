@@ -9,68 +9,29 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.ui
+package io.github.odomu.honorduo.ui.control
 
-
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.dp
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import io.github.odomu.honorduo.R
+import io.github.odomu.honorduo.model.ModuleSettings
 import io.github.odomu.honorduo.model.Prefs
-import io.github.odomu.honorduo.model.TrioAppearance
-import io.github.odomu.honorduo.model.TrioSettings
-import io.github.odomu.honorduo.model.TrioState
-import io.github.odomu.honorduo.render.TrioZones
-import top.yukonga.miuix.kmp.basic.ColorPalette
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import io.github.odomu.honorduo.model.StatusAppearance
+import io.github.odomu.honorduo.ui.component.IntSlider
+import io.github.odomu.honorduo.ui.dialog.RoleColor
+import io.github.odomu.honorduo.ui.manager.SettingsRepository
+import io.github.odomu.honorduo.ui.render.IconZones
 
 /**
  * One switchable component, paired with the title the settings screen shows for
  * it. The drawing page needs the name as well as the identity, because the dialog
  * it opens is titled with it.
  */
-internal enum class TrioSettingsPart(val part: TrioZones.Part?, val labelRes: Int) {
+internal enum class SettingsPart(val part: IconZones.Part?, val labelRes: Int) {
     Appearance(null, R.string.drawing_part_appearance),
     Battery(null, R.string.drawing_part_battery),
     Readouts(null, R.string.perf_pair_title),
-    Wifi(TrioZones.Part.WIFI, R.string.show_wifi_title),
+    Wifi(IconZones.Part.WIFI, R.string.show_wifi_title),
     /**
      * The signal card, and the one place a per-card row is chosen.
      *
@@ -82,11 +43,11 @@ internal enum class TrioSettingsPart(val part: TrioZones.Part?, val labelRes: In
      * rows inside this card instead: "show mobile dots" is the aggregate meter, and
      * the two per-card rows sit under it.
      */
-    Mobile(TrioZones.Part.MOBILE, R.string.show_mobile_title),
-    Value(TrioZones.Part.VALUE, R.string.show_value_title),
-    Bolt(TrioZones.Part.BOLT, R.string.show_bolt_title),
-    Type(TrioZones.Part.TYPE, R.string.show_mobile_type_title),
-    Clock(TrioZones.Part.CLOCK, R.string.drawing_occupant_clock),
+    Mobile(IconZones.Part.MOBILE, R.string.show_mobile_title),
+    Value(IconZones.Part.VALUE, R.string.show_value_title),
+    Bolt(IconZones.Part.BOLT, R.string.show_bolt_title),
+    Type(IconZones.Part.TYPE, R.string.show_mobile_type_title),
+    Clock(IconZones.Part.CLOCK, R.string.drawing_occupant_clock),
     Shade(null, R.string.drawing_part_shade),
     ;
 
@@ -98,9 +59,9 @@ internal enum class TrioSettingsPart(val part: TrioZones.Part?, val labelRes: In
          * signal card: tapping either card's ink on the preview opens the one sheet that
          * offers both switches.
          */
-        fun of(part: TrioZones.Part?): TrioSettingsPart? = when (part) {
+        fun of(part: IconZones.Part?): SettingsPart? = when (part) {
             null -> null
-            TrioZones.Part.SIM_1, TrioZones.Part.SIM_2 -> Mobile
+            IconZones.Part.SIM_1, IconZones.Part.SIM_2 -> Mobile
             else -> entries.firstOrNull { it.part == part }
         }
     }
@@ -147,7 +108,7 @@ private const val SPEED_STEP = 10
  */
 internal class SliderSpec(
     val group: GeometryGroup,
-    val part: TrioZones.Part?,
+    val part: IconZones.Part?,
     val min: Int,
     val max: Int,
     /**
@@ -157,16 +118,16 @@ internal class SliderSpec(
      * sits in, which can carry far more than the fixed slots of the capsule and rectangle.
      * Defaults to [max], so every other row keeps its constant span.
      */
-    val maxFor: (TrioAppearance) -> Int = { max },
-    val read: (TrioSettings) -> Int,
+    val maxFor: (StatusAppearance) -> Int = { max },
+    val read: (ModuleSettings) -> Int,
     val write: (SettingsRepository, Int) -> Unit,
-    val titleRes: (TrioAppearance) -> Int,
-    val summaryRes: (TrioAppearance) -> Int,
-    val enabled: (TrioAppearance) -> Boolean,
+    val titleRes: (StatusAppearance) -> Int,
+    val summaryRes: (StatusAppearance) -> Int,
+    val enabled: (StatusAppearance) -> Boolean,
     /** The gates whose titles explain a greyed-out row, in reading order. */
     val step: Int = 1,
     val suffix: String? = null,
-    val editorOwner: TrioSettingsPart = TrioSettingsPart.Appearance,
+    val editorOwner: SettingsPart = SettingsPart.Appearance,
 )
 
 /**
@@ -183,15 +144,15 @@ internal class SliderSpec(
  * the rule that decides whether a percentage is drawn.
  */
 internal fun geometrySliders(): List<SliderSpec> {
-    val value = TrioZones.Part.VALUE
-    val wifi = TrioZones.Part.WIFI
-    val mobile = TrioZones.Part.MOBILE
-    val type = TrioZones.Part.TYPE
-    val bolt = TrioZones.Part.BOLT
+    val value = IconZones.Part.VALUE
+    val wifi = IconZones.Part.WIFI
+    val mobile = IconZones.Part.MOBILE
+    val type = IconZones.Part.TYPE
+    val bolt = IconZones.Part.BOLT
     return listOf(
         SliderSpec(
             group = GeometryGroup.Text,
-            part = TrioZones.Part.CLOCK,
+            part = IconZones.Part.CLOCK,
             min = Prefs.MIN_CLOCK_SIZE,
             max = Prefs.MAX_CLOCK_SIZE,
             maxFor = { if (it.capsule) Prefs.MAX_CAPSULE_READING_SIZE else Prefs.MAX_CLOCK_SIZE },
@@ -203,7 +164,7 @@ internal fun geometrySliders(): List<SliderSpec> {
         ),
         SliderSpec(
             group = GeometryGroup.Text,
-            part = TrioZones.Part.CLOCK,
+            part = IconZones.Part.CLOCK,
             min = Prefs.MIN_CLOCK_WEIGHT,
             max = Prefs.MAX_CLOCK_WEIGHT,
             step = WEIGHT_STEP,
@@ -215,7 +176,7 @@ internal fun geometrySliders(): List<SliderSpec> {
         ),
         SliderSpec(
             group = GeometryGroup.Text,
-            part = TrioZones.Part.CLOCK,
+            part = IconZones.Part.CLOCK,
             min = Prefs.MIN_CLOCK_OFFSET,
             max = Prefs.MAX_CLOCK_OFFSET,
             read = { it.clockTopOffsetX },
@@ -227,7 +188,7 @@ internal fun geometrySliders(): List<SliderSpec> {
         ),
         SliderSpec(
             group = GeometryGroup.Text,
-            part = TrioZones.Part.CLOCK,
+            part = IconZones.Part.CLOCK,
             min = Prefs.MIN_CLOCK_OFFSET,
             max = Prefs.MAX_CLOCK_OFFSET,
             read = { it.clockBottomOffsetX },
@@ -239,7 +200,7 @@ internal fun geometrySliders(): List<SliderSpec> {
         ),
         SliderSpec(
             group = GeometryGroup.Text,
-            part = TrioZones.Part.CLOCK,
+            part = IconZones.Part.CLOCK,
             min = Prefs.MIN_CLOCK_ROW_GAP,
             max = Prefs.MAX_CLOCK_ROW_GAP,
             read = { it.clockRowGap },
@@ -251,7 +212,7 @@ internal fun geometrySliders(): List<SliderSpec> {
         ),
         SliderSpec(
             group = GeometryGroup.Text,
-            part = TrioZones.Part.CLOCK,
+            part = IconZones.Part.CLOCK,
             min = Prefs.MIN_CLOCK_LUNAR_GAP,
             max = Prefs.MAX_CLOCK_LUNAR_GAP,
             read = { it.clockLunarGap },
@@ -280,7 +241,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             min = Prefs.MIN_PERF_SCALE,
             max = Prefs.MAX_PERF_SCALE,
             read = { it.perfScale },
-            editorOwner = TrioSettingsPart.Readouts,
+            editorOwner = SettingsPart.Readouts,
             write = { r, v -> r.setPerfScale(v) },
             titleRes = { R.string.perf_scale_title },
             summaryRes = { R.string.perf_scale_summary },
@@ -295,7 +256,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             max = Prefs.MAX_PERF_WEIGHT,
             step = WEIGHT_STEP,
             read = { it.perfWeight },
-            editorOwner = TrioSettingsPart.Readouts,
+            editorOwner = SettingsPart.Readouts,
             write = { r, v -> r.setPerfWeight(v) },
             titleRes = { R.string.perf_weight_title },
             summaryRes = { R.string.perf_weight_summary },
@@ -307,7 +268,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             min = Prefs.MIN_PERF_LINE_GAP,
             max = Prefs.MAX_PERF_LINE_GAP,
             read = { it.perfLineGap },
-            editorOwner = TrioSettingsPart.Readouts,
+            editorOwner = SettingsPart.Readouts,
             write = { r, v -> r.setPerfLineGap(v) },
             titleRes = { R.string.perf_line_gap_title },
             summaryRes = { R.string.perf_line_gap_summary },
@@ -321,7 +282,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             max = Prefs.MAX_PERF_REFRESH_SEC,
             step = 1,
             read = { it.perfRefreshSec },
-            editorOwner = TrioSettingsPart.Readouts,
+            editorOwner = SettingsPart.Readouts,
             write = { r, v -> r.setPerfRefreshSec(v) },
             titleRes = { R.string.perf_refresh_title },
             summaryRes = { R.string.perf_refresh_summary },
@@ -336,7 +297,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             min = Prefs.MIN_RING_STROKE,
             max = Prefs.MAX_RING_STROKE,
             read = { it.ringStroke },
-            editorOwner = TrioSettingsPart.Battery,
+            editorOwner = SettingsPart.Battery,
             write = { r, v -> r.setRingStroke(v) },
             // One stroke setting, two names: the rectangle spends it on the bar's
             // thickness, the ring on the outline's width.
@@ -434,7 +395,7 @@ internal fun geometrySliders(): List<SliderSpec> {
         /**
          * The ring's level-dot size - one row for both the top and the bottom row.
          *
-         * Owned by [TrioZones.Part.MOBILE] because that is the card the dot ink belongs
+         * Owned by [IconZones.Part.MOBILE] because that is the card the dot ink belongs
          * to, and the two per-card rows share it: the ink is one kind of thing (a row of
          * four beads) and the geometry that sizes it is one set of constants, so a second
          * slider for the cards would be two names for one bead.
@@ -647,7 +608,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             min = Prefs.MIN_RING_SPACING_X,
             max = Prefs.MAX_RING_SPACING_X,
             read = { it.ringSpacingX },
-            editorOwner = TrioSettingsPart.Appearance,
+            editorOwner = SettingsPart.Appearance,
             write = { r, v -> r.setRingSpacingX(v) },
             titleRes = { R.string.ring_spacing_x_title },
             summaryRes = { R.string.ring_spacing_x_summary },
@@ -660,7 +621,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             min = Prefs.MIN_RING_SPACING_Y,
             max = Prefs.MAX_RING_SPACING_Y,
             read = { it.ringSpacingY },
-            editorOwner = TrioSettingsPart.Appearance,
+            editorOwner = SettingsPart.Appearance,
             write = { r, v -> r.setRingSpacingY(v) },
             titleRes = { R.string.ring_spacing_y_title },
             summaryRes = { R.string.ring_spacing_y_summary },
@@ -673,7 +634,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             min = Prefs.MIN_TRACK_ALPHA,
             max = Prefs.MAX_TRACK_ALPHA,
             read = { it.trackAlpha },
-            editorOwner = TrioSettingsPart.Battery,
+            editorOwner = SettingsPart.Battery,
             write = { r, v -> r.setTrackAlpha(v) },
             titleRes = { R.string.track_alpha_title },
             summaryRes = { R.string.track_alpha_summary },
@@ -683,14 +644,14 @@ internal fun geometrySliders(): List<SliderSpec> {
 }
 
 /** The rows that size one component, for the drawing page's long-press dialog. */
-internal fun slidersForPart(part: TrioZones.Part): List<SliderSpec> =
+internal fun slidersForPart(part: IconZones.Part): List<SliderSpec> =
     geometrySliders().filter { it.part == part }
 
-internal fun slidersForEditor(part: TrioSettingsPart): List<SliderSpec> = when (part) {
-    TrioSettingsPart.Appearance, TrioSettingsPart.Battery, TrioSettingsPart.Readouts ->
+internal fun slidersForEditor(part: SettingsPart): List<SliderSpec> = when (part) {
+    SettingsPart.Appearance, SettingsPart.Battery, SettingsPart.Readouts ->
         geometrySliders().filter {
             (it.part == null && it.editorOwner == part) ||
-                (part == TrioSettingsPart.Battery && it.part == TrioZones.Part.VALUE)
+                (part == SettingsPart.Battery && it.part == IconZones.Part.VALUE)
         }
     // Each card gets its own rows. For the signal card those are the out-of-ring readings' two sizes plus the in-ring dot size.
     else -> part.part?.let(::slidersForPart).orEmpty()
@@ -703,10 +664,10 @@ internal fun slidersForEditor(part: TrioSettingsPart): List<SliderSpec> = when (
  * dots follow the status bar's foreground, so they have no colour of their own to
  * offer and say so instead of showing a row that would do nothing.
  */
-internal fun roleColorsForPart(part: TrioZones.Part): List<RoleColor> = when (part) {
-    TrioZones.Part.VALUE -> listOf(RoleColor.Low, RoleColor.Critical)
-    TrioZones.Part.BOLT -> listOf(RoleColor.Charging)
-    TrioZones.Part.CLOCK -> listOf(RoleColor.ClockWeekday, RoleColor.ClockDate, RoleColor.ClockLunar, RoleColor.ClockWeather)
+internal fun roleColorsForPart(part: IconZones.Part): List<RoleColor> = when (part) {
+    IconZones.Part.VALUE -> listOf(RoleColor.Low, RoleColor.Critical)
+    IconZones.Part.BOLT -> listOf(RoleColor.Charging)
+    IconZones.Part.CLOCK -> listOf(RoleColor.ClockWeekday, RoleColor.ClockDate, RoleColor.ClockLunar, RoleColor.ClockWeather)
     else -> emptyList()
 }
 
@@ -726,294 +687,15 @@ internal fun roleColorsForPart(part: TrioZones.Part): List<RoleColor> = when (pa
  * dialogs stacked is a state the page already models, so the parent keeps owning
  * it.
  */
-@Composable
-internal fun PartSettingsSheet(
-    show: Boolean,
-    part: TrioSettingsPart,
-    settings: TrioSettings,
-    update: ((SettingsRepository) -> Unit) -> Unit,
-    onEditColor: (RoleColor) -> Unit,
-    onResetColors: () -> Unit,
-    onDismiss: () -> Unit,
-    onDismissFinished: () -> Unit,
-    preview: (@Composable () -> Unit)? = null,
-    ringSettings: TrioSettings = settings,
-) {
-    val a = TrioAppearance.of(settings)
-    val rows = slidersForEditor(part)
-    val controls = contentControlsFor(part)
-    var showDigitColorDialog by remember { mutableStateOf(false) }
-    val colors = when (part) {
-        TrioSettingsPart.Battery ->
-            listOf(RoleColor.Low, RoleColor.Charging, RoleColor.Critical)
-        TrioSettingsPart.Readouts ->
-            listOf(RoleColor.HighTemp)
-        else -> part.part?.let(::roleColorsForPart).orEmpty()
-    }
-    val density = LocalDensity.current
-    val windowHeight = with(density) { LocalWindowInfo.current.containerSize.height.toDp() }
-    val compact = windowHeight < 600.dp || LocalDensity.current.fontScale > 1.3f
-    val maxHeight = windowHeight * 0.72f
-    // The system's gesture bar (or nav bar) overlays the bottom of the window, so the sheet's last row has to stay above it.
-    val bottomInset = WindowInsets.navigationBars.asPaddingValues()
-        .calculateBottomPadding()
-    val sheetBackdrop = rememberLayerBackdrop()
-
-    OverlayBottomSheet(
-        show = show,
-        // Recorded on the sheet itself, not on the content inside it.
-        modifier = Modifier.layerBackdrop(sheetBackdrop),
-        title = stringResource(R.string.drawing_settings_title,
-            stringResource(if (part == TrioSettingsPart.Battery && a.ring) R.string.drawing_part_ring else part.labelRes)),
-        onDismissRequest = onDismiss,
-        onDismissFinished = onDismissFinished,
-    ) {
-        CompositionLocalProvider(LocalDropdownBackdrop provides sheetBackdrop) {
-            Column(
-                modifier = Modifier.fillMaxWidth().heightIn(max = maxHeight)
-                    .padding(bottom = bottomInset),
-            ) {
-                if (!compact) preview?.invoke()
-                Column(modifier = Modifier.weight(1f, fill = false)
-                    .verticalScroll(rememberScrollState()).padding(horizontal = 4.dp)) {
-                    if (compact) preview?.invoke()
-                    controls.forEach { control -> ContentControlRow(control, settings, update, ringSettings) }
-                if (rows.isEmpty() && colors.isEmpty() && controls.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.drawing_settings_none),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.padding(vertical = 8.dp),
-                    )
-                }
-
-                // Colour rows follow the same rule as everything else: no master
-                // switch, no rows at all.
-                if (colors.isNotEmpty() && part == TrioSettingsPart.Battery) {
-                    SwitchPreference(
-                        checked = a.roleColors,
-                        title = stringResource(R.string.color_role_title),
-                        insideMargin = SettingsItemMargin,
-                        onCheckedChange = { value -> update { it.setRoleColors(value) } },
-                    )
-                    if (a.roleColors) {
-                        IntSlider(
-                            value = settings.lowThreshold,
-                            min = Prefs.MIN_LOW_THRESHOLD,
-                            max = Prefs.MAX_LOW_THRESHOLD,
-                            title = stringResource(R.string.low_threshold_title),
-                            summary = stringResource(R.string.low_threshold_summary),
-                            enabled = true,
-                            onValueChange = { value -> update { it.setLowThreshold(value) } },
-                            onReset = { update { it.setLowThreshold(Prefs.DEF_LOW_THRESHOLD) } },
-                        )
-                    }
-                }
-                if (part == TrioSettingsPart.Readouts && settings.perfTemp) {
-                    SwitchPreference(
-                        checked = a.roleColorsTemp,
-                        title = stringResource(R.string.color_role_temp_title),
-                        summary = stringResource(R.string.color_role_temp_summary),
-                        insideMargin = SettingsItemMargin,
-                        onCheckedChange = { value -> update { it.setRoleColorsTemp(value) } },
-                    )
-                    if (a.roleColorsTemp) {
-                        IntSlider(
-                            value = settings.tempThreshold,
-                            min = Prefs.MIN_TEMP_THRESHOLD,
-                            max = Prefs.MAX_TEMP_THRESHOLD,
-                            title = stringResource(R.string.temp_threshold_title),
-                            summary = stringResource(R.string.temp_threshold_summary),
-                            valueTextSuffix = "℃",
-                            enabled = true,
-                            onValueChange = { value -> update { it.setTempThreshold(value) } },
-                            onReset = { update { it.setTempThreshold(Prefs.DEF_TEMP_THRESHOLD) } },
-                        )
-                    }
-                }
-
-
-                rows.forEach { spec ->
-                    // A row whose setting is off is not shown at all, not greyed.
-                    if (spec.enabled(a)) {
-                        SliderRow(spec, settings, update)
-                    }
-                }
-
-                val showColors = when (part) {
-                    TrioSettingsPart.Battery -> a.glyph && a.roleColors
-                    TrioSettingsPart.Readouts -> settings.perfTemp && a.roleColorsTemp
-                    TrioSettingsPart.Clock, TrioSettingsPart.Bolt -> true
-                    else -> false
-                }
-                if (showColors) {
-                    // Place digit colors preference right before clock colors (e.g. weekday color)
-                    if (part == TrioSettingsPart.Clock) {
-                        ArrowPreference(
-                            title = stringResource(R.string.clock_digit_colors_title),
-                            summary = stringResource(R.string.color_field_summary),
-                            insideMargin = SettingsItemMargin,
-                            onClick = { showDigitColorDialog = true },
-                        )
-                    }
-                    colors.forEach { role ->
-                    ArrowPreference(
-                        title = stringResource(role.labelRes),
-                        summary = stringResource(R.string.color_field_summary),
-                        insideMargin = SettingsItemMargin,
-                        startAction = {
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Swatch(colorFor(settings, role, onDark = true))
-                                Swatch(colorFor(settings, role, onDark = false))
-                            }
-                        },
-                        onClick = { onEditColor(role) },
-                    )
-                    }
-                }
-
-                if (part == TrioSettingsPart.Battery || part == TrioSettingsPart.Clock || part == TrioSettingsPart.Bolt || (part == TrioSettingsPart.Readouts && a.roleColorsTemp)) {
-                    ArrowPreference(
-                        title = stringResource(R.string.color_reset),
-                        summary = stringResource(R.string.color_reset_summary),
-                        insideMargin = SettingsItemMargin,
-                        onClick = onResetColors,
-                    )
-                }
-            }
-            }
-
-            if (showDigitColorDialog) {
-                ClockDigitColorDialog(
-                    settings = settings,
-                    update = update,
-                    onDismiss = { showDigitColorDialog = false },
-                )
-            }
-        }
-    }
-}
-
-/**
- * Dedicated modal dialog for customizing per-character time colors.
- *
- * Triggered exclusively when tapped from the clock settings sheet.
- * Tapping individual glyphs in the live preview selects them for palette customization.
- */
-@Composable
-private fun ClockDigitColorDialog(
-    settings: TrioSettings,
-    update: ((SettingsRepository) -> Unit) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var onDark by remember { mutableStateOf(false) }
-    var selected by remember { mutableStateOf(0) }
-    val sample = TrioState.sClockBarText.ifEmpty { TrioState.sClockText }.ifEmpty { "19:41:05" }
-    val colors = if (onDark) settings.clockDigitColorsOnDark else settings.clockDigitColorsOnLight
-    val selectedColor = colors.getOrElse(selected) { 0 }
-    val defaultInk = if (onDark) Color.White else Color.Black
-
-    OverlayDialog(
-        show = true,
-        title = stringResource(R.string.clock_digit_colors_title),
-        summary = stringResource(R.string.clock_digit_colors_summary),
-        onDismissRequest = onDismiss,
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
-            // Light / Dark background chips matching ColorDialog style
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                BackgroundChip(
-                    label = stringResource(R.string.color_on_light),
-                    selected = !onDark,
-                    modifier = Modifier.weight(1f),
-                ) { onDark = false }
-                BackgroundChip(
-                    label = stringResource(R.string.color_on_dark),
-                    selected = onDark,
-                    modifier = Modifier.weight(1f),
-                ) { onDark = true }
-            }
-
-            // Tappable digits preview row
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    sample.forEachIndexed { index, glyph ->
-                        val picked = colors.getOrElse(index) { 0 }
-                        val isSelected = index == selected
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(
-                                    if (isSelected) {
-                                        MiuixTheme.colorScheme.primary.copy(alpha = 0.22f)
-                                    } else {
-                                        MiuixTheme.colorScheme.surfaceContainerHigh
-                                    },
-                                )
-                                .clickable(role = Role.Button) { selected = index },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = glyph.toString(),
-                                style = MiuixTheme.textStyles.headline2,
-                                color = if (picked != 0) Color(picked) else defaultInk,
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Color palette for selected digit
-            ColorPalette(
-                color = if (selectedColor != 0) Color(selectedColor) else defaultInk,
-                onColorChanged = { picked ->
-                    update { it.setClockDigitColor(selected, onDark, picked.toArgb()) }
-                },
-                modifier = Modifier.padding(top = 10.dp),
-            )
-
-            // Actions row with generous spacing and distinct reset controls
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp, bottom = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(
-                    text = stringResource(R.string.clock_digit_color_clear_one),
-                    onClick = {
-                        update { it.setClockDigitColor(selected, onDark, 0) }
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(
-                    text = stringResource(R.string.clock_digit_color_clear_all),
-                    onClick = {
-                        update { it.clearClockDigitColors() }
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-    }
-}
 
 /** One size row, rendered from its spec. Shared by the page and this dialog. */
 @Composable
 internal fun SliderRow(
     spec: SliderSpec,
-    settings: TrioSettings,
+    settings: ModuleSettings,
     update: ((SettingsRepository) -> Unit) -> Unit,
 ) {
-    val a = TrioAppearance.of(settings)
+    val a = StatusAppearance.of(settings)
     IntSlider(
         value = spec.read(settings).coerceAtMost(spec.maxFor(a)),
         min = spec.min,
@@ -1025,9 +707,8 @@ internal fun SliderRow(
         valueTextSuffix = spec.suffix,
         onValueChange = { v -> update { r -> spec.write(r, v) } },
         onReset = {
-            val defVal = spec.read(TrioSettings.defaults())
+            val defVal = spec.read(ModuleSettings.defaults())
             update { r -> spec.write(r, defVal) }
         },
     )
 }
-

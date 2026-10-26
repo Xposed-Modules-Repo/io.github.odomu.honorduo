@@ -1,0 +1,6 @@
+uniform shader content;
+uniform float2 size;
+half4 main(float2 coord) {
+    float blurAlpha = smoothstep(size.y, size.y * 0.5, coord.y);
+    return content.eval(coord) * blurAlpha;
+}

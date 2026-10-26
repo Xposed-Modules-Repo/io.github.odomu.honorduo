@@ -9,16 +9,18 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.ui
-
+package io.github.odomu.honorduo.ui.control
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import io.github.odomu.honorduo.R
+import io.github.odomu.honorduo.model.ModuleSettings
 import io.github.odomu.honorduo.model.Prefs
-import io.github.odomu.honorduo.model.TrioAppearance
-import io.github.odomu.honorduo.model.TrioSettings
-import io.github.odomu.honorduo.render.TrioZones
+import io.github.odomu.honorduo.model.StatusAppearance
+import io.github.odomu.honorduo.ui.component.GlassDropdownPreference
+import io.github.odomu.honorduo.ui.component.SettingsItemMargin
+import io.github.odomu.honorduo.ui.manager.SettingsRepository
+import io.github.odomu.honorduo.ui.render.IconZones
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -38,15 +40,15 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
  * out of ring" switch, and the "stacked signal" style that went with it, were asking the
  * user to choose between states the layout already decides.
  */
-internal enum class ContentControl(val owner: TrioSettingsPart) {
-    Enabled(TrioSettingsPart.Appearance),
-    MergeIcons(TrioSettingsPart.Appearance),
-    Style(TrioSettingsPart.Appearance),
-    AntiBurnIn(TrioSettingsPart.Appearance),
-    SignalColumns(TrioSettingsPart.Mobile),
-    Wifi(TrioSettingsPart.Wifi),
-    ReplaceWifiIcon(TrioSettingsPart.Wifi),
-    ReplaceStatusIcon(TrioSettingsPart.Appearance),
+internal enum class ContentControl(val owner: SettingsPart) {
+    Enabled(SettingsPart.Appearance),
+    MergeIcons(SettingsPart.Appearance),
+    Style(SettingsPart.Appearance),
+    AntiBurnIn(SettingsPart.Appearance),
+    SignalColumns(SettingsPart.Mobile),
+    Wifi(SettingsPart.Wifi),
+    ReplaceWifiIcon(SettingsPart.Wifi),
+    ReplaceStatusIcon(SettingsPart.Appearance),
     /**
      * The signal card: one switch for the aggregate meter, then one per card.
      *
@@ -56,8 +58,8 @@ internal enum class ContentControl(val owner: TrioSettingsPart) {
      * one kind of thing (a row of level dots); which reading it shows is a property of
      * the row, not a second component.
      */
-    Mobile(TrioSettingsPart.Mobile),
-    DataSim(TrioSettingsPart.Mobile),
+    Mobile(SettingsPart.Mobile),
+    DataSim(SettingsPart.Mobile),
     /**
      * The out-of-ring rendering: the module's own stacked reading, or MagicOS' icon.
      *
@@ -65,22 +67,22 @@ internal enum class ContentControl(val owner: TrioSettingsPart) {
      * property of where the signal is drawn, not a third reading. It sits directly under
      * the position row it depends on.
      */
-    Stacked(TrioSettingsPart.Mobile),
-    MobileActivity(TrioSettingsPart.Mobile),
-    Sim1(TrioSettingsPart.Mobile),
-    Sim2(TrioSettingsPart.Mobile),
-    Value(TrioSettingsPart.Battery),
-    Percent(TrioSettingsPart.Battery),
+    Stacked(SettingsPart.Mobile),
+    MobileActivity(SettingsPart.Mobile),
+    Sim1(SettingsPart.Mobile),
+    Sim2(SettingsPart.Mobile),
+    Value(SettingsPart.Battery),
+    Percent(SettingsPart.Battery),
     /**
      * A charger puts the number in the ring's centre, over whatever the layout put there.
      *
      * Owned by the percentage: it is a rule about that reading rather than a third kind
      * of content. Resolved per frame, so nothing stored changes when the cable moves.
      */
-    ChargingShowsValue(TrioSettingsPart.Battery),
-    Bolt(TrioSettingsPart.Bolt),
-    BoltAnimEnabled(TrioSettingsPart.Bolt),
-    BoltAnim(TrioSettingsPart.Bolt),
+    ChargingShowsValue(SettingsPart.Battery),
+    Bolt(SettingsPart.Bolt),
+    BoltAnimEnabled(SettingsPart.Bolt),
+    BoltAnim(SettingsPart.Bolt),
     /**
      * Network type, and the ONE piece that has a position choice of its own.
      *
@@ -90,11 +92,11 @@ internal enum class ContentControl(val owner: TrioSettingsPart) {
      * no native counterpart to hand back - so "show it beside the ring" is a real choice
      * rather than a way of expressing the same thing twice.
      */
-    Type(TrioSettingsPart.Type),
-    ShowOutType(TrioSettingsPart.Type),
-    Power(TrioSettingsPart.Readouts),
-    StackStyle(TrioSettingsPart.Mobile),
-    StackLabel(TrioSettingsPart.Type),
+    Type(SettingsPart.Type),
+    ShowOutType(SettingsPart.Type),
+    Power(SettingsPart.Readouts),
+    StackStyle(SettingsPart.Mobile),
+    StackLabel(SettingsPart.Type),
     /**
      * The type steps aside while Wi-Fi is up.
      *
@@ -103,11 +105,11 @@ internal enum class ContentControl(val owner: TrioSettingsPart) {
      * cellular radio is doing, and with Wi-Fi up it shares the bar with the arcs the
      * user is actually reading.
      */
-    TypeHideOnWifi(TrioSettingsPart.Type),
-    RunningPower(TrioSettingsPart.Readouts),
-    Temperature(TrioSettingsPart.Readouts),
+    TypeHideOnWifi(SettingsPart.Type),
+    RunningPower(SettingsPart.Readouts),
+    Temperature(SettingsPart.Readouts),
     /** The temperature shows only while the charger is attached (#45). */
-    TempChargingOnly(TrioSettingsPart.Readouts),
+    TempChargingOnly(SettingsPart.Readouts),
     /**
      * The frame rate, in the same sheet as the two readouts.
      *
@@ -116,7 +118,7 @@ internal enum class ContentControl(val owner: TrioSettingsPart) {
      * is sized to hold exactly those two, and a third line would scale all three down -
      * so a frame rate that has no band of its own is drawn in a view beside the strip.
      */
-    Fps(TrioSettingsPart.Readouts),
+    Fps(SettingsPart.Readouts),
     /**
      * The battery current, in the same sheet as the other readouts.
      *
@@ -124,55 +126,55 @@ internal enum class ContentControl(val owner: TrioSettingsPart) {
      * stand beside them in the strip, and the unit and sign rows below it are what a
      * number of milliamps needs to be readable.
      */
-    Current(TrioSettingsPart.Readouts),
-    CurrentUnit(TrioSettingsPart.Readouts),
-    CurrentPositive(TrioSettingsPart.Readouts),
-    Clock(TrioSettingsPart.Clock),
-    HideStatusClock(TrioSettingsPart.Clock),
-    ClockLunar(TrioSettingsPart.Clock),
-    ClockSeconds(TrioSettingsPart.Clock),
-    ClockDate(TrioSettingsPart.Clock),
-    ClockDateFormat(TrioSettingsPart.Clock),
-    ClockWeekday(TrioSettingsPart.Clock),
-    ClockWeekdayFormat(TrioSettingsPart.Clock),
-    ClockWeather(TrioSettingsPart.Clock),
-    ClockWeatherStyle(TrioSettingsPart.Clock),
-    ClockStyle(TrioSettingsPart.Clock),
-    HideAlarmIcon(TrioSettingsPart.Appearance),
-    HideBluetoothIcon(TrioSettingsPart.Appearance),
-    ShadeHidePower(TrioSettingsPart.Shade),
-    ShadeHideBell(TrioSettingsPart.Shade),
-    ShadeLunar(TrioSettingsPart.Shade),
-    ShadeWeather(TrioSettingsPart.Shade),
-    ShadeWeatherStyle(TrioSettingsPart.Shade),
+    Current(SettingsPart.Readouts),
+    CurrentUnit(SettingsPart.Readouts),
+    CurrentPositive(SettingsPart.Readouts),
+    Clock(SettingsPart.Clock),
+    HideStatusClock(SettingsPart.Clock),
+    ClockLunar(SettingsPart.Clock),
+    ClockSeconds(SettingsPart.Clock),
+    ClockDate(SettingsPart.Clock),
+    ClockDateFormat(SettingsPart.Clock),
+    ClockWeekday(SettingsPart.Clock),
+    ClockWeekdayFormat(SettingsPart.Clock),
+    ClockWeather(SettingsPart.Clock),
+    ClockWeatherStyle(SettingsPart.Clock),
+    ClockStyle(SettingsPart.Clock),
+    HideAlarmIcon(SettingsPart.Appearance),
+    HideBluetoothIcon(SettingsPart.Appearance),
+    ShadeHidePower(SettingsPart.Shade),
+    ShadeHideBell(SettingsPart.Shade),
+    ShadeLunar(SettingsPart.Shade),
+    ShadeWeather(SettingsPart.Shade),
+    ShadeWeatherStyle(SettingsPart.Shade),
 }
 
-internal fun contentControlsFor(part: TrioSettingsPart): List<ContentControl> =
+internal fun contentControlsFor(part: SettingsPart): List<ContentControl> =
     ContentControl.entries.filter {
-        val matchesOwner = it.owner == part || (part == TrioSettingsPart.Battery && it == ContentControl.Bolt)
-        matchesOwner && !(part == TrioSettingsPart.Appearance &&
+        val matchesOwner = it.owner == part || (part == SettingsPart.Battery && it == ContentControl.Bolt)
+        matchesOwner && !(part == SettingsPart.Appearance &&
             (it == ContentControl.Enabled || it == ContentControl.MergeIcons || it == ContentControl.Style || it == ContentControl.AntiBurnIn))
     }
 
 @Composable
 internal fun ContentControlRow(
     control: ContentControl,
-    settings: TrioSettings,
+    settings: ModuleSettings,
     update: ((SettingsRepository) -> Unit) -> Unit,
-    ringSettings: TrioSettings = settings,
+    ringSettings: ModuleSettings = settings,
 ) {
-    val a = TrioAppearance.of(settings)
+    val a = StatusAppearance.of(settings)
     val master = listOf(a.glyph to R.string.master_title)
 
     val positioned = when (control) {
-        ContentControl.Value -> TrioZones.Part.VALUE
-        ContentControl.Bolt -> TrioZones.Part.BOLT
-        ContentControl.Type -> TrioZones.Part.TYPE
-        ContentControl.Clock -> TrioZones.Part.CLOCK
-        ContentControl.Fps -> TrioZones.Part.FPS
-        ContentControl.Power -> TrioZones.Part.POWER
-        ContentControl.RunningPower -> TrioZones.Part.RUNNING
-        ContentControl.Temperature -> TrioZones.Part.TEMP
+        ContentControl.Value -> IconZones.Part.VALUE
+        ContentControl.Bolt -> IconZones.Part.BOLT
+        ContentControl.Type -> IconZones.Part.TYPE
+        ContentControl.Clock -> IconZones.Part.CLOCK
+        ContentControl.Fps -> IconZones.Part.FPS
+        ContentControl.Power -> IconZones.Part.POWER
+        ContentControl.RunningPower -> IconZones.Part.RUNNING
+        ContentControl.Temperature -> IconZones.Part.TEMP
         else -> null
     }
     if (control == ContentControl.Type) {
@@ -187,10 +189,10 @@ internal fun ContentControlRow(
         SignalPositionControl(settings, update)
     }
     if (control == ContentControl.Sim1 && a.slotted) {
-        SignalCardPositionControl(TrioZones.Part.SIM_1, settings, update, visible = signalInsideRing(a))
+        SignalCardPositionControl(IconZones.Part.SIM_1, settings, update, visible = signalInsideRing(a))
     }
     if (control == ContentControl.Sim2 && a.slotted) {
-        SignalCardPositionControl(TrioZones.Part.SIM_2, settings, update, visible = signalInsideRing(a))
+        SignalCardPositionControl(IconZones.Part.SIM_2, settings, update, visible = signalInsideRing(a))
     }
 
     when (control) {
@@ -523,7 +525,7 @@ internal fun ContentControlRow(
  */
 @Composable
 private fun SignalPositionControl(
-    settings: TrioSettings,
+    settings: ModuleSettings,
     update: ((SettingsRepository) -> Unit) -> Unit,
 ) {
     val outside = settings.signalMode == Prefs.SIGNAL_OUT_RING
@@ -543,10 +545,10 @@ private fun SignalPositionControl(
  * Whether the signal is drawn inside the glyph, which is what enables the per-card rows.
  *
  * Covers the capsule as well as the ring: both draw the rows in a band, so both can place
- * them. The rectangle cannot, and [TrioAppearance.slotted] is what the callers gate on, so
+ * them. The rectangle cannot, and [StatusAppearance.slotted] is what the callers gate on, so
  * this only has to answer the shared part.
  */
-private fun signalInsideRing(a: TrioAppearance): Boolean =
+private fun signalInsideRing(a: StatusAppearance): Boolean =
     a.mobile && a.slotted && !a.signalOutOfRing
 
 /**
@@ -558,14 +560,14 @@ private fun signalInsideRing(a: TrioAppearance): Boolean =
  * that cannot be picked is also the honest presentation of "one of these is taken".
  *
  * The middle is disabled for every card, always, because the ring does not hold a signal
- * row there - see [TrioZones.isSignalRow] and the reason in `Prefs.zoneAccepts`. That is not
+ * row there - see [IconZones.isSignalRow] and the reason in `Prefs.zoneAccepts`. That is not
  * the other card taking it: it is a band the row has no business in, so it is blocked
  * whatever the twin is doing.
  */
 @Composable
 private fun SignalCardPositionControl(
-    part: TrioZones.Part,
-    settings: TrioSettings,
+    part: IconZones.Part,
+    settings: ModuleSettings,
     update: ((SettingsRepository) -> Unit) -> Unit,
     visible: Boolean,
 ) {
@@ -574,21 +576,21 @@ private fun SignalCardPositionControl(
     if (!visible) {
         return
     }
-    val id = TrioZones.encodePart(part)
-    val twin = if (part == TrioZones.Part.SIM_1) TrioZones.Part.SIM_2 else TrioZones.Part.SIM_1
-    val twinId = TrioZones.encodePart(twin)
+    val id = IconZones.encodePart(part)
+    val twin = if (part == IconZones.Part.SIM_1) IconZones.Part.SIM_2 else IconZones.Part.SIM_1
+    val twinId = IconZones.encodePart(twin)
     val zones = settings.ringZones
     val placedAt = zones.indexOfFirst { it.contains(id) } + 1
     val takenByTwin = zones.indexOfFirst { it.contains(twinId) }
     // Option 0 is "not placed" and is always allowed; 1..3 mirror the zones. The middle is
     // refused for the row itself, and the one the twin holds is refused because it is taken.
     val blocked = buildSet {
-        add(TrioZones.Zone.CENTRE.ordinal + 1)
+        add(IconZones.Zone.CENTRE.ordinal + 1)
         if (takenByTwin >= 0) add(takenByTwin + 1)
     }
     ContentChoice(
         selected = placedAt,
-        title = if (part == TrioZones.Part.SIM_1) R.string.ring_position_sim_1
+        title = if (part == IconZones.Part.SIM_1) R.string.ring_position_sim_1
         else R.string.ring_position_sim_2,
         summaryRes = null,
         options = listOf(R.string.ring_position_native, R.string.drawing_hint_top,
@@ -613,11 +615,11 @@ private fun SignalCardPositionControl(
  */
 @Composable
 private fun WifiPositionControl(
-    settings: TrioSettings,
-    ringSettings: TrioSettings,
+    settings: ModuleSettings,
+    ringSettings: ModuleSettings,
     update: ((SettingsRepository) -> Unit) -> Unit,
 ) {
-    val id = TrioZones.encodePart(TrioZones.Part.WIFI)
+    val id = IconZones.encodePart(IconZones.Part.WIFI)
     val placedAt = ringSettings.ringZones.indexOfFirst { it.contains(id) } + 1
     // Off wins over "placed somewhere": a switch that is off draws no arcs whatever the
     // layout says, so reporting a slot here would name a place that produces nothing.
@@ -654,11 +656,11 @@ private fun WifiPositionControl(
  */
 @Composable
 private fun TypePositionControl(
-    settings: TrioSettings,
+    settings: ModuleSettings,
     update: ((SettingsRepository) -> Unit) -> Unit,
     zonesAllowed: Boolean,
 ) {
-    val id = TrioZones.encodePart(TrioZones.Part.TYPE)
+    val id = IconZones.encodePart(IconZones.Part.TYPE)
     val placedAt = settings.ringZones.indexOfFirst { it.contains(id) } + 1
     val selected = if (placedAt in 1..3) placedAt else 0
     ContentChoice(
@@ -677,13 +679,13 @@ private fun TypePositionControl(
         update {
             when (value) {
                 0 -> {
-                    it.setRingPartPosition(TrioZones.Part.TYPE, 0)
+                    it.setRingPartPosition(IconZones.Part.TYPE, 0)
                     if (settings.mobileTypeMode == Prefs.MOBILE_TYPE_IN_RING) {
                         it.setMobileTypeMode(Prefs.MOBILE_TYPE_OUT_RING)
                     }
                 }
                 else -> {
-                    it.setRingPartPosition(TrioZones.Part.TYPE, value)
+                    it.setRingPartPosition(IconZones.Part.TYPE, value)
                     it.setMobileTypeMode(Prefs.MOBILE_TYPE_IN_RING)
                 }
             }
@@ -691,42 +693,42 @@ private fun TypePositionControl(
     }
 }
 
-private fun middleBlocked(part: TrioZones.Part): Set<Int> =
-    if (TrioZones.isSignalRow(part)) setOf(TrioZones.Zone.CENTRE.ordinal + 1) else emptySet()
+private fun middleBlocked(part: IconZones.Part): Set<Int> =
+    if (IconZones.isSignalRow(part)) setOf(IconZones.Zone.CENTRE.ordinal + 1) else emptySet()
 
 @Composable
 private fun RingPositionControl(
-    part: TrioZones.Part,
-    settings: TrioSettings,
+    part: IconZones.Part,
+    settings: ModuleSettings,
     update: ((SettingsRepository) -> Unit) -> Unit,
 ) {
-    val id = TrioZones.encodePart(part)
+    val id = IconZones.encodePart(part)
     // Which zone's list currently holds this piece, or 0 for "not placed". The dropdown is a shortcut into the priority lists, not a second source of truth.
     val zones = settings.ringZones
     val placedAt = zones.indexOfFirst { it.contains(id) } + 1
-    val selected = if (part == TrioZones.Part.TYPE
+    val selected = if (part == IconZones.Part.TYPE
         && settings.mobileTypeMode == Prefs.MOBILE_TYPE_OUT_RING) 4 else placedAt
     // The row's title is the SLOT it picks, never the component's own switch name.
     val title = when (part) {
-        TrioZones.Part.WIFI -> R.string.ring_position_wifi
-        TrioZones.Part.MOBILE -> R.string.ring_position_mobile
-        TrioZones.Part.SIM_1 -> R.string.ring_position_sim_1
-        TrioZones.Part.SIM_2 -> R.string.ring_position_sim_2
-        TrioZones.Part.VALUE -> R.string.ring_position_value
-        TrioZones.Part.BOLT -> R.string.ring_position_bolt
-        TrioZones.Part.TYPE -> R.string.ring_position_type
-        TrioZones.Part.CLOCK -> R.string.ring_position_clock
-        TrioZones.Part.POWER -> R.string.ring_position_power
-        TrioZones.Part.TEMP -> R.string.ring_position_temp
-        TrioZones.Part.RUNNING -> R.string.ring_position_running
-        TrioZones.Part.FPS -> R.string.ring_position_fps
-        TrioZones.Part.CURRENT -> R.string.ring_position_current
+        IconZones.Part.WIFI -> R.string.ring_position_wifi
+        IconZones.Part.MOBILE -> R.string.ring_position_mobile
+        IconZones.Part.SIM_1 -> R.string.ring_position_sim_1
+        IconZones.Part.SIM_2 -> R.string.ring_position_sim_2
+        IconZones.Part.VALUE -> R.string.ring_position_value
+        IconZones.Part.BOLT -> R.string.ring_position_bolt
+        IconZones.Part.TYPE -> R.string.ring_position_type
+        IconZones.Part.CLOCK -> R.string.ring_position_clock
+        IconZones.Part.POWER -> R.string.ring_position_power
+        IconZones.Part.TEMP -> R.string.ring_position_temp
+        IconZones.Part.RUNNING -> R.string.ring_position_running
+        IconZones.Part.FPS -> R.string.ring_position_fps
+        IconZones.Part.CURRENT -> R.string.ring_position_current
     }
     ContentChoice(selected, title,
         null,
         listOf(R.string.ring_position_native, R.string.drawing_hint_top,
             R.string.drawing_hint_centre, R.string.drawing_hint_bottom) +
-            if (part == TrioZones.Part.TYPE) listOf(R.string.mobile_type_outside) else emptyList(),
+            if (part == IconZones.Part.TYPE) listOf(R.string.mobile_type_outside) else emptyList(),
         listOf(settings.enabled to R.string.master_title),
         // A signal row cannot be put in the middle band - see [middleBlocked].
         blockedIndices = middleBlocked(part),

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package io.github.odomu.honorduo.ui
+package io.github.odomu.honorduo.ui.component
 
 import android.content.Context
 import android.graphics.RuntimeShader
@@ -72,6 +72,26 @@ private val AMBIENT_DARK_COLORS3 = floatArrayOf(
     0.66f, 0.26f, 0.62f, 0.5f,
     0.12f, 0.16f, 0.7f, 0.6f,
 )
+
+private fun getAmbientColors(index: Int, isDark: Boolean): FloatArray {
+    return if (isDark) {
+        when (index % 4) {
+            0 -> AMBIENT_DARK_COLORS2
+            1 -> AMBIENT_DARK_COLORS1
+            2 -> AMBIENT_DARK_COLORS2
+            3 -> AMBIENT_DARK_COLORS3
+            else -> AMBIENT_DARK_COLORS2
+        }
+    } else {
+        when (index % 4) {
+            0 -> AMBIENT_LIGHT_COLORS2
+            1 -> AMBIENT_LIGHT_COLORS1
+            2 -> AMBIENT_LIGHT_COLORS2
+            3 -> AMBIENT_LIGHT_COLORS3
+            else -> AMBIENT_LIGHT_COLORS2
+        }
+    }
+}
 
 private const val SHADER_ASSET_PATH = "shaders/ambient_mesh_bg.agsl"
 
@@ -191,28 +211,8 @@ internal fun AmbientMeshBackground(
         val base = stage.toInt()
         val fraction = stage - base
 
-        val getColors = { index: Int ->
-            if (isDark) {
-                when (index % 4) {
-                    0 -> AMBIENT_DARK_COLORS2
-                    1 -> AMBIENT_DARK_COLORS1
-                    2 -> AMBIENT_DARK_COLORS2
-                    3 -> AMBIENT_DARK_COLORS3
-                    else -> AMBIENT_DARK_COLORS2
-                }
-            } else {
-                when (index % 4) {
-                    0 -> AMBIENT_LIGHT_COLORS2
-                    1 -> AMBIENT_LIGHT_COLORS1
-                    2 -> AMBIENT_LIGHT_COLORS2
-                    3 -> AMBIENT_LIGHT_COLORS3
-                    else -> AMBIENT_LIGHT_COLORS2
-                }
-            }
-        }
-
-        val start = getColors(base)
-        val end = getColors(base + 1)
+        val start = getAmbientColors(base, isDark)
+        val end = getAmbientColors(base + 1, isDark)
         for (i in currentColors.indices) {
             currentColors[i] = start[i] + (end[i] - start[i]) * fraction
         }
