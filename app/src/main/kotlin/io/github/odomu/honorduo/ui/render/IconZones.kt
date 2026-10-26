@@ -9,16 +9,15 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.render
+package io.github.odomu.honorduo.ui.render
 
+import io.github.odomu.honorduo.model.ModuleSettings
 import io.github.odomu.honorduo.model.Prefs
-import io.github.odomu.honorduo.model.TrioAppearance
-import io.github.odomu.honorduo.model.TrioSettings
+import io.github.odomu.honorduo.model.StatusAppearance
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.roundToInt
-
 
 /**
  * The three tappable thirds of the glyph, and which drawn piece sits in each.
@@ -30,14 +29,14 @@ import kotlin.math.roundToInt
  *
  * - **Where the thirds are.** [boxes] gives each in the same 120x120 design units the
  *   rest of the renderer uses, and [zoneAt] inverts that through the very transform
- *   [TrioRenderer.designTransform] draws with - so a hot spot lands on the pixels it
+ *   [IconRenderer.designTransform] draws with - so a hot spot lands on the pixels it
  *   names rather than near them.
- * - **What is in them.** [occupant] reads the slot arbitration [TrioAppearance] has
+ * - **What is in them.** [occupant] reads the slot arbitration [StatusAppearance] has
  *   already performed and only *places* each decided piece in a third. It decides
  *   nothing itself: with the drawing rule and this table free to disagree, the editor
  *   would name a piece the user is not looking at.
  */
-object TrioZones {
+object IconZones {
 
     /** The three bands, in the order [Prefs.ZONE_*] stores them. */
     enum class Zone { TOP, CENTRE, BOTTOM }
@@ -61,25 +60,25 @@ object TrioZones {
 
     /**
      * The rectangle's vertical seam: exactly the box the renderer bounds the centre text
-     * by, read off [TrioGeometry].
+     * by, read off [IconGeometry].
      *
      * Derived rather than restated. The renderer fits the percentage into
      * `RECT_TEXT_LEFT..RIGHT`, so a three-digit 100 % at a large size reaches those edges -
      * and a seam even one design unit inside them would put the right-hand stroke in the
      * mobile column, where a tap turns the signal meter off instead of flipping the number.
      */
-    private const val RECT_SEAM_LEFT = TrioGeometry.RECT_TEXT_LEFT
-    private const val RECT_SEAM_RIGHT = TrioGeometry.RECT_TEXT_RIGHT
+    private const val RECT_SEAM_LEFT = IconGeometry.RECT_TEXT_LEFT
+    private const val RECT_SEAM_RIGHT = IconGeometry.RECT_TEXT_RIGHT
 
     /**
-     * The ring's two cuts, taken from [TrioGeometry].
+     * The ring's two cuts, taken from [IconGeometry].
      *
      * The renderer needs them as well: a piece placed in a third is sized by the room
      * that third gives, so the band the editor hit-tests and the band the text is fitted
      * into have to be the same band.
      */
-    private const val RING_TOP_BOTTOM = TrioGeometry.ZONE_CUT_TOP
-    private const val RING_CENTRE_BOTTOM = TrioGeometry.ZONE_CUT_BOTTOM
+    private const val RING_TOP_BOTTOM = IconGeometry.ZONE_CUT_TOP
+    private const val RING_CENTRE_BOTTOM = IconGeometry.ZONE_CUT_BOTTOM
 
     /**
      * The design-space boxes a zone covers, for the ring and the rectangle.
@@ -106,25 +105,25 @@ object TrioZones {
                 )
                 Zone.BOTTOM -> arrayOf(
                     // The two columns, then the strip the bar sits in.
-                    floatArrayOf(0f, 0f, RECT_SEAM_LEFT, TrioGeometry.BOX),
-                    floatArrayOf(RECT_SEAM_RIGHT, 0f, TrioGeometry.BOX, TrioGeometry.BOX),
+                    floatArrayOf(0f, 0f, RECT_SEAM_LEFT, IconGeometry.BOX),
+                    floatArrayOf(RECT_SEAM_RIGHT, 0f, IconGeometry.BOX, IconGeometry.BOX),
                     floatArrayOf(
-                        RECT_SEAM_LEFT, RECT_CENTRE_BOTTOM, RECT_SEAM_RIGHT, TrioGeometry.BOX,
+                        RECT_SEAM_LEFT, RECT_CENTRE_BOTTOM, RECT_SEAM_RIGHT, IconGeometry.BOX,
                     ),
                 )
             }
         }
         return when (zone) {
             Zone.TOP -> arrayOf(
-                floatArrayOf(0f, 0f, TrioGeometry.BOX, RING_TOP_BOTTOM),
+                floatArrayOf(0f, 0f, IconGeometry.BOX, RING_TOP_BOTTOM),
             )
             Zone.CENTRE -> arrayOf(
-                floatArrayOf(0f, RING_TOP_BOTTOM, TrioGeometry.BOX, RING_CENTRE_BOTTOM),
+                floatArrayOf(0f, RING_TOP_BOTTOM, IconGeometry.BOX, RING_CENTRE_BOTTOM),
             )
             // Full width: the level dots sit along the arc's own opening, which is the
             // full width of the glyph at that height.
             Zone.BOTTOM -> arrayOf(
-                floatArrayOf(0f, RING_CENTRE_BOTTOM, TrioGeometry.BOX, TrioGeometry.BOX),
+                floatArrayOf(0f, RING_CENTRE_BOTTOM, IconGeometry.BOX, IconGeometry.BOX),
             )
         }
     }
@@ -137,36 +136,36 @@ object TrioZones {
      * any other now, so whatever the centre band holds owns all of the body.
      */
     @JvmStatic
-    fun boxes(zone: Zone, a: TrioAppearance): Array<FloatArray> {
+    fun boxes(zone: Zone, a: StatusAppearance): Array<FloatArray> {
         if (!a.capsule) return boxes(zone, a.rect)
-        val stroke = a.ringStroke * TrioGeometry.CAP_STROKE_RATIO
-        val top = TrioGeometry.capInteriorTop(stroke)
-        val bottom = TrioGeometry.capInteriorBottom(stroke)
+        val stroke = a.ringStroke * IconGeometry.CAP_STROKE_RATIO
+        val top = IconGeometry.capInteriorTop(stroke)
+        val bottom = IconGeometry.capInteriorBottom(stroke)
         // Include the antialiased fringe outside the mathematical stroke bounds; this does
         // not move the seams between the readings and the signal rows.
         val fringe = 1f
         // The drawn shape, not the ink box: with two pieces in the body the capsule is
         // the wider one, and a tap past its edge is not a tap on the capsule.
         val shapeRight = a.capsuleRight()
-        val shapeLeft = TrioGeometry.capLeftFor(shapeRight, TrioGeometry.capPairRight(a))
+        val shapeLeft = IconGeometry.capLeftFor(shapeRight, IconGeometry.capPairRight(a))
         val left = shapeLeft + stroke * 0.5f - fringe
         val right = shapeRight + stroke * 0.5f + fringe
         return when (zone) {
             Zone.TOP -> arrayOf(
-                floatArrayOf(left, TrioGeometry.CAP_INK_TOP - fringe, right, top),
+                floatArrayOf(left, IconGeometry.CAP_INK_TOP - fringe, right, top),
             )
             Zone.CENTRE -> arrayOf(
-                floatArrayOf(TrioGeometry.capInteriorLeft(stroke), top, right, bottom),
+                floatArrayOf(IconGeometry.capInteriorLeft(stroke), top, right, bottom),
             )
             Zone.BOTTOM -> arrayOf(
-                floatArrayOf(left, bottom, right, TrioGeometry.CAP_INK_BOTTOM + fringe),
+                floatArrayOf(left, bottom, right, IconGeometry.CAP_INK_BOTTOM + fringe),
             )
         }
     }
 
     /** The zone a view-space point lands in, or `null` outside every box. */
     @JvmStatic
-    fun zoneAt(transform: FloatArray?, a: TrioAppearance?, viewX: Float, viewY: Float): Zone? {
+    fun zoneAt(transform: FloatArray?, a: StatusAppearance?, viewX: Float, viewY: Float): Zone? {
         if (a == null || transform == null || transform.size < 3 || transform[0] <= 0f) return null
         val x = (viewX - transform[1]) / transform[0]
         val y = (viewY - transform[2]) / transform[0]
@@ -221,7 +220,7 @@ object TrioZones {
         width: Int,
         height: Int,
         inset: Float,
-        appearance: TrioAppearance?,
+        appearance: StatusAppearance?,
     ): FloatArray? {
         if (width <= 0 || height <= 0 || appearance == null) return null
         val safeInset = inset.coerceIn(0f, MAX_INSET)
@@ -230,7 +229,7 @@ object TrioZones {
         val innerH = (height - 2f * pad).roundToInt()
         if (innerW <= 0 || innerH <= 0) return null
         val t = FloatArray(3)
-        if (!TrioRenderer.designTransform(innerW, innerH, appearance, t)) return null
+        if (!IconRenderer.designTransform(innerW, innerH, appearance, t)) return null
         t[1] += pad
         t[2] += pad
         return t
@@ -238,10 +237,10 @@ object TrioZones {
 
     /** What the ring arrangement draws in `zone` this frame. */
     @JvmStatic
-    fun occupant(zone: Zone, a: TrioAppearance?, r: TrioAppearance.Ring?): Part? {
+    fun occupant(zone: Zone, a: StatusAppearance?, r: StatusAppearance.Ring?): Part? {
         if (a == null || r == null) return null
         // One answer, because there is one layout: the slot says what is drawn, and
-        // TrioAppearance has already blanked the slots whose piece has nothing to show
+        // StatusAppearance has already blanked the slots whose piece has nothing to show
         // this frame.
         return decodePart(r.parts[zone.ordinal])
     }
@@ -253,7 +252,7 @@ object TrioZones {
      * unreachable.
      */
     @JvmStatic
-    fun occupant(zone: Zone, a: TrioAppearance?, rc: TrioAppearance.Rect?): Part? {
+    fun occupant(zone: Zone, a: StatusAppearance?, rc: StatusAppearance.Rect?): Part? {
         if (a == null || rc == null) return null
         return when (zone) {
             Zone.TOP -> when {
@@ -277,7 +276,7 @@ object TrioZones {
      * the thing the user can see there.
      */
     @JvmStatic
-    fun occupant(zone: Zone, a: TrioAppearance?, cap: TrioAppearance.Capsule?): Part? {
+    fun occupant(zone: Zone, a: StatusAppearance?, cap: StatusAppearance.Capsule?): Part? {
         if (a == null || cap == null) return null
         if (cap.dotsIn(zone)) return Part.MOBILE
         return decodePart(cap.parts[zone.ordinal])
@@ -287,7 +286,7 @@ object TrioZones {
     @JvmStatic
     fun occupant(
         zone: Zone,
-        a: TrioAppearance?,
+        a: StatusAppearance?,
         level: Int,
         charging: Boolean,
         wifiLevel: Int,
@@ -314,8 +313,8 @@ object TrioZones {
     @JvmStatic
     fun batteryRingAt(
         transform: FloatArray?,
-        a: TrioAppearance?,
-        ring: TrioAppearance.Ring?,
+        a: StatusAppearance?,
+        ring: StatusAppearance.Ring?,
         viewX: Float,
         viewY: Float,
     ): Boolean {
@@ -324,11 +323,11 @@ object TrioZones {
         ) {
             return false
         }
-        val x = ((viewX - transform[1]) / transform[0] - TrioGeometry.B_CX).toDouble()
-        val y = ((viewY - transform[2]) / transform[0] - TrioGeometry.B_CY).toDouble()
+        val x = ((viewX - transform[1]) / transform[0] - IconGeometry.B_CX).toDouble()
+        val y = ((viewY - transform[2]) / transform[0] - IconGeometry.B_CY).toDouble()
         val tolerance = maxOf(5f, a.ringStroke * .5f + 2f).toDouble()
-        if (abs(hypot(x, y) - TrioGeometry.B_R) > tolerance) return false
-        val cap = Math.toDegrees(atan2(tolerance, TrioGeometry.B_R.toDouble()))
+        if (abs(hypot(x, y) - IconGeometry.B_R) > tolerance) return false
+        val cap = Math.toDegrees(atan2(tolerance, IconGeometry.B_R.toDouble()))
         val sweep = ring.sweep()
         val start = ring.arcStart()
         var angle = (Math.toDegrees(atan2(y, x)) - start + 360) % 360
@@ -348,7 +347,7 @@ object TrioZones {
 
     /** Whether this arrangement places pieces in bands at all. */
     @JvmStatic
-    fun hasSlots(settings: TrioSettings?): Boolean =
+    fun hasSlots(settings: ModuleSettings?): Boolean =
         settings != null && settings.trioStyle != Prefs.STYLE_RECT
 
     /** Whether `part` is a row of level dots. */
@@ -362,7 +361,7 @@ object TrioZones {
      * band to get wrong.
      */
     @JvmStatic
-    fun accepts(zone: Zone, part: Part?, current: TrioSettings?): Boolean {
+    fun accepts(zone: Zone, part: Part?, current: ModuleSettings?): Boolean {
         if (current == null || part == null) return true
         return current.trioStyle != Prefs.STYLE_RING || ringAccepts(zone, part)
     }
@@ -413,17 +412,17 @@ object TrioZones {
      */
     @JvmStatic
     fun editableRingSettings(
-        current: TrioSettings,
+        current: ModuleSettings,
         level: Int,
         charging: Boolean,
         wifiLevel: Int,
         mobileType: String?,
         sims: Int,
-    ): TrioSettings = current
+    ): ModuleSettings = current
 
     /** Explicit placement: the settings that put `want` in `zone`. */
     @JvmStatic
-    fun place(zone: Zone?, want: Part?, current: TrioSettings?, sims: Int): Assignment? {
+    fun place(zone: Zone?, want: Part?, current: ModuleSettings?, sims: Int): Assignment? {
         if (current == null || zone == null) return null
         return assign(zone, current.trioStyle == Prefs.STYLE_RECT, want, current, sims)
     }
@@ -445,13 +444,13 @@ object TrioZones {
      * draw as a smudge.
      */
     @JvmStatic
-    fun withPiece(current: TrioSettings, zone: Int, want: Part?): TrioSettings {
+    fun withPiece(current: ModuleSettings, zone: Int, want: Part?): ModuleSettings {
         if (zone !in 0 until Prefs.ZONE_COUNT) return current
         if (!accepts(Zone.entries[zone], want, current)) return current
         val next = current.copy()
         val id = encodePart(want)
         if (id == Prefs.PART_NONE) {
-            val cleared = TrioSettings.copyZones(current.ringZones)
+            val cleared = ModuleSettings.copyZones(current.ringZones)
             cleared[zone] = IntArray(0)
             next.ringZones = cleared
             return next
@@ -490,6 +489,21 @@ object TrioZones {
         if (want == Part.TYPE || next.ringZones.any { it.contains(Prefs.PART_TYPE) }) {
             next.mobileTypeMode = Prefs.MOBILE_TYPE_IN_RING
         }
+        if (want == Part.FPS || next.ringZones.any { it.contains(Prefs.PART_FPS) }) {
+            next.perfFps = true
+        }
+        if (want == Part.CURRENT || next.ringZones.any { it.contains(Prefs.PART_CURRENT) }) {
+            next.perfCurrent = true
+        }
+        if (want == Part.POWER || next.ringZones.any { it.contains(Prefs.PART_POWER) }) {
+            next.perfPower = true
+        }
+        if (want == Part.TEMP || next.ringZones.any { it.contains(Prefs.PART_TEMP) }) {
+            next.perfTemp = true
+        }
+        if (want == Part.RUNNING || next.ringZones.any { it.contains(Prefs.PART_RUNNING) }) {
+            next.perfRunning = true
+        }
         return next
     }
 
@@ -500,12 +514,12 @@ object TrioZones {
      * the piece behind it to take over, not the whole chain to vanish.
      */
     @JvmStatic
-    fun withoutAt(current: TrioSettings, zone: Int, index: Int): TrioSettings {
+    fun withoutAt(current: ModuleSettings, zone: Int, index: Int): ModuleSettings {
         if (zone !in 0 until Prefs.ZONE_COUNT) return current
         val list = current.ringZones[zone]
         if (index !in list.indices) return current
         val next = current.copy()
-        val zones = TrioSettings.copyZones(current.ringZones)
+        val zones = ModuleSettings.copyZones(current.ringZones)
         zones[zone] = list.filterIndexed { i, _ -> i != index }.toIntArray()
         next.ringZones = zones
         next.showWifi = zones.any { it.contains(Prefs.PART_WIFI) }
@@ -523,9 +537,9 @@ object TrioZones {
      * @param delta -1 to promote one place, +1 to demote
      */
     @JvmStatic
-    fun moveWithin(current: TrioSettings, zone: Int, index: Int, delta: Int): TrioSettings {
+    fun moveWithin(current: ModuleSettings, zone: Int, index: Int, delta: Int): ModuleSettings {
         if (zone !in 0 until Prefs.ZONE_COUNT) return current
-        val zones = TrioSettings.copyZones(current.ringZones)
+        val zones = ModuleSettings.copyZones(current.ringZones)
         val list = zones[zone]
         val to = index + delta
         if (index !in list.indices || to !in list.indices) return current
@@ -544,7 +558,7 @@ object TrioZones {
      * rectangle still asks the switch solver, because it has no bands to place into.
      */
     @JvmStatic
-    fun placementChoices(zone: Zone, current: TrioSettings?, sims: Int): List<Part> =
+    fun placementChoices(zone: Zone, current: ModuleSettings?, sims: Int): List<Part> =
         if (hasSlots(current)) {
             ringChoices(zone)
         } else {
@@ -566,7 +580,7 @@ object TrioZones {
      * each piece goes from the switches, with a fixed precedence inside each slot. So an
      * assignment has to be solved for: find the switch combination whose derivation lands
      * `want` where the user asked. It is solved by **enumerating the relevant switch
-     * combinations and asking [TrioAppearance] where each one puts things**, rather than by
+     * combinations and asking [StatusAppearance] where each one puts things**, rather than by
      * a table of intended assignments - a hand-written table would be a second copy of the
      * arbitration rule, and the last feature here to keep two copies of one boundary
      * shipped a defect where tapping the battery percentage turned the signal meter off.
@@ -584,7 +598,7 @@ object TrioZones {
         zone: Zone,
         rect: Boolean,
         want: Part?,
-        current: TrioSettings?,
+        current: ModuleSettings?,
         sims: Int,
     ): Assignment? {
         if (current == null) return null
@@ -620,7 +634,7 @@ object TrioZones {
      * the bolt while charging and that is existing behaviour the page has no business
      * overriding.
      */
-    private fun satisfies(candidate: TrioSettings, zone: Zone, want: Part?): Boolean {
+    private fun satisfies(candidate: ModuleSettings, zone: Zone, want: Part?): Boolean {
         if (want == Part.BOLT) {
             return occupantOf(candidate, zone, ASSIGN_LEVEL, true, ASSIGN_WIFI_LEVEL) == Part.BOLT
         }
@@ -639,13 +653,13 @@ object TrioZones {
 
     /** Where a snapshot puts a zone, on one frame. */
     private fun occupantOf(
-        s: TrioSettings,
+        s: ModuleSettings,
         zone: Zone,
         level: Int,
         charging: Boolean,
         wifiLevel: Int,
     ): Part? {
-        val a = TrioAppearance.of(s)
+        val a = StatusAppearance.of(s)
         return occupant(zone, a, level, charging, wifiLevel, ASSIGN_TYPE, 1)
     }
 
@@ -668,12 +682,12 @@ object TrioZones {
      * which is what makes "the smallest edit that does what was asked" measurable.
      */
     class Assignment internal constructor(
-        @JvmField val settings: TrioSettings,
+        @JvmField val settings: ModuleSettings,
         @JvmField val changes: Int,
     )
 
     /** Picks the candidate that is least disruptive; see [assign]. */
-    private fun better(best: Assignment?, candidate: TrioSettings, current: TrioSettings): Assignment {
+    private fun better(best: Assignment?, candidate: ModuleSettings, current: ModuleSettings): Assignment {
         val changes = distance(current, candidate)
         if (best == null) return Assignment(candidate, changes)
         if (changes != best.changes) {
@@ -696,7 +710,7 @@ object TrioZones {
      * hiding it. Emptying the ring's centre can be done either by moving the arcs into the
      * notch or by switching them off; both cost one switch, and this picks the move.
      */
-    private fun hidden(s: TrioSettings): Int {
+    private fun hidden(s: ModuleSettings): Int {
         var n = 0
         if (!s.showWifi) n++
         if (!s.showMobile) n++
@@ -708,7 +722,7 @@ object TrioZones {
     }
 
     /** How many switches differ between two snapshots. */
-    private fun distance(a: TrioSettings, b: TrioSettings): Int {
+    private fun distance(a: ModuleSettings, b: ModuleSettings): Int {
         var n = 0
         // The layout itself is an edit: a placement IS a slot write now, so leaving this
         // out would report "moved a component to another slot" as zero changes.
@@ -733,8 +747,8 @@ object TrioZones {
      * drawn instead of the percentage while charging - so it is found because the solver
      * varies both.
      */
-    private fun candidates(current: TrioSettings, zone: Zone): List<TrioSettings> {
-        val out = ArrayList<TrioSettings>()
+    private fun candidates(current: ModuleSettings, zone: Zone): List<ModuleSettings> {
+        val out = ArrayList<ModuleSettings>()
         val bools = booleanArrayOf(false, true)
         val capsule = current.trioStyle == Prefs.STYLE_CAPSULE
         val centres = if (capsule) booleanArrayOf(current.valueCentred) else bools
@@ -785,7 +799,7 @@ object TrioZones {
      * offers and the solver that satisfies it cannot disagree.
      */
     @JvmStatic
-    fun choices(zone: Zone, rect: Boolean, current: TrioSettings?, sims: Int): List<Part> {
+    fun choices(zone: Zone, rect: Boolean, current: ModuleSettings?, sims: Int): List<Part> {
         if (current == null) return emptyList()
         return Part.entries.filter { assign(zone, rect, it, current, sims) != null }
     }

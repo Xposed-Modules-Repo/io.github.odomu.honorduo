@@ -9,18 +9,17 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.render
+package io.github.odomu.honorduo.ui.render
 
 import android.graphics.Path
 import io.github.odomu.honorduo.model.Prefs
-import io.github.odomu.honorduo.model.TrioAppearance
-
+import io.github.odomu.honorduo.model.StatusAppearance
 
 /**
- * Geometry of the "trio" glyph in a 120x120 design space. All units are design
+ * Geometry of the status glyph in a 120x120 design space. All units are design
  * units.
  */
-object TrioGeometry {
+object IconGeometry {
 
     /** The SVG viewBox. Everything is drawn inside 0..120 on both axes. */
     const val BOX = 120f
@@ -171,7 +170,7 @@ object TrioGeometry {
      * Cut between the top third and the middle one.
      *
      * **38, unchanged.** Moving this was tried and reverted: the cut is not
-     * only a size hint, it is the line `TrioZones` hit-tests and the line
+     * only a size hint, it is the line `IconZones` hit-tests and the line
      * `tests/drawing-zones.ps1` attributes every painted pixel to. Nudging it
      * to 40 re-attributed the top of the Wi-Fi arcs to the top third and the harness
      * failed with "WIFI loses ink only in the thirds that name it: got TOP".
@@ -266,7 +265,6 @@ object TrioGeometry {
      */
     const val W_MAX_STROKE = 8f
 
-
     /**
      * Builds the three Wi-Fi paths (referenced from CombinedStatus RoundedWifiGeometry):
      * [0] = dot (anchor droplet / wedge shape)
@@ -350,7 +348,7 @@ object TrioGeometry {
      * The battery bar: a capsule spanning the full width of the columns' outer
      * edges, so its ends line up with the dots above it.
      *
-     * Its thickness is `TrioSettings#ringStroke` - the ring the slider
+     * Its thickness is `ModuleSettings#ringStroke` - the ring the slider
      * would otherwise draw is absent here, and the bar is the one heavy line the
      * arrangement keeps, so the slider stays meaningful.
      */
@@ -366,7 +364,7 @@ object TrioGeometry {
      *
      *   - [#RECT_TEXT_CLEAR] - the width the renderer fits the percentage
      *       and the network type into, so their ink is bounded by these edges
-     *   - the tappable centre column in `TrioZones` - which decides whether
+     *   - the tappable centre column in `IconZones` - which decides whether
      *       a tap on that ink means "the percentage" or "the mobile meter".
      *
      * The failure when they disagree is silent and wrong: a three-digit
@@ -481,7 +479,7 @@ object TrioGeometry {
      * Two readings need the room the old clock column used to take, so the capsule
      * goes back to the width it was drawn at before that column was dropped. Which of
      * the two edges is in force is decided by the arrangement, not by the current
-     * reading: see `TrioAppearance.capsuleRight`.
+     * reading: see `StatusAppearance.capsuleRight`.
      */
     const val CAP_RIGHT_PAIR = 139f
     const val CAP_TOP = 1f
@@ -751,18 +749,18 @@ object TrioGeometry {
      * request all read it, and they must agree even on a value written by an older build.
      */
     @JvmStatic
-    fun capExtra(a: TrioAppearance?): Float = Prefs.clamp(
+    fun capExtra(a: StatusAppearance?): Float = Prefs.clamp(
         a?.capsuleLength ?: Prefs.DEF_CAPSULE_LENGTH,
         Prefs.MIN_CAPSULE_LENGTH, Prefs.MAX_CAPSULE_LENGTH,
     ).toFloat()
 
     /** The capsule's ink box, widened by the user's extra run. */
     @JvmStatic
-    fun capInkW(a: TrioAppearance?): Float = CAP_INK_W + capExtra(a)
+    fun capInkW(a: StatusAppearance?): Float = CAP_INK_W + capExtra(a)
 
     /** The two-cell body's right edge, widened by the user's extra run. */
     @JvmStatic
-    fun capPairRight(a: TrioAppearance?): Float = CAP_RIGHT_PAIR + capExtra(a)
+    fun capPairRight(a: StatusAppearance?): Float = CAP_RIGHT_PAIR + capExtra(a)
 
     /**
      * The top of what the capsule draws, band included.
@@ -822,7 +820,6 @@ object TrioGeometry {
      * extra glyphs (two bolts merge into an unreadable blob at that size).
      */
     const val QUICK_CHARGE = 0xFFFFBA28.toInt()
-
 
     /**
      * The same offset for a bolt scaled by `factor` about its ink centre.
@@ -921,7 +918,7 @@ object TrioGeometry {
      * The height of the level-dot box a slot stands in for: `28` in the top
      * third and `20` in the bottom.
      *
-     * These are the two figures `TrioRenderer.drawFreeRing` fits the dot
+     * These are the two figures `IconRenderer.drawFreeRing` fits the dot
      * rows into (`height = z == 0 ? 28 : z == 1 ? 44 : 20`). They are named
      * here because the type cap now uses them too - see [#zoneTextRoomH] - and
      * a second copy of "28" in the renderer is how the two would drift.
@@ -999,7 +996,7 @@ object TrioGeometry {
      * 1.0 is exactly the old behaviour, so the default and every caller that does not
      * pass a scale go on drawing the bead whose diameter equals the ring's thickness.
      *
-     * @param scale `TrioAppearance.dotScaleFactor()`: 1.0 for the reference bead
+     * @param scale `StatusAppearance.dotScaleFactor()`: 1.0 for the reference bead
      */
     @JvmStatic
     fun arcRowDotR(z: Int, ringStroke: Int, slotWidth: Float, scale: Float): Float {
@@ -1714,7 +1711,6 @@ object TrioGeometry {
         return capInteriorRight(stroke, right) - capTextInset()
     }
 
-
     /** The width the two readings have to share, once the gap between them is taken out. */
     @JvmStatic
     fun capReadingsWidth(stroke: Float, right: Float = CAP_RIGHT): Float {
@@ -1806,7 +1802,7 @@ object TrioGeometry {
      * measurement and the renderer's fit can never disagree.
      */
     @JvmStatic
-    fun hostAspect(a: TrioAppearance?): Float {
+    fun hostAspect(a: StatusAppearance?): Float {
         if (a == null) {
             return INK_W / INK_H
         }

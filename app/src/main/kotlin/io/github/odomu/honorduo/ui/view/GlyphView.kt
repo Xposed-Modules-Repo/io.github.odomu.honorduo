@@ -9,19 +9,23 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.render
+package io.github.odomu.honorduo.ui.view
 
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.PorterDuff
 import android.view.View
-import io.github.odomu.honorduo.hook.ScreenStateTracker
-import io.github.odomu.honorduo.model.TrioConfig
-import io.github.odomu.honorduo.model.TrioState
+import io.github.odomu.honorduo.hook.tracker.BarVisibility
+import io.github.odomu.honorduo.hook.tracker.ScreenStateTracker
+import io.github.odomu.honorduo.model.ModuleConfig
+import io.github.odomu.honorduo.model.Prefs
+import io.github.odomu.honorduo.model.StatusState
+import io.github.odomu.honorduo.ui.render.IconGeometry
+import io.github.odomu.honorduo.ui.render.IconRenderer
 import kotlin.math.roundToInt
 
 /**
- * The trio glyph, drawn by a view of the module's own inside MagicOS' icon row.
+ * The status glyph, drawn by a view of the module's own inside MagicOS' icon row.
  *
  * The status bar's right-hand group is `HwSystemIcons`, a plain horizontal
  * `LinearLayout` holding the notification icons, the network-speed slots,
@@ -44,7 +48,7 @@ internal class GlyphView(context: Context) : View(context) {
     /**
      * The row this glyph belongs to.
      */
-    var state: TrioState? = null
+    var state: StatusState? = null
 
     init {
         setWillNotDraw(false)
@@ -61,20 +65,20 @@ internal class GlyphView(context: Context) : View(context) {
         val density = resources.displayMetrics.density
         val offered = MeasureSpec.getSize(heightMeasureSpec)
         val nominal = (NOMINAL_HEIGHT_DP * density).roundToInt()
-        val a = TrioConfig.appearance()
+        val a = ModuleConfig.appearance()
         val hasBottomStacked = !a.capsule && !a.rect && !a.dataSimOnly && (
             (a.ringZones.getOrNull(2)?.size ?: 0) > 1 ||
-            (a.ringZones.getOrNull(2)?.contains(io.github.odomu.honorduo.model.Prefs.PART_MOBILE) == true && a.dualSim)
+            (a.ringZones.getOrNull(2)?.contains(Prefs.PART_MOBILE) == true && a.dualSim)
         )
         // Reserve clearance for stacked signal 2 at bottom
         val extraStackH = if (hasBottomStacked) 1.5f * density else 0f
         val wanted = if (a.capsule) {
-            nominal + (2f * TrioGeometry.CAP_BAND_H * nominal / TrioGeometry.CAP_INK_H).roundToInt()
+            nominal + (2f * IconGeometry.CAP_BAND_H * nominal / IconGeometry.CAP_INK_H).roundToInt()
         } else {
             ((20.5f * density) + extraStackH).roundToInt()
         }
         val height = if (offered > 0) minOf(offered, wanted) else wanted
-        val baseWidth = (height * TrioGeometry.hostAspect(a)).roundToInt()
+        val baseWidth = (height * IconGeometry.hostAspect(a)).roundToInt()
         // Dynamically widen view as ring spacing widens to push sibling views and avoid clipping
         val extraSpacingW = if (a.ring && a.ringSpacingX > 0) (2f * a.ringSpacingX * density).roundToInt() else 0
         val width = 1.coerceAtLeast(baseWidth + extraSpacingW)
@@ -86,26 +90,26 @@ internal class GlyphView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         val state = state ?: return
-        if (!TrioConfig.get().enabled || width <= 0 || height <= 0) return
+        if (!ModuleConfig.get().enabled || width <= 0 || height <= 0) return
         // Read the live state on every frame: battery, signal and ink all change
         // without anybody telling this view, and every one of those changes
-        // invalidates it through TrioHooks.
+        // invalidates it through StatusHooks.
         state.refresh()
         // The glyph owns this view's whole box, and a plain View is not cleared
         // for it between frames: the arcs' track and the unlit dots are
         // translucent, so without this every repaint would stack a copy on the
         // last one.
         canvas.drawColor(0, PorterDuff.Mode.CLEAR)
-        TrioRenderer.drawInto(
+        IconRenderer.drawInto(
             canvas, width, height,
             state.level, state.charging, state.quickCharging, state.powerSave, state.low,
             if (state.wifiPresent) state.wifiLevel else -1,
             state.mobileLevel, state.slotLevels, state.mobileType,
-            state.foreground(), TrioConfig.get(), false,
+            state.foreground(), ModuleConfig.get(), false,
         )
         // One frame asks for the next only while the bolt is actually moving: a still
         // bolt, or an unplugged one, costs nothing.
-        if (ScreenStateTracker.isScreenOn && TrioConfig.appearance().animatesOutline(state.charging, state.level)) {
+        if (ScreenStateTracker.isScreenOn && BarVisibility.shown && ModuleConfig.appearance().animatesOutline(state.charging, state.level)) {
             postInvalidateOnAnimation()
         }
     }

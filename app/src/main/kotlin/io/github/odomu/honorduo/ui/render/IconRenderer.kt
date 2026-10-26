@@ -9,7 +9,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.render
+package io.github.odomu.honorduo.ui.render
 
 import android.graphics.Canvas
 import android.graphics.Color
@@ -24,20 +24,12 @@ import android.os.SystemClock
 import android.view.View
 import androidx.core.graphics.withSave
 import androidx.core.graphics.withTranslation
+import io.github.odomu.honorduo.model.ModuleConfig
+import io.github.odomu.honorduo.model.ModuleSettings
 import io.github.odomu.honorduo.model.Prefs
-import io.github.odomu.honorduo.model.TrioAppearance
-import io.github.odomu.honorduo.model.TrioConfig
-import io.github.odomu.honorduo.model.TrioSettings
-import io.github.odomu.honorduo.model.TrioState
-import io.github.odomu.honorduo.render.TrioRenderer.RING_POINT
-import io.github.odomu.honorduo.render.TrioRenderer.TEXT
-import io.github.odomu.honorduo.render.TrioRenderer.animPhase
-import io.github.odomu.honorduo.render.TrioRenderer.batteryRing
-import io.github.odomu.honorduo.render.TrioRenderer.boltMoving
-import io.github.odomu.honorduo.render.TrioRenderer.drawType
-import io.github.odomu.honorduo.render.TrioRenderer.fitSize
-import io.github.odomu.honorduo.render.TrioRenderer.quickCharge
-import io.github.odomu.honorduo.render.TrioRenderer.textInkHeight
+import io.github.odomu.honorduo.model.StatusAppearance
+import io.github.odomu.honorduo.model.StatusState
+import io.github.odomu.honorduo.ui.view.GlyphView
 import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.abs
@@ -46,19 +38,18 @@ import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
-import kotlin.math.sin
 
 /**
- * Draws the "trio" glyph (battery ring + Wi-Fi arcs + signal dots + level indicator)
- * into a host view's canvas, in the 120x120 design space of [TrioGeometry].
+ * Draws the status glyph (battery ring + Wi-Fi arcs + signal dots + level indicator)
+ * into a host view's canvas, in the 120x120 design space of [IconGeometry].
  */
-object TrioRenderer {
+object IconRenderer {
 
     private val STROKE = Paint(Paint.ANTI_ALIAS_FLAG)
     private val FILL = Paint(Paint.ANTI_ALIAS_FLAG)
     private val TEXT = Paint(Paint.ANTI_ALIAS_FLAG)
     private val BOLT = buildBolt()
-    private val WIFI_PATHS = TrioGeometry.buildWifiPaths()
+    private val WIFI_PATHS = IconGeometry.buildWifiPaths()
     private val WIFI_DOT = WIFI_PATHS[0]
     private val WIFI_MIDDLE = WIFI_PATHS[1]
     private val WIFI_OUTER = WIFI_PATHS[2]
@@ -66,7 +57,7 @@ object TrioRenderer {
     /**
      * The bolt path's own width.
      *
-     * The icon is fitted by HEIGHT (TrioGeometry.capBoltScale), so its width follows from
+     * The icon is fitted by HEIGHT (IconGeometry.capBoltScale), so its width follows from
      * the path rather than from a separate constant; anchoring it to a cell's edge needs
      * that number.
      */
@@ -139,10 +130,10 @@ object TrioRenderer {
     /** Capsule sparks, and their radius against the outline's stroke. */
     private const val CAPSULE_SPARK_COUNT = 3
     private const val CAPSULE_SPARK_SCALE = 0.6f
+    private const val DUAL_SIGNAL_HALF_SPAN_RAD = 0.42760567f
 
     /** One point on the battery arc, rewritten per frame; never kept. */
     private val RING_POINT = FloatArray(2)
-
     /** One travelling segment of the capsule's outline; rewritten per segment. */
     private val FLOW_PATH = Path()
 
@@ -288,11 +279,11 @@ object TrioRenderer {
         FILL.style = Paint.Style.FILL
         TEXT.style = Paint.Style.FILL
         TEXT.textAlign = Paint.Align.CENTER
-        TEXT.letterSpacing = TrioGeometry.VALUE_LETTER_SPACING
+        TEXT.letterSpacing = IconGeometry.VALUE_LETTER_SPACING
     }
 
-    internal fun draw(canvas: Canvas, host: View, s: TrioState) {
-        draw(canvas, host, s, TrioConfig.get())
+    internal fun draw(canvas: Canvas, host: View, s: StatusState) {
+        draw(canvas, host, s, ModuleConfig.get())
     }
 
     /**
@@ -300,7 +291,7 @@ object TrioRenderer {
      * here rather than in the static initialiser so a live settings change is
      * picked up by the very next frame.
      */
-    internal fun draw(canvas: Canvas, host: View, s: TrioState, cfg: TrioSettings) {
+    internal fun draw(canvas: Canvas, host: View, s: StatusState, cfg: ModuleSettings) {
         drawState(canvas, host.width, host.height, s, cfg)
     }
 
@@ -309,7 +300,7 @@ object TrioRenderer {
      * view to measure - [GlyphView] hands the icon view's own bounds through, and
      * the slot it paints into can be asked for nothing else.
      */
-    internal fun drawState(canvas: Canvas, w: Int, h: Int, s: TrioState?, cfg: TrioSettings?) {
+    internal fun drawState(canvas: Canvas, w: Int, h: Int, s: StatusState?, cfg: ModuleSettings?) {
         if (w <= 0 || h <= 0 || s == null || cfg == null) {
             return
         }
@@ -328,7 +319,7 @@ object TrioRenderer {
     fun drawInto(
         canvas: Canvas, w: Int, h: Int, level: Int, charging: Boolean,
         powerSave: Boolean, low: Boolean, wifiLevel: Int, mobileLevel: Int,
-        fg: Int, cfg: TrioSettings,
+        fg: Int, cfg: ModuleSettings,
     ) {
         drawInto(
             canvas, w, h, level, charging, false, powerSave, low, wifiLevel, mobileLevel,
@@ -349,7 +340,7 @@ object TrioRenderer {
         canvas: Canvas, w: Int, h: Int, level: Int, charging: Boolean,
         quickCharging: Boolean, powerSave: Boolean, low: Boolean,
         wifiLevel: Int, mobileLevel: Int, slotLevels: IntArray?, mobileType: String?,
-        fg: Int, cfg: TrioSettings?, clearWhenDone: Boolean,
+        fg: Int, cfg: ModuleSettings?, clearWhenDone: Boolean,
     ) {
         if (w <= 0 || h <= 0 || cfg == null) {
             return
@@ -359,7 +350,7 @@ object TrioRenderer {
         // clocks or at different speeds.
         quickCharge = quickCharging
         // Resolve what is on screen once, here, from the single rule source.
-        val appearance = if (cfg === TrioConfig.get()) TrioConfig.appearance() else TrioAppearance.of(cfg)
+        val appearance = if (cfg === ModuleConfig.get()) ModuleConfig.appearance() else StatusAppearance.of(cfg)
         // the appearance snapshot: whether Wi-Fi is connected this instant is runtime
         // state, and folding it in there would make the preview (a fixed scene) and the
         // bar (live) draw one stored setting two ways.
@@ -392,7 +383,7 @@ object TrioRenderer {
         // A slot with no reading counts as absent, so a single-SIM device - or a
         // poll that has not answered yet - is not mistaken for a second SIM.
         val slots: IntArray? =
-            if (slotLevels != null && slotLevels.size >= TrioState.SIM_SLOTS) slotLevels else null
+            if (slotLevels != null && slotLevels.size >= StatusState.SIM_SLOTS) slotLevels else null
         // Only the two real slots count; a longer array is not a third card.
         val sims = if (slots == null) {
             0
@@ -429,14 +420,14 @@ object TrioRenderer {
      * The canvas is already scaled into the design space and positioned on the ink
      * box, so everything here is plain design-unit drawing.
      *
-     * Which piece goes where is not decided here - [TrioAppearance.Ring] has already
+     * Which piece goes where is not decided here - [StatusAppearance.Ring] has already
      * resolved the three slots. This method only draws.
      */
     private fun drawRingLayout(
         canvas: Canvas, level: Int, charging: Boolean,
         quickCharging: Boolean, wifiLevel: Int, mobileLevel: Int,
         slotLevels: IntArray?, sims: Int, mobileType: String?, role: Int,
-        fg: Int, a: TrioAppearance,
+        fg: Int, a: StatusAppearance,
     ) {
         val r = a.ring(level, charging, wifiLevel, mobileType, sims)
         drawFreeRing(
@@ -449,7 +440,7 @@ object TrioRenderer {
     private fun drawFreeRing(
         c: Canvas, level: Int, charging: Boolean, quickCharging: Boolean, wifiLevel: Int,
         mobileLevel: Int, levels: IntArray?, type: String?, role: Int, fg: Int,
-        a: TrioAppearance, r: TrioAppearance.Ring,
+        a: StatusAppearance, r: StatusAppearance.Ring,
     ) {
         drawBattery(c, level, role, fg, a, r.gapStart(), r.gapEnd(), r.sweep(), r.arcStart(), charging)
         for (z in 0 until 3) {
@@ -460,39 +451,40 @@ object TrioRenderer {
             val part = r.parts[z]
             if (part == Prefs.PART_NONE && !hasDotInZone) continue
 
-            val cx = TrioGeometry.B_CX
+            val cx = IconGeometry.B_CX
             val cy = when (z) {
-                0 -> TrioGeometry.ZONE_CY[0] - a.ringSpacingY.toFloat()
-                1 -> TrioGeometry.ZONE_CY[1]
-                else -> TrioGeometry.ZONE_CY[2] + a.ringSpacingY.toFloat()
+                0 -> IconGeometry.ZONE_CY[0] - a.ringSpacingY.toFloat()
+                1 -> IconGeometry.ZONE_CY[1]
+                else -> IconGeometry.ZONE_CY[2] + a.ringSpacingY.toFloat()
             }
             val width = 78f - a.ringStroke - 2f * RING_SLOT_INSET
             val height = when (z) {
-                0 -> TrioGeometry.DOT_BOX_TOP
-                1 -> TrioGeometry.DOT_BOX_CENTRE
-                else -> TrioGeometry.DOT_BOX_BOTTOM
+                0 -> IconGeometry.DOT_BOX_TOP
+                1 -> IconGeometry.DOT_BOX_CENTRE
+                else -> IconGeometry.DOT_BOX_BOTTOM
             }
             c.withTranslation(cx, cy) {
                 if (part == Prefs.PART_WIFI) {
-                    val extra = max(0f, a.arcStroke - TrioGeometry.W_STROKE)
+                    val extra = max(0f, a.arcStroke - IconGeometry.W_STROKE)
+                    val boost = if (z == 1) RING_WIFI_BOOST else 0.88f
                     val scale = min(
-                        width / (TrioGeometry.W_INK_W + extra),
-                        height / (TrioGeometry.W_INK_H + extra),
-                    ) * RING_WIFI_BOOST * a.wifiScaleFactor()
+                        width / (IconGeometry.W_INK_W + extra),
+                        height / (IconGeometry.W_INK_H + extra),
+                    ) * boost * a.wifiScaleFactor()
                     c.scale(scale, scale)
-                    c.translate(-TrioGeometry.W_CX, -TrioGeometry.W_INK_CY)
+                    c.translate(-IconGeometry.W_CX, -IconGeometry.W_INK_CY)
                     drawWifiArcs(c, wifiLevel, fg, a)
                 } else if (part == Prefs.PART_BOLT) {
-                    val fit = min(width / 15f, height / TrioGeometry.BOLT_INK_H)
+                    val fit = min(width / 15f, height / IconGeometry.BOLT_INK_H)
                     val scale = fit * a.boltScaleFactor()
                     c.scale(scale, scale)
-                    c.translate(-TrioGeometry.BOLT_CX_REF, -TrioGeometry.BOLT_INK_CY)
-                    drawBoltShape(c, if (quickCharging) TrioGeometry.QUICK_CHARGE else fg, a)
+                    c.translate(-IconGeometry.BOLT_CX_REF, -IconGeometry.BOLT_INK_CY)
+                    drawBoltShape(c, if (quickCharging) IconGeometry.QUICK_CHARGE else fg, a)
                 } else if (hasDotInZone || part == Prefs.PART_MOBILE || part == Prefs.PART_SIM_1 || part == Prefs.PART_SIM_2) {
                     val columns = a.signalColumns.coerceIn(4, 5)
-                    val baseDotR = TrioGeometry.arcRowDotR(z, a.ringStroke, width, a.dotScaleFactor())
+                    val baseDotR = IconGeometry.arcRowDotR(z, a.ringStroke, width, a.dotScaleFactor())
 
-                    val dataSlot = TrioState.sDataSlot
+                    val dataSlot = StatusState.sDataSlot
                     val dataLevel = if (levels != null && dataSlot in levels.indices && levels[dataSlot] >= 0) levels[dataSlot] else mobileLevel
                     val sim1Level = if (levels != null && levels.isNotEmpty() && levels[0] >= 0) levels[0] else mobileLevel
                     val sim2Level = if (levels != null && levels.size > 1 && levels[1] >= 0) levels[1] else mobileLevel
@@ -503,7 +495,7 @@ object TrioRenderer {
                     )
 
                     val ringStroke = a.ringStroke * 0.68f
-                    val rhoMid = TrioGeometry.B_R - ringStroke * 0.5f
+                    val rhoMid = IconGeometry.B_R - ringStroke * 0.5f
                     val baseCapDotR = if (columns == 5) 4.2f else 4.9f
                     val dotR = baseCapDotR * a.dotScaleFactor()
                     val sign = if (z == 2) 1f else -1f
@@ -511,7 +503,7 @@ object TrioRenderer {
                     val halfDiv = (columns - 1) * 0.5f
 
                     if (isStackedDual) {
-                        val firstPart = chain?.firstOrNull { p -> p == Prefs.PART_SIM_1 || p == Prefs.PART_SIM_2 || p == Prefs.PART_MOBILE }
+                        val firstPart = chain.firstOrNull { p -> p == Prefs.PART_SIM_1 || p == Prefs.PART_SIM_2 || p == Prefs.PART_MOBILE }
                         val isSim2First = firstPart == Prefs.PART_SIM_2
                         val l1 = if (isSim2First) sim2Level else sim1Level
                         val l2 = if (isSim2First) sim1Level else sim2Level
@@ -522,14 +514,14 @@ object TrioRenderer {
                         val r1 = rhoMid - inward
                         val dr = dotR * 2.65f
                         val r2 = r1 + dr
-                        val halfSpanAngle = Math.toRadians(24.5).toFloat()
+                        val halfSpanAngle = DUAL_SIGNAL_HALF_SPAN_RAD
 
                         // Row 1: Order 1 (shifted inward for comfortable spacing)
                         for (dot in 0 until columns) {
                             val t = (dot - halfDiv) / halfDiv
                             val angle = t * halfSpanAngle
                             val x = r1 * kotlin.math.sin(angle)
-                            val y = (TrioGeometry.B_CY + sign * r1 * kotlin.math.cos(angle)) - TrioGeometry.ZONE_CY[z]
+                            val y = (IconGeometry.B_CY + sign * r1 * kotlin.math.cos(angle)) - IconGeometry.ZONE_CY[z]
                             FILL.color = if (dot < active1) fg else inactive
                             c.drawCircle(x, y, dotR, FILL)
                         }
@@ -538,7 +530,7 @@ object TrioRenderer {
                             val t = (dot - halfDiv) / halfDiv
                             val angle = t * halfSpanAngle
                             val x = r2 * kotlin.math.sin(angle)
-                            val y = (TrioGeometry.B_CY + sign * r2 * kotlin.math.cos(angle)) - TrioGeometry.ZONE_CY[z]
+                            val y = (IconGeometry.B_CY + sign * r2 * kotlin.math.cos(angle)) - IconGeometry.ZONE_CY[z]
                             FILL.color = if (dot < active2) fg else inactive
                             c.drawCircle(x, y, dotR, FILL)
                         }
@@ -549,17 +541,17 @@ object TrioRenderer {
                             else -> mobileLevel
                         }
                         val active = if (rowLevel < 0) 0 else min(columns, rowLevel)
-                        val rho = TrioGeometry.B_R
-                        val openingRad = Math.toRadians(TrioGeometry.GAP_WIDTH_DEG.toDouble()).toFloat()
+                        val rho = IconGeometry.B_R
+                        val openingRad = Math.toRadians(IconGeometry.GAP_WIDTH_DEG.toDouble()).toFloat()
                         val inset = (dotR + ringStroke * 0.5f + 1f) / rho
                         val halfAngle = maxOf(0f, openingRad * 0.5f - inset)
-                        val beadHalfAngle = Math.toRadians((TrioGeometry.BEAD_SPAN_DEG * 0.5f).toDouble()).toFloat()
+                        val beadHalfAngle = Math.toRadians((IconGeometry.BEAD_SPAN_DEG * 0.5f).toDouble()).toFloat()
                         val halfCentreAngle = minOf(halfAngle, beadHalfAngle)
                         for (dot in 0 until columns) {
                             val t = (dot - halfDiv) / halfDiv
                             val angle = t * halfCentreAngle
                             val x = rho * kotlin.math.sin(angle)
-                            val y = (TrioGeometry.B_CY + sign * rho * kotlin.math.cos(angle)) - TrioGeometry.ZONE_CY[z]
+                            val y = (IconGeometry.B_CY + sign * rho * kotlin.math.cos(angle)) - IconGeometry.ZONE_CY[z]
                             FILL.color = if (dot < active) fg else inactive
                             c.drawCircle(x, y, dotR, FILL)
                         }
@@ -573,7 +565,7 @@ object TrioRenderer {
                         Prefs.PART_TEMP -> tempText()
                         Prefs.PART_CURRENT -> currentText(a)
                         Prefs.PART_FPS -> fpsText()
-                        else -> TrioState.sClockText
+                        else -> StatusState.sClockText
                     }
                     if (!text.isNullOrEmpty()) {
                         val weight = when (part) {
@@ -595,7 +587,7 @@ object TrioRenderer {
                         applyWeight(weight)
                         TEXT.textSize = requested
                         // Type is fitted to the THIRD it sits in, not to the small placement box that positions a drawn figure (28/44/20 units).
-                        val room = TrioGeometry.zoneTextRoomH(z)
+                        val room = IconGeometry.zoneTextRoomH(z)
                         val suffixScale = if (part == Prefs.PART_TYPE) a.typeSuffixScale else 100
                         // The height cap is a straight ratio at the requested size.
                         val inkAtRequested = max(1f, textInkHeight(text, requested))
@@ -606,7 +598,7 @@ object TrioRenderer {
                             val inkH = max(1f, textInkHeight(text, fitted))
                             val maxByWidth = fitSize(
                                 text, requested,
-                                TrioGeometry.zoneTextRoomW(z, a.ringStroke, inkH), suffixScale
+                                IconGeometry.zoneTextRoomW(z, a.ringStroke, inkH), suffixScale
                             )
                             val next = min(maxByHeight, maxByWidth)
                             if (abs(next - fitted) < 0.05f) {
@@ -616,8 +608,8 @@ object TrioRenderer {
                             fitted = next
                         }
                         // Centred in the band, and on its INK rather than its metrics.
-                        val slotCentre = TrioGeometry.zoneTextCy(z, a.ringStroke) -
-                                TrioGeometry.ZONE_CY[z]
+                        val slotCentre = IconGeometry.zoneTextCy(z, a.ringStroke) -
+                                IconGeometry.ZONE_CY[z]
                         val baseline = inkCentredBaseline(text, fitted, slotCentre)
                         if (part == Prefs.PART_TYPE) {
                             drawType(c, text, 0f, baseline, fitted, fg, a)
@@ -632,7 +624,7 @@ object TrioRenderer {
                                 )
                             } else {
                                 val tempIsHigh = a.roleColorsTemp && part == Prefs.PART_TEMP &&
-                                    TrioState.sBatteryHot
+                                    StatusState.sBatteryHot
                                 TEXT.color = if (tempIsHigh) (if (isDarkBackground(fg)) a.highTempOnDark else a.highTempOnLight) else fg
                                 c.drawText(text, 0f, baseline, TEXT)
                             }
@@ -656,7 +648,7 @@ object TrioRenderer {
         canvas: Canvas, level: Int, charging: Boolean,
         quickCharging: Boolean, wifiLevel: Int, mobileLevel: Int,
         slotLevels: IntArray?, sims: Int, mobileType: String?, role: Int,
-        fg: Int, a: TrioAppearance,
+        fg: Int, a: StatusAppearance,
     ) {
         val r = a.rect(level, charging, wifiLevel, mobileType, sims)
         if (r.dots) {
@@ -666,7 +658,7 @@ object TrioRenderer {
 
         // One slot at the top, and only one thing in it.
         if (r.bolt) {
-            drawRectBolt(canvas, if (quickCharging) TrioGeometry.QUICK_CHARGE else fg, a)
+            drawRectBolt(canvas, if (quickCharging) IconGeometry.QUICK_CHARGE else fg, a)
         } else if (r.wifi) {
             drawRectWifi(canvas, wifiLevel, fg, a)
         } else if (r.type) {
@@ -693,19 +685,19 @@ object TrioRenderer {
         canvas: Canvas, level: Int, charging: Boolean,
         quickCharging: Boolean, wifiLevel: Int, mobileLevel: Int, mobileType: String?,
         slotLevels: IntArray?, sims: Int, role: Int, fg: Int,
-        a: TrioAppearance,
+        a: StatusAppearance,
     ) {
-        val stroke = a.ringStroke * TrioGeometry.CAP_STROKE_RATIO
+        val stroke = a.ringStroke * IconGeometry.CAP_STROKE_RATIO
         val cap = a.capsule(level, charging, wifiLevel, mobileType, sims)
 
         // The track first, in full, then the charged part over it. `level < 0` is "no reading yet" and fills nothing.
         val right = a.capsuleRight()
-        val left = TrioGeometry.capLeftFor(right, TrioGeometry.capPairRight(a))
+        val left = IconGeometry.capLeftFor(right, IconGeometry.capPairRight(a))
         STROKE.strokeWidth = stroke
         STROKE.style = Paint.Style.STROKE
         // One reach per opening, because the two openings no longer necessarily hold the same thing.
-        val topReach = openingReach(cap, TrioZones.Zone.TOP, stroke, level, mobileType)
-        val bottomReach = openingReach(cap, TrioZones.Zone.BOTTOM, stroke, level, mobileType)
+        val topReach = openingReach(cap, IconZones.Zone.TOP, stroke, level, mobileType)
+        val bottomReach = openingReach(cap, IconZones.Zone.BOTTOM, stroke, level, mobileType)
         buildCapsuleOutline(CAPSULE, topReach, bottomReach, left, right)
         val animated = a.animatesOutline(charging, level)
         val wave = if (animated && a.boltAnim == Prefs.BOLT_ANIM_PULSE) pulseWave() else 1f
@@ -720,7 +712,7 @@ object TrioRenderer {
         if (animated) {
             when (a.boltAnim) {
                 Prefs.BOLT_ANIM_FLOW -> {
-                    val head = lighten(role, FLOW_LIFT)
+                    val head = flowHeadColor(role)
                     drawCapsuleFlow(canvas, head, stroke)
                 }
                 // The spark style moves the outline as well as the bolt. It was drawn
@@ -739,15 +731,15 @@ object TrioRenderer {
 
         // Three bands, the same three the ring has: the two openings and the interior.
         drawCapsuleCell(
-            canvas, stroke, TrioZones.Zone.TOP, cap, level, quickCharging,
+            canvas, stroke, IconZones.Zone.TOP, cap, level, quickCharging,
             wifiLevel, mobileType, fg, a, left, right,
         )
         drawCapsuleCell(
-            canvas, stroke, TrioZones.Zone.CENTRE, cap, level, quickCharging,
+            canvas, stroke, IconZones.Zone.CENTRE, cap, level, quickCharging,
             wifiLevel, mobileType, fg, a, left, right,
         )
         drawCapsuleCell(
-            canvas, stroke, TrioZones.Zone.BOTTOM, cap, level, quickCharging,
+            canvas, stroke, IconZones.Zone.BOTTOM, cap, level, quickCharging,
             wifiLevel, mobileType, fg, a, left, right,
         )
     }
@@ -760,12 +752,12 @@ object TrioRenderer {
      * is, which is the whole point of putting them in bands.
      */
     private fun drawCapsuleCell(
-        c: Canvas, stroke: Float, band: TrioZones.Zone,
-        cap: TrioAppearance.Capsule, level: Int,
+        c: Canvas, stroke: Float, band: IconZones.Zone,
+        cap: StatusAppearance.Capsule, level: Int,
         quickCharging: Boolean, wifiLevel: Int, type: String?,
-        fg: Int, a: TrioAppearance, left: Float, right: Float,
+        fg: Int, a: StatusAppearance, left: Float, right: Float,
     ) {
-        if (band == TrioZones.Zone.CENTRE) {
+        if (band == IconZones.Zone.CENTRE) {
             drawCapsuleBody(c, stroke, cap, level, quickCharging, wifiLevel, type, fg, a, left, right)
             return
         }
@@ -775,10 +767,10 @@ object TrioRenderer {
         }
         drawCapsulePiece(
             c, stroke, part, level, quickCharging, wifiLevel, type, fg, a,
-            anchorX = TrioGeometry.capDotCx(left, right),
-            cy = TrioGeometry.capOpeningCy(band == TrioZones.Zone.TOP, stroke),
+            anchorX = IconGeometry.capDotCx(left, right),
+            cy = IconGeometry.capOpeningCy(band == IconZones.Zone.TOP, stroke),
             align = CellAlign.CENTRE,
-            width = TrioGeometry.capOpeningWidth(right),
+            width = IconGeometry.capOpeningWidth(right),
             heightHint = openingRoom(band, stroke),
         )
     }
@@ -793,16 +785,16 @@ object TrioRenderer {
      * rather than sitting in the left half with nothing beside it.
      */
     private fun drawCapsuleBody(
-        c: Canvas, stroke: Float, cap: TrioAppearance.Capsule, level: Int,
+        c: Canvas, stroke: Float, cap: StatusAppearance.Capsule, level: Int,
         quickCharging: Boolean, wifiLevel: Int, type: String?,
-        fg: Int, a: TrioAppearance, left: Float, right: Float,
+        fg: Int, a: StatusAppearance, left: Float, right: Float,
     ) {
-        val first = cap.parts[TrioZones.Zone.CENTRE.ordinal]
+        val first = cap.parts[IconZones.Zone.CENTRE.ordinal]
         if (first == Prefs.PART_NONE) {
             return
         }
-        val second = cap.second[TrioZones.Zone.CENTRE.ordinal]
-        val cy = TrioGeometry.capInteriorCy(stroke)
+        val second = cap.second[IconZones.Zone.CENTRE.ordinal]
+        val cy = IconGeometry.capInteriorCy(stroke)
         // The two cells are independent components on one track, not a width divided
         // between them: each hangs off its own edge of the interior and grows inwards,
         // so placing a clock on the left cannot squeeze the number on the right. The
@@ -812,9 +804,9 @@ object TrioRenderer {
         // a constant beside it. 100% is the reference inset; 0% lets a reading run to the
         // cap, which is also the only way two pieces can meet in the middle.
         val inset = CAP_CELL_PADDING * a.capGap / 100f
-        val track = TrioGeometry.capReadingsWidth(stroke, right) - 2f * inset
-        val edgeLeft = TrioGeometry.capTextLeft(stroke) + inset
-        val edgeRight = TrioGeometry.capTextRight(stroke, right) - inset
+        val track = IconGeometry.capReadingsWidth(stroke, right) - 2f * inset
+        val edgeLeft = IconGeometry.capTextLeft(stroke) + inset
+        val edgeRight = IconGeometry.capTextRight(stroke, right) - inset
         // A lone piece occupies the first cell, which reads from the interior's left edge.
         drawCapsulePiece(
             c, stroke, first, level, quickCharging, wifiLevel, type, fg, a,
@@ -828,12 +820,12 @@ object TrioRenderer {
         val isIcon = second == Prefs.PART_BOLT || second == Prefs.PART_WIFI
         val secondAnchorX = if (isIcon) {
             val inkHalf = when (second) {
-                Prefs.PART_BOLT -> BOLT_INK_W * TrioGeometry.capBoltScale(stroke) *
+                Prefs.PART_BOLT -> BOLT_INK_W * IconGeometry.capBoltScale(stroke) *
                     a.boltScaleFactor() * 0.5f
-                else -> TrioGeometry.W_INK_W * TrioGeometry.capWifiScale(stroke) *
+                else -> IconGeometry.W_INK_W * IconGeometry.capWifiScale(stroke) *
                     a.wifiScaleFactor() * 0.5f
             }
-            TrioGeometry.capRightIconCx(stroke, right, inset, inkHalf) + a.capsuleRightDx
+            IconGeometry.capRightIconCx(stroke, right, inset, inkHalf) + a.capsuleRightDx
         } else {
             edgeRight + a.capsuleRightDx
         }
@@ -850,23 +842,34 @@ object TrioRenderer {
     private fun drawCapsulePiece(
         c: Canvas, stroke: Float, part: Int, level: Int,
         quickCharging: Boolean, wifiLevel: Int, type: String?,
-        fg: Int, a: TrioAppearance,
+        fg: Int, a: StatusAppearance,
         anchorX: Float, cy: Float, align: CellAlign, width: Float, heightHint: Float,
     ) {
         when (part) {
             Prefs.PART_BOLT -> {
-                val ink = BOLT_INK_W * TrioGeometry.capBoltScale(stroke) *
-                    a.boltScaleFactor()
+                val baseScale = if (heightHint > 0f) {
+                    val maxW = if (width > 0f) width else 40f
+                    minOf(maxW / 15f, heightHint / IconGeometry.BOLT_INK_H) * 0.95f
+                } else {
+                    IconGeometry.capBoltScale(stroke)
+                }
+                val ink = BOLT_INK_W * baseScale * a.boltScaleFactor()
                 drawCapsuleBolt(
-                    c, stroke, if (quickCharging) TrioGeometry.QUICK_CHARGE else fg, a,
-                    alignedCx(anchorX, ink, align), cy,
+                    c, stroke, if (quickCharging) IconGeometry.QUICK_CHARGE else fg, a,
+                    alignedCx(anchorX, ink, align), cy, heightHint, width,
                 )
             }
             Prefs.PART_WIFI -> {
-                val ink = TrioGeometry.W_INK_W * TrioGeometry.capWifiScale(stroke) *
-                    a.wifiScaleFactor()
+                val extra = max(0f, a.arcStroke - IconGeometry.W_STROKE)
+                val baseScale = if (heightHint > 0f) {
+                    val maxW = if (width > 0f) width else 60f
+                    minOf(maxW / (IconGeometry.W_INK_W + extra), heightHint / (IconGeometry.W_INK_H + extra)) * 0.95f
+                } else {
+                    IconGeometry.capWifiScale(stroke)
+                }
+                val ink = IconGeometry.W_INK_W * baseScale * a.wifiScaleFactor()
                 drawCapsuleWifi(
-                    c, stroke, wifiLevel, fg, a, alignedCx(anchorX, ink, align), cy,
+                    c, stroke, wifiLevel, fg, a, alignedCx(anchorX, ink, align), cy, heightHint, width,
                 )
             }
             Prefs.PART_VALUE -> drawCapsuleValue(
@@ -910,7 +913,7 @@ object TrioRenderer {
      * exists to avoid.
      */
     private fun drawCapsulePerf(
-        c: Canvas, stroke: Float, text: String?, fg: Int, a: TrioAppearance,
+        c: Canvas, stroke: Float, text: String?, fg: Int, a: StatusAppearance,
         anchorX: Float, cy: Float, align: CellAlign, heightHint: Float, width: Float,
     ) {
         if (text.isNullOrEmpty()) {
@@ -923,17 +926,17 @@ object TrioRenderer {
         )
         TEXT.textSize = size
         val tempIsHigh = a.roleColorsTemp && text == tempText() &&
-            TrioState.sBatteryHot
+            StatusState.sBatteryHot
         TEXT.color = if (tempIsHigh) (if (isDarkBackground(fg)) a.highTempOnDark else a.highTempOnLight) else fg
         TEXT.textAlign = Paint.Align.CENTER
         val x = alignedCx(anchorX, TEXT.measureText(text), align)
-        c.drawText(text, x, cy + (size * TrioGeometry.CAP_HEIGHT_RATIO) * 0.5f, TEXT)
+        c.drawText(text, x, cy + (size * IconGeometry.CAP_HEIGHT_RATIO) * 0.5f, TEXT)
     }
 
-    private fun openingRoom(band: TrioZones.Zone, stroke: Float): Float {
+    private fun openingRoom(band: IconZones.Zone, stroke: Float): Float {
         // An EM, not an ink height: everything downstream of this treats it as a font size.
-        // See TrioGeometry.capOpeningTextEm.
-        return if (band == TrioZones.Zone.CENTRE) -1f else TrioGeometry.capOpeningTextEm(stroke)
+        // See IconGeometry.capOpeningTextEm.
+        return if (band == IconZones.Zone.CENTRE) -1f else IconGeometry.capOpeningTextEm(stroke)
     }
 
     /**
@@ -947,28 +950,28 @@ object TrioRenderer {
      * actually holds, and zero when it holds nothing.
      */
     private fun openingReach(
-        cap: TrioAppearance.Capsule, band: TrioZones.Zone,
+        cap: StatusAppearance.Capsule, band: IconZones.Zone,
         stroke: Float, level: Int, type: String?,
     ): Float {
         if (cap.dotsIn(band)) {
-            return TrioGeometry.capDotReach(stroke)
+            return IconGeometry.capDotReach(stroke)
         }
         val part = cap.parts[band.ordinal]
         if (part == Prefs.PART_NONE) {
             return 0f
         }
-        return TrioGeometry.capPieceReach(
+        return IconGeometry.capPieceReach(
             part, level, type ?: "", stroke,
-            TrioGeometry.capOpeningTextRoomH(stroke),
-        ) + TrioGeometry.capDotClearance() + stroke * 0.5f
+            IconGeometry.capOpeningTextRoomH(stroke),
+        ) + IconGeometry.capDotClearance() + stroke * 0.5f
     }
 
     private fun buildCapsuleOutline(
         p: Path, topReach: Float, bottomReach: Float, left: Float, right: Float,
     ) {
-        val top = TrioGeometry.CAP_TOP
-        val bottom = TrioGeometry.CAP_BOTTOM
-        val r = TrioGeometry.CAP_RADIUS
+        val top = IconGeometry.CAP_TOP
+        val bottom = IconGeometry.CAP_BOTTOM
+        val r = IconGeometry.CAP_RADIUS
         val cy = (top + bottom) * 0.5f
         val cx = (left + right) * 0.5f
         val k = 0.55228475f * r
@@ -1005,9 +1008,9 @@ object TrioRenderer {
         c: Canvas, fraction: Float, topReach: Float, bottomReach: Float,
         left: Float, right: Float,
     ) {
-        val top = TrioGeometry.CAP_TOP
-        val bottom = TrioGeometry.CAP_BOTTOM
-        val r = TrioGeometry.CAP_RADIUS
+        val top = IconGeometry.CAP_TOP
+        val bottom = IconGeometry.CAP_BOTTOM
+        val r = IconGeometry.CAP_RADIUS
         val cy = (top + bottom) * 0.5f
         val cx = (left + right) * 0.5f
 
@@ -1168,31 +1171,31 @@ object TrioRenderer {
     /**
      * The two openings' dot rows, each drawn only if its band holds one.
      *
-     * They are separate placements now - [TrioAppearance.Capsule.dotsIn] - so a
+     * They are separate placements now - [StatusAppearance.Capsule.dotsIn] - so a
      * capsule can draw SIM 1 above and nothing below. The **outline's** gap is still
      * cut at both openings while any row exists, because a stroke interrupted on one
      * side only reads as damage rather than as a row between two segments.
      */
     private fun drawCapsuleDots(
         c: Canvas, level: Int, slotLevels: IntArray?, dual: Boolean,
-        fg: Int, a: TrioAppearance, cap: TrioAppearance.Capsule?, left: Float, right: Float,
+        fg: Int, a: StatusAppearance, cap: StatusAppearance.Capsule?, left: Float, right: Float,
     ) {
-        val dataSlot = TrioState.sDataSlot
+        val dataSlot = StatusState.sDataSlot
         val dataLevel = if (slotLevels != null && dataSlot in slotLevels.indices && slotLevels[dataSlot] >= 0) slotLevels[dataSlot] else level
         val top = if (a.dataSimOnly) dataLevel else if (dual && slotLevels != null) slotLevels[0] else level
         val bottom = if (a.dataSimOnly) -1 else if (dual && slotLevels != null) slotLevels[1] else level
-        val topRow = cap == null || cap.dotsIn(TrioZones.Zone.TOP)
-        val bottomRow = !a.dataSimOnly && (cap == null || cap.dotsIn(TrioZones.Zone.BOTTOM))
+        val topRow = cap == null || cap.dotsIn(IconZones.Zone.TOP)
+        val bottomRow = !a.dataSimOnly && (cap == null || cap.dotsIn(IconZones.Zone.BOTTOM))
         val inactive = withAlpha(fg, a.trackAlpha)
         val columns = a.signalColumns.coerceIn(4, 5)
         val topActive = if (top < 0) 0 else min(columns, top)
         val bottomActive = if (bottom < 0) 0 else min(columns, bottom)
-        val topY = TrioGeometry.capDotTopY()
-        val bottomY = TrioGeometry.capDotBottomY()
-        val pitch = if (columns == 5) TrioGeometry.CAP_DOT_PITCH * 0.82f else TrioGeometry.CAP_DOT_PITCH
+        val topY = IconGeometry.capDotTopY()
+        val bottomY = IconGeometry.capDotBottomY()
+        val pitch = if (columns == 5) IconGeometry.CAP_DOT_PITCH * 0.82f else IconGeometry.CAP_DOT_PITCH
         val halfSpan = (columns - 1) * pitch * 0.5f
-        val first = TrioGeometry.capDotCx(left, right) - halfSpan
-        val dotR = if (columns == 5) TrioGeometry.CAP_DOT_R * 0.85f else TrioGeometry.CAP_DOT_R
+        val first = IconGeometry.capDotCx(left, right) - halfSpan
+        val dotR = if (columns == 5) IconGeometry.CAP_DOT_R * 0.85f else IconGeometry.CAP_DOT_R
         FILL.style = Paint.Style.FILL
 
         for (i in 0 until columns) {
@@ -1245,10 +1248,10 @@ object TrioRenderer {
 
     /** The time, in a capsule cell centred on `(cx, cy)`. */
     private fun drawCapsuleTime(
-        c: Canvas, stroke: Float, fg: Int, a: TrioAppearance,
+        c: Canvas, stroke: Float, fg: Int, a: StatusAppearance,
         anchorX: Float, cy: Float, align: CellAlign, heightHint: Float, width: Float,
     ) {
-        val text = TrioState.sClockText
+        val text = StatusState.sClockText
         if (text.isEmpty()) {
             return
         }
@@ -1262,7 +1265,7 @@ object TrioRenderer {
         TEXT.color = fg
         TEXT.textAlign = Paint.Align.CENTER
         val x = alignedCx(anchorX, TEXT.measureText(text), align)
-        val baseline = cy + (size * TrioGeometry.CAP_HEIGHT_RATIO) * 0.5f
+        val baseline = cy + (size * IconGeometry.CAP_HEIGHT_RATIO) * 0.5f
         drawTimeGlyphs(
             c, TEXT, text, x, baseline,
             if (isDarkBackground(fg)) a.clockDigitColorsOnDark else a.clockDigitColorsOnLight,
@@ -1272,7 +1275,7 @@ object TrioRenderer {
 
     private fun drawCapsuleValue(
         c: Canvas, stroke: Float, level: Int, fg: Int,
-        a: TrioAppearance, anchorX: Float, cy: Float, align: CellAlign,
+        a: StatusAppearance, anchorX: Float, cy: Float, align: CellAlign,
         heightHint: Float, width: Float,
     ) {
         val text = valueText(level, a)
@@ -1285,17 +1288,17 @@ object TrioRenderer {
         TEXT.color = fg
         TEXT.textAlign = Paint.Align.CENTER
         val x = alignedCx(anchorX, TEXT.measureText(text), align)
-        c.drawText(text, x, cy + (size * TrioGeometry.CAP_HEIGHT_RATIO) * 0.5f, TEXT)
+        c.drawText(text, x, cy + (size * IconGeometry.CAP_HEIGHT_RATIO) * 0.5f, TEXT)
     }
 
     private fun drawCapsuleType(
         c: Canvas, stroke: Float, type: String?, fg: Int,
-        a: TrioAppearance, anchorX: Float, cy: Float, align: CellAlign,
+        a: StatusAppearance, anchorX: Float, cy: Float, align: CellAlign,
         heightHint: Float, width: Float,
     ) {
         applyWeight(a.typeWeight)
         // The width of the row it is in, not of the interior's right-hand slot. See
-        // TrioGeometry.capOpeningWidth: an opening spans the capsule, a slot does not.
+        // IconGeometry.capOpeningWidth: an opening spans the capsule, a slot does not.
         val size = capsuleTextSize(
             type, a.typeSize, width, a.typeSuffixScale,
             heightHint, stroke,
@@ -1305,7 +1308,7 @@ object TrioRenderer {
         val ink = measureType(type, size, a.typeSuffixScale)
         drawType(
             c, type, alignedCx(anchorX, ink, align),
-            cy + (size * TrioGeometry.CAP_HEIGHT_RATIO) * 0.5f,
+            cy + (size * IconGeometry.CAP_HEIGHT_RATIO) * 0.5f,
             size, fg, a,
         )
     }
@@ -1323,7 +1326,7 @@ object TrioRenderer {
      *    is what this did - every opening label was clamped to the band's own height and the
      *    size slider did nothing at all up there, which is exactly what was reported.
      *
-     * [slotWidth] is the track, not a share of it - see TrioGeometry.capReadingsWidth.
+     * [slotWidth] is the track, not a share of it - see IconGeometry.capReadingsWidth.
      * A reading is fitted to the room it could use if it were alone, which is what keeps
      * one cell's content from resizing the other.
      */
@@ -1333,8 +1336,8 @@ object TrioRenderer {
     ): Float {
         val requested = if (heightHint < 0f) {
             min(
-                setting * TrioGeometry.CAP_TEXT_SCALE,
-                TrioGeometry.capTextMaxSize(stroke),
+                setting * IconGeometry.CAP_TEXT_SCALE,
+                IconGeometry.capTextMaxSize(stroke),
             )
         } else {
             heightHint * setting / Prefs.DEF_VALUE_SIZE
@@ -1344,15 +1347,20 @@ object TrioRenderer {
 
     private fun drawCapsuleWifi(
         c: Canvas, stroke: Float, level: Int, fg: Int,
-        a: TrioAppearance, cx: Float, cy: Float,
+        a: StatusAppearance, cx: Float, cy: Float,
+        heightHint: Float = -1f, width: Float = -1f,
     ) {
-        // The user's size multiplies the slot's own fit, and the offset is rebuilt
-        // from the resulting scale: adding the difference instead would translate the
-        // group rather than grow it about its ink centre.
-        val scale = TrioGeometry.capWifiScale(stroke) * a.wifiScaleFactor()
+        val extra = max(0f, a.arcStroke - IconGeometry.W_STROKE)
+        val baseScale = if (heightHint > 0f) {
+            val maxW = if (width > 0f) width else 60f
+            minOf(maxW / (IconGeometry.W_INK_W + extra), heightHint / (IconGeometry.W_INK_H + extra)) * 0.95f
+        } else {
+            IconGeometry.capWifiScale(stroke)
+        }
+        val scale = baseScale * a.wifiScaleFactor()
         c.withTranslation(
-            cx - TrioGeometry.W_CX * scale,
-            cy - TrioGeometry.W_INK_CY * scale,
+            cx - IconGeometry.W_CX * scale,
+            cy - IconGeometry.W_INK_CY * scale,
         ) {
             c.scale(scale, scale)
             drawWifiArcs(c, level, fg, a)
@@ -1368,14 +1376,21 @@ object TrioRenderer {
      * ink centred while the scale it was derived from is the scale being drawn.
      */
     private fun drawCapsuleBolt(
-        c: Canvas, stroke: Float, color: Int, a: TrioAppearance,
+        c: Canvas, stroke: Float, color: Int, a: StatusAppearance,
         cx: Float, cy: Float,
+        heightHint: Float = -1f, width: Float = -1f,
     ) {
         val factor = a.boltScaleFactor()
-        val scale = TrioGeometry.capBoltScale(stroke) * factor
+        val baseScale = if (heightHint > 0f) {
+            val maxW = if (width > 0f) width else 40f
+            minOf(maxW / 15f, heightHint / IconGeometry.BOLT_INK_H) * 0.95f
+        } else {
+            IconGeometry.capBoltScale(stroke)
+        }
+        val scale = baseScale * factor
         c.withTranslation(
-            cx - TrioGeometry.BOLT_CX_REF * scale,
-            cy - TrioGeometry.BOLT_INK_CY * scale,
+            cx - IconGeometry.BOLT_CX_REF * scale,
+            cy - IconGeometry.BOLT_INK_CY * scale,
         ) {
             c.scale(scale, scale)
             FILL.style = Paint.Style.FILL
@@ -1395,19 +1410,19 @@ object TrioRenderer {
      */
     private fun drawRectDots(
         c: Canvas, level: Int, slotLevels: IntArray?, dual: Boolean,
-        fg: Int, a: TrioAppearance,
+        fg: Int, a: StatusAppearance,
     ) {
         val left = if (dual && slotLevels != null) slotLevels[0] else level
         val right = if (dual && slotLevels != null) slotLevels[1] else level
         val inactive = withAlpha(fg, a.trackAlpha)
-        val leftActive = if (left < 0) 0 else min(TrioGeometry.RECT_DOT_ROWS, left)
-        val rightActive = if (right < 0) 0 else min(TrioGeometry.RECT_DOT_ROWS, right)
-        for (i in 0 until TrioGeometry.RECT_DOT_ROWS) {
-            val y = TrioGeometry.RECT_DOT_TOP + i * TrioGeometry.RECT_DOT_STEP
+        val leftActive = if (left < 0) 0 else min(IconGeometry.RECT_DOT_ROWS, left)
+        val rightActive = if (right < 0) 0 else min(IconGeometry.RECT_DOT_ROWS, right)
+        for (i in 0 until IconGeometry.RECT_DOT_ROWS) {
+            val y = IconGeometry.RECT_DOT_TOP + i * IconGeometry.RECT_DOT_STEP
             FILL.color = if (i < leftActive) fg else inactive
-            c.drawCircle(TrioGeometry.RECT_DOT_LX, y, TrioGeometry.RECT_DOT_R, FILL)
+            c.drawCircle(IconGeometry.RECT_DOT_LX, y, IconGeometry.RECT_DOT_R, FILL)
             FILL.color = if (i < rightActive) fg else inactive
-            c.drawCircle(TrioGeometry.RECT_DOT_RX, y, TrioGeometry.RECT_DOT_R, FILL)
+            c.drawCircle(IconGeometry.RECT_DOT_RX, y, IconGeometry.RECT_DOT_R, FILL)
         }
     }
 
@@ -1421,13 +1436,13 @@ object TrioRenderer {
      */
     private fun drawRectBatteryBar(
         c: Canvas, level: Int, role: Int, fg: Int,
-        a: TrioAppearance,
+        a: StatusAppearance,
     ) {
-        val left = TrioGeometry.RECT_BAR_LEFT
-        val right = TrioGeometry.RECT_BAR_RIGHT
+        val left = IconGeometry.RECT_BAR_LEFT
+        val right = IconGeometry.RECT_BAR_RIGHT
         val r = a.ringStroke * 0.5f
-        val top = TrioGeometry.RECT_BAR_CY - r
-        val bottom = TrioGeometry.RECT_BAR_CY + r
+        val top = IconGeometry.RECT_BAR_CY - r
+        val bottom = IconGeometry.RECT_BAR_CY + r
 
         FILL.color = withAlpha(fg, a.trackAlpha)
         RECT_RECT.set(left, top, right, bottom)
@@ -1453,22 +1468,22 @@ object TrioRenderer {
     }
 
     /** The Wi-Fi group moved into the top slot; the arcs themselves are unchanged. */
-    private fun drawRectWifi(c: Canvas, level: Int, fg: Int, a: TrioAppearance) {
+    private fun drawRectWifi(c: Canvas, level: Int, fg: Int, a: StatusAppearance) {
         val factor = a.wifiScaleFactor()
         c.withTranslation(
-            TrioGeometry.rectWifiOffsetX(factor),
-            TrioGeometry.rectWifiOffsetY(a.arcStroke.toFloat(), factor)
+            IconGeometry.rectWifiOffsetX(factor),
+            IconGeometry.rectWifiOffsetY(a.arcStroke.toFloat(), factor)
         ) {
-            c.scale(TrioGeometry.RECT_WIFI_SCALE * factor, TrioGeometry.RECT_WIFI_SCALE * factor)
+            c.scale(IconGeometry.RECT_WIFI_SCALE * factor, IconGeometry.RECT_WIFI_SCALE * factor)
             drawWifiArcs(c, level, fg, a)
         }
     }
 
-    private fun drawRectBolt(c: Canvas, color: Int, a: TrioAppearance) {
+    private fun drawRectBolt(c: Canvas, color: Int, a: StatusAppearance) {
         c.withSave {
             val factor = a.boltScaleFactor()
-            c.translate(TrioGeometry.rectBoltOffsetX(factor), TrioGeometry.rectBoltOffsetY(factor))
-            c.scale(TrioGeometry.BOLT_SCALE * factor, TrioGeometry.BOLT_SCALE * factor)
+            c.translate(IconGeometry.rectBoltOffsetX(factor), IconGeometry.rectBoltOffsetY(factor))
+            c.scale(IconGeometry.BOLT_SCALE * factor, IconGeometry.BOLT_SCALE * factor)
             drawBoltShape(c, color, a)
         }
     }
@@ -1479,10 +1494,10 @@ object TrioRenderer {
      * One place for the three arrangements and the four motion styles, so the ring, the
      * capsule and the rectangle cannot drift apart, and the still bolt stays the plain
      * filled path it always was. Every style loops for as long as the charger is
-     * attached; a frame asks for the next one only while [TrioAppearance.animatesOutline]
+     * attached; a frame asks for the next one only while [StatusAppearance.animatesOutline]
      * says so, which is also the flag [boltMoving] carries.
      */
-    private fun drawBoltShape(c: Canvas, color: Int, a: TrioAppearance) {
+    private fun drawBoltShape(c: Canvas, color: Int, a: StatusAppearance) {
         FILL.style = Paint.Style.FILL
         val style = a.boltAnim
         if (style == Prefs.BOLT_ANIM_OFF || !boltMoving) {
@@ -1548,41 +1563,41 @@ object TrioRenderer {
     /**
      * The network type in the top slot, between the dot columns.
      *
-     * Sized against [TrioGeometry.RECT_TYPE_SCALE] like the percentage is against its
+     * Sized against [IconGeometry.RECT_TYPE_SCALE] like the percentage is against its
      * own, so the two read as a pair, and shrunk by [fitSize] if the slot is too
      * narrow for it.
      */
-    private fun drawRectType(c: Canvas, type: String?, fg: Int, a: TrioAppearance) {
-        val requested = a.typeSize * TrioGeometry.RECT_TYPE_SCALE
+    private fun drawRectType(c: Canvas, type: String?, fg: Int, a: StatusAppearance) {
+        val requested = a.typeSize * IconGeometry.RECT_TYPE_SCALE
         applyWeight(a.typeWeight)
-        val size = fitSize(type, requested, TrioGeometry.RECT_TEXT_CLEAR, a.typeSuffixScale)
-        drawType(c, type, TrioGeometry.RECT_VALUE_X, TrioGeometry.RECT_TYPE_BASELINE, size, fg, a)
+        val size = fitSize(type, requested, IconGeometry.RECT_TEXT_CLEAR, a.typeSuffixScale)
+        drawType(c, type, IconGeometry.RECT_VALUE_X, IconGeometry.RECT_TYPE_BASELINE, size, fg, a)
     }
 
     /** The percentage, in the middle of the arrangement and at its own scale. */
     /** The battery number as drawn: bare, or with the optional percent sign. */
-    private fun valueText(level: Int, a: TrioAppearance): String =
+    private fun valueText(level: Int, a: StatusAppearance): String =
         if (a.showPercent) "$level%" else level.toString()
 
     /**
      * The wattage as a slot piece: "9.6W", or empty while the reading is unknown.
      *
      * One formatter for both watt pieces - the charging and the running one differ in
-     * *when* they appear (see [TrioAppearance]'s ink rules), never in what they say.
+     * *when* they appear (see [StatusAppearance]'s ink rules), never in what they say.
      */
     private fun powerText(): String? =
-        if (TrioState.sChargePowerW.isNaN()) {
+        if (StatusState.sChargePowerW.isNaN()) {
             null
         } else {
-            String.format(Locale.US, "%.1fW", TrioState.sChargePowerW)
+            String.format(Locale.US, "%.1fW", StatusState.sChargePowerW)
         }
 
     /** The display's refresh rate as a slot piece: "120", or empty before it is read. */
     private fun fpsText(): String? =
-        if (TrioState.sFps <= 0) null else TrioState.sFps.toString()
+        if (StatusState.sFps <= 0) "120" else StatusState.sFps.toString()
 
     /** The one reading a capsule cell holds, which is one piece rather than a pair. */
-    private fun capsulePerfText(part: Int, a: TrioAppearance): String? = when (part) {
+    private fun capsulePerfText(part: Int, a: StatusAppearance): String? = when (part) {
         Prefs.PART_TEMP -> tempText()
         Prefs.PART_CURRENT -> currentText(a)
         Prefs.PART_FPS -> fpsText()
@@ -1591,10 +1606,10 @@ object TrioRenderer {
 
     /** The battery temperature as a slot piece: "32°C", or empty when it is unknown. */
     private fun tempText(): String? =
-        if (TrioState.sBatteryTempC == TrioState.TEMP_UNKNOWN) {
+        if (StatusState.sBatteryTempC == StatusState.TEMP_UNKNOWN) {
             null
         } else {
-            TrioState.sBatteryTempC.toString() + "\u00B0C"
+            StatusState.sBatteryTempC.toString() + "\u00B0C"
         }
 
     /**
@@ -1604,17 +1619,17 @@ object TrioRenderer {
      * asked for it; the unit choice is theirs as well, because milliamps are what a
      * phone's currents are actually talked about in while amps stay readable past 1 A.
      */
-    private fun currentText(a: TrioAppearance): String? =
-        TrioState.currentText(a.currentUnit, a.currentPositive)
+    private fun currentText(a: StatusAppearance): String? =
+        StatusState.currentText(a.currentUnit, a.currentPositive)
 
-    private fun drawRectValue(c: Canvas, level: Int, fg: Int, a: TrioAppearance) {
+    private fun drawRectValue(c: Canvas, level: Int, fg: Int, a: StatusAppearance) {
         val text = valueText(level, a)
-        val requested = a.valueSize * TrioGeometry.RECT_VALUE_SCALE
+        val requested = a.valueSize * IconGeometry.RECT_VALUE_SCALE
         applyWeight(a.valueWeight)
-        val size = fitSize(text, requested, TrioGeometry.RECT_TEXT_CLEAR)
+        val size = fitSize(text, requested, IconGeometry.RECT_TEXT_CLEAR)
         TEXT.textSize = size
         TEXT.color = fg
-        c.drawText(text, TrioGeometry.RECT_VALUE_X, TrioGeometry.RECT_VALUE_BASELINE, TEXT)
+        c.drawText(text, IconGeometry.RECT_VALUE_X, IconGeometry.RECT_VALUE_BASELINE, TEXT)
     }
 
     /**
@@ -1626,14 +1641,14 @@ object TrioRenderer {
      * light-background variant applies.
      */
     fun roleColor(
-        a: TrioAppearance?, level: Int, charging: Boolean,
+        a: StatusAppearance?, level: Int, charging: Boolean,
         powerSave: Boolean, low: Boolean, fg: Int,
     ): Int {
         if (a == null || !a.roleColors) {
             return fg
         }
         val dark = isDarkBackground(fg)
-        if (level >= 0 && level < TrioGeometry.CRITICAL_LEVEL) {
+        if (level >= 0 && level < IconGeometry.CRITICAL_LEVEL) {
             return if (dark) a.criticalOnDark else a.criticalOnLight
         }
         if (powerSave || low || (level >= 0 && level <= a.lowThreshold)) {
@@ -1647,7 +1662,7 @@ object TrioRenderer {
 
     private fun drawBattery(
         c: Canvas, level: Int, role: Int, fg: Int,
-        a: TrioAppearance, gapStart: Float, gapEnd: Float,
+        a: StatusAppearance, gapStart: Float, gapEnd: Float,
         sweep: Float, start: Float, charging: Boolean,
     ) {
         val ringStroke = a.ringStroke * 0.68f
@@ -1671,7 +1686,7 @@ object TrioRenderer {
         when (a.boltAnim) {
             Prefs.BOLT_ANIM_FLOW -> {
                 // A light running the ring, in the charged colour lifted towards white.
-                val head = lighten(role, FLOW_LIFT)
+                val head = flowHeadColor(role)
                 for (i in 0 until RING_FLOW_SEGMENTS) {
                     val to = phase - i * RING_FLOW_SPAN
                     STROKE.color = withAlpha(head, flowAlpha(i, RING_FLOW_SEGMENTS))
@@ -1704,12 +1719,23 @@ object TrioRenderer {
         }
     }
 
-    /** `color` mixed towards white by [amount], keeping its alpha: a highlight on an arc. */
-    private fun lighten(color: Int, amount: Float): Int {
-        val r = (Color.red(color) + (255 - Color.red(color)) * amount).toInt()
-        val g = (Color.green(color) + (255 - Color.green(color)) * amount).toInt()
-        val b = (Color.blue(color) + (255 - Color.blue(color)) * amount).toInt()
-        return Color.argb(Color.alpha(color), r, g, b)
+    private var sLastLightenRole = 0
+    private var sCachedLightenHead = 0
+
+    /** The charged colour lifted towards white by [FLOW_LIFT]; cached against [role] to avoid per-frame recomputation. */
+    private fun flowHeadColor(role: Int): Int {
+        if (role == sLastLightenRole) return sCachedLightenHead
+        sLastLightenRole = role
+        val a = (role ushr 24) and 0xFF
+        val r = (role ushr 16) and 0xFF
+        val g = (role ushr 8) and 0xFF
+        val b = role and 0xFF
+        val nr = r / 5 + 204
+        val ng = g / 5 + 204
+        val nb = b / 5 + 204
+        val head = (a shl 24) or (nr shl 16) or (ng shl 8) or nb
+        sCachedLightenHead = head
+        return head
     }
 
     /**
@@ -1790,8 +1816,8 @@ object TrioRenderer {
         if (p !in 0f..1f) return false
         val q = if (p <= gapStart) p else gapEnd + (p - gapStart)
         val angle = Math.toRadians((start + q * sweep).toDouble())
-        RING_POINT[0] = (TrioGeometry.B_CX + TrioGeometry.B_R * kotlin.math.cos(angle)).toFloat()
-        RING_POINT[1] = (TrioGeometry.B_CY + TrioGeometry.B_R * kotlin.math.sin(angle)).toFloat()
+        RING_POINT[0] = (IconGeometry.B_CX + IconGeometry.B_R * kotlin.math.cos(angle)).toFloat()
+        RING_POINT[1] = (IconGeometry.B_CY + IconGeometry.B_R * kotlin.math.sin(angle)).toFloat()
         return true
     }
 
@@ -1804,7 +1830,7 @@ object TrioRenderer {
      * so 50% ends exactly where the left segment does and the mouth never consumes
      * any of it.
      *
-     * [sweep]/[start] are passed in rather than read from [TrioGeometry], because
+     * [sweep]/[start] are passed in rather than read from [IconGeometry], because
      * the arc's angular span depends on whether anything occupies the bottom of the
      * ring this frame - see `bottomOpen`.
      */
@@ -1830,8 +1856,8 @@ object TrioRenderer {
         val firstEnd = min(visibleTo, mouthStart)
         if (firstEnd > visibleFrom) {
             arcByProgress(
-                c, visibleFrom, firstEnd, TrioGeometry.B_CX, TrioGeometry.B_CY,
-                TrioGeometry.B_R, sweep, start,
+                c, visibleFrom, firstEnd, IconGeometry.B_CX, IconGeometry.B_CY,
+                IconGeometry.B_R, sweep, start,
             )
         }
         // Second segment: visible progress (mouthStart, drawn] is path (mouthEnd, 1].
@@ -1839,7 +1865,7 @@ object TrioRenderer {
         if (visibleTo > secondFrom) {
             arcByProgress(
                 c, mouthEnd + secondFrom - mouthStart, mouthEnd + visibleTo - mouthStart,
-                TrioGeometry.B_CX, TrioGeometry.B_CY, TrioGeometry.B_R, sweep, start,
+                IconGeometry.B_CX, IconGeometry.B_CY, IconGeometry.B_R, sweep, start,
             )
         }
     }
@@ -1867,8 +1893,8 @@ object TrioRenderer {
      *
      * Inactive levels are rendered using trackAlpha when trackAlpha > 0.
      */
-    private fun drawWifiArcs(c: Canvas, level: Int, fg: Int, a: TrioAppearance) {
-        val strokeWidth = min(a.arcStroke.toFloat(), TrioGeometry.W_MAX_STROKE)
+    private fun drawWifiArcs(c: Canvas, level: Int, fg: Int, a: StatusAppearance) {
+        val strokeWidth = min(a.arcStroke.toFloat(), IconGeometry.W_MAX_STROKE)
         STROKE.strokeWidth = strokeWidth
         val inactive = withAlpha(fg, a.trackAlpha)
         val hasTrack = a.trackAlpha > 0
@@ -1937,7 +1963,7 @@ object TrioRenderer {
     ) {
         var slot0 = -1
         var slot1 = -1
-        if (slotLevels != null && slotLevels.size >= TrioState.SIM_SLOTS) {
+        if (slotLevels != null && slotLevels.size >= StatusState.SIM_SLOTS) {
             slot0 = slotLevels[0]
             slot1 = slotLevels[1]
         }
@@ -1976,7 +2002,7 @@ object TrioRenderer {
      */
     fun drawPartOnly(
         c: Canvas, width: Int, height: Int, part: Int, wifiLevel: Int,
-        fg: Int, a: TrioAppearance, type: String? = null,
+        fg: Int, a: StatusAppearance, type: String? = null,
     ): Boolean {
         if (width <= 0 || height <= 0) {
             return false
@@ -1990,12 +2016,12 @@ object TrioRenderer {
         animSpeed = 1f
         if (part == Prefs.PART_WIFI) {
             val scale = min(
-                height * 0.78f / TrioGeometry.W_INK_H,
-                width * 0.78f / TrioGeometry.W_INK_W,
+                height * 0.78f / IconGeometry.W_INK_H,
+                width * 0.78f / IconGeometry.W_INK_W,
             ) * a.wifiScaleFactor()
             c.withTranslation(width / 2f, height / 2f) {
                 c.scale(scale, scale)
-                c.translate(-TrioGeometry.W_CX, -TrioGeometry.W_INK_CY)
+                c.translate(-IconGeometry.W_CX, -IconGeometry.W_INK_CY)
                 drawWifiArcs(c, wifiLevel, fg, a)
             }
             return true
@@ -2016,12 +2042,12 @@ object TrioRenderer {
             }
             c.drawText(
                 text, width / 2f,
-                height / 2f + (size * TrioGeometry.CAP_HEIGHT_RATIO) * 0.5f, TEXT,
+                height / 2f + (size * IconGeometry.CAP_HEIGHT_RATIO) * 0.5f, TEXT,
             )
             return true
         }
         if (part == Prefs.PART_TYPE) {
-            // Passed in rather than read from TrioState: the settings process never
+            // Passed in rather than read from StatusState: the settings process never
             // receives a mobile type, so the sheet's own sample would be blank there.
             val text = type ?: return false
             if (text.isEmpty()) {
@@ -2039,20 +2065,20 @@ object TrioRenderer {
             }
             c.drawText(
                 text, width / 2f,
-                height / 2f + (size * TrioGeometry.CAP_HEIGHT_RATIO) * 0.5f, TEXT,
+                height / 2f + (size * IconGeometry.CAP_HEIGHT_RATIO) * 0.5f, TEXT,
             )
             return true
         }
         if (part == Prefs.PART_CLOCK) {
-            val text = TrioState.sClockText
+            val text = StatusState.sClockText
             if (text.isEmpty()) {
                 return false
             }
-            val sample = TrioState.sClockBarText.ifEmpty { text }
-            val dateStr = if (a.clockDate) TrioState.sClockDate else ""
-            val wkStr = if (a.clockWeekday) TrioState.sClockWeekday else ""
-            val lunarStr = if (a.clockLunar) TrioState.sClockLunar else ""
-            val weatherStr = if (a.clockWeather) (TrioState.sWeather.ifEmpty { "雾 18°C" }) else ""
+            val sample = StatusState.sClockBarText.ifEmpty { text }
+            val dateStr = if (a.clockDate) StatusState.sClockDate else ""
+            val wkStr = if (a.clockWeekday) StatusState.sClockWeekday else ""
+            val lunarStr = if (a.clockLunar) StatusState.sClockLunar else ""
+            val weatherStr = if (a.clockWeather) (StatusState.sWeather.ifEmpty { "雾 18°C" }) else ""
             drawPreviewClock(c, width, height, sample, dateStr, wkStr, lunarStr, weatherStr, a, fg)
             return true
         }
@@ -2063,7 +2089,7 @@ object TrioRenderer {
     private fun drawPreviewClock(
         c: Canvas, width: Int, height: Int, time: String,
         date: String, weekday: String, lunar: String, weather: String,
-        a: TrioAppearance, fg: Int,
+        a: StatusAppearance, fg: Int,
     ) {
         applyWeight(a.clockWeight)
         val userScale = a.clockSize / Prefs.DEF_CLOCK_SIZE.toFloat()
@@ -2076,7 +2102,7 @@ object TrioRenderer {
         val dtDrawColor = if (dtColor != 0) dtColor else fg
         val lnDrawColor = if (lnColor != 0) lnColor else fg
         val wtDrawColor = if (wtColor != 0) wtColor else fg
-        val inkBounds = Rect()
+        val inkBounds = TEXT_INK
 
         val isBalanced = a.clockStyle == Prefs.CLOCK_STYLE_BALANCED
         var timeSize = height * 0.45f * userScale
@@ -2108,7 +2134,7 @@ object TrioRenderer {
             if (txt.isEmpty()) return 0f
             TEXT.textSize = sz
             val iconW = when {
-                vectorWeather() -> sz * TrioGeometry.WEATHER_ICON_SCALE + sz * 0.25f
+                vectorWeather() -> sz * IconGeometry.WEATHER_ICON_SCALE + sz * 0.25f
                 symbolWeather() -> TEXT.measureText(WeatherIconDrawer.glyphFor(previewCondition)) + sz * 0.25f
                 else -> 0f
             }
@@ -2124,7 +2150,7 @@ object TrioRenderer {
             val inkCentre = yBaseline + (inkBounds.top + inkBounds.bottom) * 0.5f
             when {
                 vectorWeather() -> {
-                    val iconSz = sz * TrioGeometry.WEATHER_ICON_SCALE
+                    val iconSz = sz * IconGeometry.WEATHER_ICON_SCALE
                     WeatherIconDrawer.drawWeatherIcon(
                         c, WeatherIconDrawer.parseWeatherType(previewCondition),
                         x, inkCentre - iconSz * 0.5f, iconSz, wtDrawColor,
@@ -2322,7 +2348,7 @@ object TrioRenderer {
      * whichever style is selected: the styles differ in how they show the *second*
      * card, not in how they show the first.
      */
-    fun rowsStyle(a: TrioAppearance?, dual: Boolean): Boolean =
+    fun rowsStyle(a: StatusAppearance?, dual: Boolean): Boolean =
         dual && a != null && a.stackStyle == Prefs.STACK_STYLE_ROWS
 
     /**
@@ -2357,7 +2383,7 @@ object TrioRenderer {
      * the row it stood in, so the system laying that row out taller made the reading
      * grow with it. A dp is fixed.
      */
-    fun outSignalHeight(a: TrioAppearance?, sizeDp: Int, density: Float, dual: Boolean): Int {
+    fun outSignalHeight(a: StatusAppearance?, sizeDp: Int, density: Float, dual: Boolean): Int {
         if (sizeDp <= 0 || density <= 0f) {
             return 0
         }
@@ -2375,7 +2401,7 @@ object TrioRenderer {
      * sizing it for the bars alone would clip the label off the left edge.
      */
     fun outSignalWidth(
-        height: Int, a: TrioAppearance?, type: String?, type2: String?,
+        height: Int, a: StatusAppearance?, type: String?, type2: String?,
         dual: Boolean = true,
     ): Int {
         if (height <= 0) {
@@ -2393,23 +2419,23 @@ object TrioRenderer {
      * The two looks are not proportioned alike in the reference: the dot style's bars
      * are spaced by 0.85 of their width, the compact two-row style's by 1.56.
      */
-    private fun outPitch(a: TrioAppearance?, dual: Boolean = true): Float {
+    private fun outPitch(a: StatusAppearance?, dual: Boolean = true): Float {
         val rows = rowsStyle(a, dual)
         return if (rows) {
             // The compact style's own reference: 1.6dp bars on a 0.9dp gap across a
             // 6.2dp row, i.e. everything is a fixed fraction of the row height.
-            TrioGeometry.STACK_ROW_H * (ROW_BAR + ROW_GAP)
+            IconGeometry.STACK_ROW_H * (ROW_BAR + ROW_GAP)
         } else {
             // The reference's own pitch: 39-unit bars on a 28-unit gap.
-            TrioGeometry.STACK_PITCH
+            IconGeometry.STACK_PITCH
         }
     }
 
     /** Columns per row: 4 (default) or 5, adapting proportions harmoniously. */
-    private fun outColumns(a: TrioAppearance?): Int = a?.signalColumns?.coerceIn(4, 5) ?: 4
+    private fun outColumns(a: StatusAppearance?): Int = a?.signalColumns?.coerceIn(4, 5) ?: 4
 
     private fun outBarHeights(columns: Int): FloatArray =
-        if (columns == 5) TrioGeometry.STACK_BAR_H_5 else TrioGeometry.STACK_BAR_H
+        if (columns == 5) IconGeometry.STACK_BAR_H_5 else IconGeometry.STACK_BAR_H
 
     /** Map signal level (0..4 or 0..5) to lit bar count according to column style. */
     private fun levelMapped(level: Int, columns: Int): Int {
@@ -2426,19 +2452,18 @@ object TrioRenderer {
         return level.coerceIn(0, 4)
     }
 
-
-    private fun outBarWidth(a: TrioAppearance?, dual: Boolean = true): Float =
+    private fun outBarWidth(a: StatusAppearance?, dual: Boolean = true): Float =
         if (rowsStyle(a, dual)) {
-            TrioGeometry.STACK_ROW_H * ROW_BAR
+            IconGeometry.STACK_ROW_H * ROW_BAR
         } else {
-            TrioGeometry.STACK_BAR_W
+            IconGeometry.STACK_BAR_W
         }
 
-    private fun outLabelGap(a: TrioAppearance?, dual: Boolean = true): Float =
+    private fun outLabelGap(a: StatusAppearance?, dual: Boolean = true): Float =
         if (rowsStyle(a, dual)) {
-            TrioGeometry.STACK_ROW_H * ROW_LABEL_GAP
+            IconGeometry.STACK_ROW_H * ROW_LABEL_GAP
         } else {
-            TrioGeometry.STACK_LABEL_GAP
+            IconGeometry.STACK_LABEL_GAP
         }
 
     /**
@@ -2452,8 +2477,8 @@ object TrioRenderer {
     /**
      * The gap between the primary and secondary parts of the reading, in design units.
      */
-    private fun rowGap(a: TrioAppearance, baseInk: Float): Float =
-        TrioGeometry.STACK_DOT_GAP * (a.outSignalMargin.coerceAtLeast(0) / Prefs.DEF_OUT_SIGNAL_MARGIN.toFloat())
+    private fun rowGap(a: StatusAppearance, baseInk: Float): Float =
+        IconGeometry.STACK_DOT_GAP * (a.outSignalMargin.coerceAtLeast(0) / Prefs.DEF_OUT_SIGNAL_MARGIN.toFloat())
 
     // --- DOTS STYLE CONSTANTS ---
     private const val DOTS_ACTIVITY_ARROW_W = 1.35f
@@ -2465,8 +2490,8 @@ object TrioRenderer {
     private fun dotsActivityBlockWidth(barW: Float): Float =
         barW * (DOTS_ACTIVITY_ARROW_W + DOTS_ACTIVITY_GAP)
 
-    private fun rowsGap(a: TrioAppearance): Float =
-        TrioGeometry.STACK_ROW_H * 0.12f
+    private fun rowsGap(a: StatusAppearance): Float =
+        IconGeometry.STACK_ROW_H * 0.12f
 
     // --- ROWS STYLE CONSTANTS ---
     private const val ROWS_ACTIVITY_ARROW_W = 1.15f
@@ -2477,7 +2502,7 @@ object TrioRenderer {
         barW * (ROWS_ACTIVITY_ARROW_W + ROWS_ACTIVITY_GAP)
 
     /** Width of the bars alone, in design units: what the label can overhang. */
-    fun outSignalBarsWidth(a: TrioAppearance?, dual: Boolean = true): Float {
+    fun outSignalBarsWidth(a: StatusAppearance?, dual: Boolean = true): Float {
         val barsW = outPitch(a, dual) * (outColumns(a) - 1) + outBarWidth(a, dual)
         val actW = if (a?.showMobileActivity == true) {
             if (rowsStyle(a, dual)) {
@@ -2491,7 +2516,7 @@ object TrioRenderer {
 
     /** The reading's own width in design units, label column included. */
     fun outSignalInkWidth(
-        a: TrioAppearance?, type: String?, type2: String?, dual: Boolean = true,
+        a: StatusAppearance?, type: String?, type2: String?, dual: Boolean = true,
     ): Float {
         val bars = outSignalBarsWidth(a, dual)
         if (a == null || !a.labelInReading()) {
@@ -2517,7 +2542,7 @@ object TrioRenderer {
      * are as wide as the reading, and the caption only borrows from that width.
      */
     fun outLabelOverhang(
-        a: TrioAppearance?, type: String?, type2: String?, dual: Boolean = true,
+        a: StatusAppearance?, type: String?, type2: String?, dual: Boolean = true,
     ): Float {
         if (a == null || !labelAbove(a)) {
             return 0f
@@ -2548,15 +2573,15 @@ object TrioRenderer {
         return max(0f, leftOverhang - actW)
     }
 
-    fun outSignalInkHeight(a: TrioAppearance?, dual: Boolean = true): Float {
+    fun outSignalInkHeight(a: StatusAppearance?, dual: Boolean = true): Float {
         if (a != null && rowsStyle(a, dual)) {
-            val rowH = TrioGeometry.STACK_ROW_H
+            val rowH = IconGeometry.STACK_ROW_H
             return rowH * 2f + rowsGap(a)
         }
-        val dotD = TrioGeometry.STACK_DOT_D * ((a?.outDotSize ?: 100) / 100f)
-        val barsH = TrioGeometry.STACK_BAR_H[TrioGeometry.STACK_COLUMNS - 1]
+        val dotD = IconGeometry.STACK_DOT_D * ((a?.outDotSize ?: 100) / 100f)
+        val barsH = IconGeometry.STACK_BAR_H[IconGeometry.STACK_COLUMNS - 1]
         if (!dual) return barsH
-        val gap = if (a != null) rowGap(a, barsH + dotD) else TrioGeometry.STACK_DOT_GAP
+        val gap = if (a != null) rowGap(a, barsH + dotD) else IconGeometry.STACK_DOT_GAP
         return barsH + gap + dotD
     }
 
@@ -2567,16 +2592,16 @@ object TrioRenderer {
      * the 14dp default used when the caption is positioned directly above the signal bar (BESIDE mode).
      * It scales proportionally whenever the user adjusts the outTypeSize setting (12dp * outTypeSize / 14).
      */
-    private fun aloneCaptionSize(a: TrioAppearance, dual: Boolean = true): Float {
+    private fun aloneCaptionSize(a: StatusAppearance, dual: Boolean = true): Float {
         val totalDesignH = if (rowsStyle(a, dual)) {
-            val rowH = TrioGeometry.STACK_ROW_H
+            val rowH = IconGeometry.STACK_ROW_H
             rowH * 2f + rowsGap(a)
         } else {
             val columns = outColumns(a)
             val barHeights = outBarHeights(columns)
             val barsH = barHeights[columns - 1]
             val dotScale = a.outDotSize / 100f
-            val baseDotD = if (columns == 5) 31f else TrioGeometry.STACK_DOT_D
+            val baseDotD = if (columns == 5) 31f else IconGeometry.STACK_DOT_D
             val dotD = baseDotD * dotScale
             val gap = rowGap(a, barsH + dotD)
             barsH + gap + dotD
@@ -2586,19 +2611,19 @@ object TrioRenderer {
         return totalDesignH * 0.55f * scaleFactor
     }
 
-    private fun outCaptionSize(a: TrioAppearance, dual: Boolean = true): Float =
+    private fun outCaptionSize(a: StatusAppearance, dual: Boolean = true): Float =
         outSignalLabelSize(a, dual) * (a.outTypeSize.coerceAtLeast(1) / Prefs.DEF_OUT_TYPE_SIZE_DP.toFloat())
 
-    private fun outSignalLabelSize(a: TrioAppearance, dual: Boolean = true): Float =
+    private fun outSignalLabelSize(a: StatusAppearance, dual: Boolean = true): Float =
         if (rowsStyle(a, dual)) {
-            TrioGeometry.STACK_ROW_H * 0.72f
+            IconGeometry.STACK_ROW_H * 0.72f
         } else {
-            TrioGeometry.STACK_BAR_H[TrioGeometry.STACK_COLUMNS - 1] * LABEL_TO_BAR
+            IconGeometry.STACK_BAR_H[IconGeometry.STACK_COLUMNS - 1] * LABEL_TO_BAR
         }
 
     private const val LABEL_TO_BAR = 0.65f
 
-    private fun labelAbove(a: TrioAppearance): Boolean =
+    private fun labelAbove(a: StatusAppearance): Boolean =
         a.stackTypeShown() && a.stackLabel == Prefs.STACK_LABEL_BESIDE
 
     /**
@@ -2611,7 +2636,7 @@ object TrioRenderer {
      */
     private fun drawColumnLabel(
         c: Canvas, text: String?, left: Float, targetY: Float, scale: Float,
-        fg: Int, a: TrioAppearance, dual: Boolean,
+        fg: Int, a: StatusAppearance, dual: Boolean,
         align: Int = 0, // 0 = center on targetY, 1 = top edge on targetY, -1 = bottom edge on targetY
     ) {
         if (text.isNullOrEmpty() || scale <= 0f) {
@@ -2762,7 +2787,7 @@ object TrioRenderer {
 
     fun drawOutSignal(
         c: Canvas, width: Int, height: Int, bars: Int, dots: Int,
-        fg: Int, a: TrioAppearance,
+        fg: Int, a: StatusAppearance,
         type: String? = null, type2: String? = null,
     ): Boolean {
         if (bars < 0 || width <= 0 || height <= 0) {
@@ -2779,7 +2804,7 @@ object TrioRenderer {
         val inkW = outSignalInkWidth(a, type, type2, dotRow)
         val labelW = inkW - barRun
         val dotScale = a.outDotSize / 100f
-        val baseDotD = if (columns == 5) 31f else TrioGeometry.STACK_DOT_D
+        val baseDotD = if (columns == 5) 31f else IconGeometry.STACK_DOT_D
         val dotD = baseDotD * dotScale
         val barsH = barHeights[columns - 1]
         val gap = if (dotRow) rowGap(a, barsH + dotD) else 0f
@@ -2849,8 +2874,8 @@ object TrioRenderer {
             actBottom - SINGLE_ACTIVITY_PAIR_H * scale
         }
         if (a.showMobileActivity) {
-            val actIn = TrioState.sDataActivity == 1 || TrioState.sDataActivity == 3
-            val actOut = TrioState.sDataActivity == 2 || TrioState.sDataActivity == 3
+            val actIn = StatusState.sDataActivity == 1 || StatusState.sDataActivity == 3
+            val actOut = StatusState.sDataActivity == 2 || StatusState.sDataActivity == 3
             val actIdle = withAlpha(fg, maxOf(a.trackAlpha, ACTIVITY_IDLE_ALPHA))
             drawDotsActivityArrows(
                 c, actCx, actTop, actBottom, scale, barWDesign,
@@ -2884,7 +2909,7 @@ object TrioRenderer {
      */
     private fun drawStackRows(
         c: Canvas, width: Int, height: Int, bars: Int, dots: Int,
-        fg: Int, a: TrioAppearance, type: String?, type2: String?,
+        fg: Int, a: StatusAppearance, type: String?, type2: String?,
     ): Boolean {
         if (bars < 0) {
             return false
@@ -2892,7 +2917,7 @@ object TrioRenderer {
         val columns = outColumns(a)
         val barW = outBarWidth(a)
         val pitch = outPitch(a)
-        val rowH = TrioGeometry.STACK_ROW_H
+        val rowH = IconGeometry.STACK_ROW_H
         val dual = dots >= 0
         val above = labelAbove(a)
         val actTotal = if (a.showMobileActivity) rowsActivityBlockWidth(barW) else 0f
@@ -2910,8 +2935,8 @@ object TrioRenderer {
         val barsX = x0 + barsOffset + actTotal * scale
         val actCx = barsX - barW * (ROWS_ACTIVITY_GAP + ROWS_ACTIVITY_ARROW_W * 0.5f) * scale
         val inactive = withAlpha(fg, a.trackAlpha)
-        val actIn = TrioState.sDataActivity == 1 || TrioState.sDataActivity == 3
-        val actOut = TrioState.sDataActivity == 2 || TrioState.sDataActivity == 3
+        val actIn = StatusState.sDataActivity == 1 || StatusState.sDataActivity == 3
+        val actOut = StatusState.sDataActivity == 2 || StatusState.sDataActivity == 3
 
         // Row 1 (SIM 1)
         val row1Baseline = top + rowH * scale
@@ -2995,7 +3020,7 @@ object TrioRenderer {
     /** The caption, centred on [x], sitting entirely above [clearTop]. */
     private fun drawOutLabel(
         c: Canvas, text: String, x: Float, edge: Float, scale: Float,
-        fg: Int, a: TrioAppearance, dual: Boolean = true, hang: Boolean = false,
+        fg: Int, a: StatusAppearance, dual: Boolean = true, hang: Boolean = false,
     ) {
         val size = outCaptionSize(a, dual) * scale
         // Small bold label: enough weight to stay legible at 6sp.
@@ -3046,17 +3071,17 @@ object TrioRenderer {
      */
     private fun drawType(
         c: Canvas, type: String?, x: Float, baseline: Float,
-        size: Float, fg: Int, a: TrioAppearance,
+        size: Float, fg: Int, a: StatusAppearance,
     ) {
-        if (type == null || !TrioGeometry.hasShrunkSuffix(type, a.typeSuffixScale)) {
+        if (type == null || !IconGeometry.hasShrunkSuffix(type, a.typeSuffixScale)) {
             TEXT.textAlign = Paint.Align.CENTER
             TEXT.textSize = size
             TEXT.color = fg
             c.drawText(type ?: "", x, baseline, TEXT)
             return
         }
-        val base = TrioGeometry.typeBase(type)
-        val suffix = TrioGeometry.TYPE_SUFFIX.toString()
+        val base = IconGeometry.typeBase(type)
+        val suffix = IconGeometry.TYPE_SUFFIX.toString()
         val suffixSize = size * a.typeSuffixScale / 100f
         // Measure both runs, then place them as one centred block: total width is the
         // layout, and the label's own centre is what stays put.
@@ -3111,14 +3136,14 @@ object TrioRenderer {
      * Leaves [TEXT] at [size], which is what every caller wants next.
      */
     private fun measureType(text: String?, size: Float, scalePercent: Int): Float {
-        if (text == null || !TrioGeometry.hasShrunkSuffix(text, scalePercent)) {
+        if (text == null || !IconGeometry.hasShrunkSuffix(text, scalePercent)) {
             TEXT.textSize = size
             return TEXT.measureText(text ?: "")
         }
         TEXT.textSize = size
-        val base = TEXT.measureText(TrioGeometry.typeBase(text))
+        val base = TEXT.measureText(IconGeometry.typeBase(text))
         TEXT.textSize = size * scalePercent / 100f
-        val suffix = TEXT.measureText(TrioGeometry.TYPE_SUFFIX.toString())
+        val suffix = TEXT.measureText(IconGeometry.TYPE_SUFFIX.toString())
         TEXT.textSize = size
         return base + suffix
     }
@@ -3134,7 +3159,7 @@ object TrioRenderer {
      * to its canvas.
      */
     fun inkScale(w: Int, h: Int): Float =
-        inkScale(w, h, TrioGeometry.INK_W, TrioGeometry.INK_H)
+        inkScale(w, h, IconGeometry.INK_W, IconGeometry.INK_H)
 
     /**
      * The fit for whichever arrangement is selected. The settings preview draws its
@@ -3143,7 +3168,7 @@ object TrioRenderer {
      */
     fun inkScale(w: Int, h: Int, rect: Boolean): Float =
         if (rect) {
-            inkScale(w, h, TrioGeometry.RECT_INK_W, TrioGeometry.RECT_INK_H)
+            inkScale(w, h, IconGeometry.RECT_INK_W, IconGeometry.RECT_INK_H)
         } else {
             inkScale(w, h)
         }
@@ -3154,22 +3179,22 @@ object TrioRenderer {
      * Distinct from the boolean overload above because the capsule is a third ink box
      * rather than a variant of one of the other two.
      */
-    fun inkScale(w: Int, h: Int, appearance: TrioAppearance?): Float {
+    fun inkScale(w: Int, h: Int, appearance: StatusAppearance?): Float {
         if (appearance?.rect == true) {
-            return inkScale(w, h, TrioGeometry.RECT_INK_W, TrioGeometry.RECT_INK_H)
+            return inkScale(w, h, IconGeometry.RECT_INK_W, IconGeometry.RECT_INK_H)
         }
         if (appearance?.capsule == true) {
             // The banded box: the capsule plus the strip either opening draws in. Its width
             // follows the user's extra run, which is why this takes the frame's answer
             // rather than the stored style id.
             return inkScale(
-                w, h, TrioGeometry.capInkW(appearance),
-                TrioGeometry.CAP_INK_BOTTOM - TrioGeometry.CAP_INK_TOP,
+                w, h, IconGeometry.capInkW(appearance),
+                IconGeometry.CAP_INK_BOTTOM - IconGeometry.CAP_INK_TOP,
             )
         }
         if (appearance?.ring == true) {
             val extraW = maxOf(0f, appearance.ringSpacingX.toFloat() * 2f)
-            return inkScale(w, h, TrioGeometry.INK_W + extraW, TrioGeometry.INK_H)
+            return inkScale(w, h, IconGeometry.INK_W + extraW, IconGeometry.INK_H)
         }
         return inkScale(w, h)
     }
@@ -3202,7 +3227,7 @@ object TrioRenderer {
      * @return false when there is nothing to draw into, with [out] left alone so a
      *   caller cannot accidentally use a stale transform
      */
-    fun designTransform(w: Int, h: Int, appearance: TrioAppearance?, out: FloatArray?): Boolean {
+    fun designTransform(w: Int, h: Int, appearance: StatusAppearance?, out: FloatArray?): Boolean {
         if (w <= 0 || h <= 0 || appearance == null || out == null || out.size < 3) {
             return false
         }
@@ -3214,23 +3239,23 @@ object TrioRenderer {
         }
         out[0] = scale
         if (appearance.capsule) {
-            val boxH = TrioGeometry.CAP_INK_BOTTOM - TrioGeometry.CAP_INK_TOP
-            out[1] = (w - TrioGeometry.capInkW(appearance) * scale) / 2f -
-                TrioGeometry.CAP_INK_X * scale
-            out[2] = (h - boxH * scale) / 2f - TrioGeometry.CAP_INK_TOP * scale
+            val boxH = IconGeometry.CAP_INK_BOTTOM - IconGeometry.CAP_INK_TOP
+            out[1] = (w - IconGeometry.capInkW(appearance) * scale) / 2f -
+                IconGeometry.CAP_INK_X * scale
+            out[2] = (h - boxH * scale) / 2f - IconGeometry.CAP_INK_TOP * scale
         } else if (rect) {
-            out[1] = (w - TrioGeometry.RECT_INK_W * scale) / 2f -
-                TrioGeometry.RECT_INK_X * scale
-            out[2] = (h - TrioGeometry.RECT_INK_H * scale) / 2f -
-                TrioGeometry.RECT_INK_Y * scale
+            out[1] = (w - IconGeometry.RECT_INK_W * scale) / 2f -
+                IconGeometry.RECT_INK_X * scale
+            out[2] = (h - IconGeometry.RECT_INK_H * scale) / 2f -
+                IconGeometry.RECT_INK_Y * scale
         } else {
             val hasBottomStacked = !appearance.dataSimOnly && (
                 (appearance.ringZones.getOrNull(2)?.size ?: 0) > 1 ||
                 (appearance.ringZones.getOrNull(2)?.contains(Prefs.PART_MOBILE) == true && appearance.dualSim)
             )
             val stackShiftY = if (hasBottomStacked) 2.0f * scale else 0f
-            out[1] = (w - TrioGeometry.INK_W * scale) / 2f - TrioGeometry.INK_X * scale
-            out[2] = (h - TrioGeometry.INK_H * scale) / 2f - TrioGeometry.INK_Y * scale - stackShiftY
+            out[1] = (w - IconGeometry.INK_W * scale) / 2f - IconGeometry.INK_X * scale
+            out[2] = (h - IconGeometry.INK_H * scale) / 2f - IconGeometry.INK_Y * scale - stackShiftY
         }
         return true
     }
@@ -3267,7 +3292,6 @@ object TrioRenderer {
     @JvmStatic
     fun fakeBoldFor(weight: Int): Boolean = sFontFace != null && weight >= FAKE_BOLD_FROM
 
-
     @JvmStatic
     fun typefaceFor(weight: Int): Typeface {
         val base = sFontFace ?: TEXT_BASE
@@ -3296,12 +3320,12 @@ object TrioRenderer {
         return p
     }
 
-
     /** sRGB luminance test: a light icon colour implies a dark status bar. */
     fun isDarkBackground(color: Int): Boolean {
-        val lum = (0.2126f * Color.red(color) +
-            0.7152f * Color.green(color) +
-            0.0722f * Color.blue(color)) / 255f
+        val r = (color ushr 16) and 0xFF
+        val g = (color ushr 8) and 0xFF
+        val b = color and 0xFF
+        val lum = (0.2126f * r + 0.7152f * g + 0.0722f * b) / 255f
         return lum > 0.5f
     }
 }

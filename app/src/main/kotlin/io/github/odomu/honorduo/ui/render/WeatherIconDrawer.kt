@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package io.github.odomu.honorduo.render
+package io.github.odomu.honorduo.ui.render
 
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -39,6 +39,16 @@ internal object WeatherIconDrawer {
     private val PATH = Path()
     private val RECT = RectF()
 
+    private val SUN_RAY_VECTORS = floatArrayOf(
+        1f, 0f,
+        0.70710677f, 0.70710677f,
+        0f, 1f,
+        -0.70710677f, 0.70710677f,
+        -1f, 0f,
+        -0.70710677f, -0.70710677f,
+        0f, -1f,
+        0.70710677f, -0.70710677f,
+    )
     fun parseWeatherType(condition: String): WeatherType {
         return when {
             condition.contains("雷") -> WeatherType.THUNDER
@@ -107,10 +117,10 @@ internal object WeatherIconDrawer {
         c.drawCircle(cx, cy, r, STROKE_PAINT)
         val rayStart = size * 0.32f
         val rayEnd = size * 0.44f
-        for (i in 0 until 8) {
-            val rad = Math.toRadians((i * 45).toDouble())
-            val cos = cos(rad).toFloat()
-            val sin = sin(rad).toFloat()
+        var idx = 0
+        while (idx < 16) {
+            val cos = SUN_RAY_VECTORS[idx++]
+            val sin = SUN_RAY_VECTORS[idx++]
             c.drawLine(
                 cx + rayStart * cos, cy + rayStart * sin,
                 cx + rayEnd * cos, cy + rayEnd * sin,
