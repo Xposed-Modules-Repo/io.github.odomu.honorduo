@@ -15,6 +15,8 @@ import android.annotation.SuppressLint
 import android.content.res.Resources
 import android.graphics.Paint
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
@@ -28,7 +30,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.annotation.RequiresApi
 import io.github.odomu.honorduo.hook.core.Refl
-import io.github.odomu.honorduo.hook.core.StatusHooks
+import io.github.odomu.honorduo.hook.core.SystemUiHook
 import io.github.odomu.honorduo.hook.statusbar.StatusBarRowManager.PERF_MIN_SIZE_RATIO
 import io.github.odomu.honorduo.hook.tracker.BarVisibility
 import io.github.odomu.honorduo.hook.tracker.ScreenStateTracker
@@ -142,11 +144,48 @@ internal object StatusBarRowManager {
     private fun anyRowShown(): Boolean = snapshot().any { it.row.isShown }
 
     private fun refreshShown() {
-        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
-            android.os.Handler(android.os.Looper.getMainLooper()).post { refreshShown() }
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            Handler(Looper.getMainLooper()).post { refreshShown() }
             return
         }
         BarVisibility.update(anyRowShown())
+    }
+
+    /**
+     * True while the module hands the bar back to the host (excluded panel or
+     * lockscreen). Read by [StatusBarIconManager.isOwned].
+     */
+    @Volatile
+    var suppressed = false
+        private set
+
+    /**
+     * The flag is written after the looper hop, never before: writing it first made
+     * the posted re-entry hit its own guard and return, leaving the flag inverted
+     * against views that were never touched.
+     */
+    fun setSuppressed(on: Boolean) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            Handler(Looper.getMainLooper()).post { setSuppressed(on) }
+            return
+        }
+        if (suppressed == on) return
+        suppressed = on
+        // One synchronous pass in one order, so no frame shows both sets of icons.
+        for (row in snapshot()) {
+            syncRow(row, force = false)
+            row.row.requestLayout()
+            row.row.invalidate()
+        }
+        StatusBarIconManager.applyIconVisibility()
+    }
+
+    private fun hideAll(row: Row) {
+        row.glyph?.visibility = View.GONE
+        row.signal?.visibility = View.GONE
+        row.perf?.visibility = View.GONE
+        row.fps?.visibility = View.GONE
+        row.type?.visibility = View.GONE
     }
 
     fun find(row: ViewGroup): Row? {
@@ -196,11 +235,20 @@ internal object StatusBarRowManager {
             StatusBarIconManager.release(row.battery)
             return
         }
+        // Handing over to the host (a panel, the lockscreen) only hides what the
+        // module drew. Unmounting instead would reflow the row twice per pull-down,
+        // which read as the bar blinking.
+        if (suppressed) {
+            hideAll(row)
+            StatusBarIconManager.release(row.battery)
+            return
+        }
         if (!a.glyph) {
             unmountGlyph(row)
             StatusBarIconManager.release(row.battery)
         } else {
             mountGlyph(row)
+            row.glyph?.visibility = View.VISIBLE
             StatusBarIconManager.hide(row.battery)
         }
         StatusBarIconManager.settle(row.container, a)
@@ -233,7 +281,14 @@ internal object StatusBarRowManager {
         // A hidden row lays out for nobody: the work below mounts and measures
         // children. The replay on the way back runs a full sync, so nothing is lost.
         if (!BarVisibility.shown) {
-            StatusHooks.markRepaintPending()
+            SystemUiHook.markRepaintPending()
+            return
+        }
+        // Standing down: [setSuppressed] already hid everything once. Re-running the
+        // sync here wrote the same five visibilities on every layout pass, and those
+        // writes are what made the bar flicker on the lockscreen.
+        if (suppressed) {
+            row.row.invalidate()
             return
         }
         synchronized(row) {
@@ -411,6 +466,7 @@ internal object StatusBarRowManager {
         )
         val marginDp = if (a.outSignalMargin in 0..16) a.outSignalMargin else Prefs.DEF_OUT_SIGNAL_MARGIN
         size(signal, width, height, marginDp, 0, density)
+        signal.visibility = View.VISIBLE
         StatusBarIconManager.release(signal)
     }
 
@@ -501,10 +557,10 @@ internal object StatusBarRowManager {
         val density = row.row.resources.displayMetrics.density
 
         val charging = StatusState.sChargingAttached
-        val wattsWanted = charging || a.perfRunning || (!a.glyph && a.hasRingPart(Prefs.PART_RUNNING))
+        val wattsWanted = (charging && (a.perfPower || (!a.glyph && a.hasRingPart(Prefs.PART_POWER)))) ||
+            (!charging && (a.perfRunning || (!a.glyph && a.hasRingPart(Prefs.PART_RUNNING))))
         val wattsInGlyph = a.glyph && a.placed(if (charging) Prefs.PART_POWER else Prefs.PART_RUNNING)
-        val showWatts = (a.perfPower || (!a.glyph && (a.hasRingPart(Prefs.PART_POWER) || a.hasRingPart(Prefs.PART_RUNNING)))) &&
-            wattsWanted && !wattsInGlyph && !StatusState.sChargePowerW.isNaN()
+        val showWatts = wattsWanted && !wattsInGlyph && !StatusState.sChargePowerW.isNaN()
         val powerItem = if (showWatts) {
             ActivePerfItem(Prefs.PERF_ITEM_POWER, String.format(Locale.US, "%.1fW", StatusState.sChargePowerW))
         } else null
@@ -545,7 +601,22 @@ internal object StatusBarRowManager {
             ActivePerfItem(Prefs.PERF_ITEM_FPS, StatusState.sFps.toString())
         } else null
 
-        val activeList = ArrayList<ActivePerfItem>(5)
+        val signalInGlyph = a.glyph && a.placed(Prefs.PART_SIGNAL)
+        val signalWanted = (a.perfSignal || (!a.glyph && a.hasRingPart(Prefs.PART_SIGNAL))) && !signalInGlyph
+        val signalText = if (signalWanted) StatusState.signalText() else null
+        val signalItem = if (!signalText.isNullOrEmpty()) {
+            ActivePerfItem(Prefs.PERF_ITEM_SIGNAL, signalText)
+        } else null
+
+        // The headset battery is a reading like the rest: drawn inside the glyph when
+        // there is one, in the strip otherwise, and stacked in the user's own order.
+        val btLevel = StatusState.sBluetoothBatteryLevel
+        val btWanted = a.perfBt || (!a.glyph && a.hasRingPart(Prefs.PART_BT))
+        val btItem = if (btWanted && !(a.glyph && a.placed(Prefs.PART_BT)) && btLevel in 0..100) {
+            ActivePerfItem(Prefs.PERF_ITEM_BT, "$btLevel%")
+        } else null
+
+        val activeList = ArrayList<ActivePerfItem>(7)
         for (id in a.perfOrder) {
             when (id) {
                 Prefs.PERF_ITEM_POWER -> powerItem?.let { activeList.add(it) }
@@ -553,6 +624,8 @@ internal object StatusBarRowManager {
                 Prefs.PERF_ITEM_CURRENT -> currentItem?.let { activeList.add(it) }
                 Prefs.PERF_ITEM_VOLTAGE -> voltageItem?.let { activeList.add(it) }
                 Prefs.PERF_ITEM_FPS -> fpsItem?.let { activeList.add(it) }
+                Prefs.PERF_ITEM_SIGNAL -> signalItem?.let { activeList.add(it) }
+                Prefs.PERF_ITEM_BT -> btItem?.let { activeList.add(it) }
             }
         }
 
@@ -613,6 +686,7 @@ internal object StatusBarRowManager {
             }
         }
         size(label, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, a.outTypeMarginRight, 0, density)
+        label.visibility = View.VISIBLE
         StatusBarIconManager.release(label)
         return label
     }
@@ -650,6 +724,7 @@ internal object StatusBarRowManager {
             label, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
             a.outTypeMarginRight, a.outTypeMarginLeft, density,
         )
+        label.visibility = View.VISIBLE
         StatusBarIconManager.release(label)
     }
 
@@ -778,6 +853,7 @@ internal object StatusBarRowManager {
     }
 
     fun checkCapsuleAvoidance(rowView: ViewGroup) {
+        if (suppressed) return
         val isCapsule = (Refl.get(sIsCapsuleShownField, rowView) as? Boolean) ?: false
         val isColored = (Refl.get(sIsColoredCapsuleShownField, rowView) as? Boolean) ?: false
         val right = (Refl.get(sCapsuleRightField, rowView) as? Number)?.toInt() ?: 0
@@ -878,8 +954,8 @@ internal object StatusBarRowManager {
      * one repaint when the bar comes back, so nothing stays stale.
      */
     fun invalidateAll() {
-        if (!BarVisibility.shown) {
-            StatusHooks.markRepaintPending()
+        if (!BarVisibility.shown || suppressed) {
+            SystemUiHook.markRepaintPending()
             return
         }
         val a = ModuleConfig.appearance()

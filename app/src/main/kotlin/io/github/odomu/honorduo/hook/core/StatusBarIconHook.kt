@@ -103,7 +103,7 @@ internal object StatusBarIconHook {
             Int::class.javaPrimitiveType!!,
             Resources.Theme::class.java,
         )
-        hooked += StatusHooks.hook(module, mDensity, "honorduo-icon-drawable-density") { chain ->
+        hooked += SystemUiHook.hook(module, mDensity, "honorduo-icon-drawable-density") { chain ->
             val result = chain.proceed()
             val res = chain.thisObject as? Resources ?: return@hook result
             val resId = chain.getArg(0) as? Int ?: return@hook result
@@ -118,7 +118,7 @@ internal object StatusBarIconHook {
             Int::class.javaPrimitiveType!!,
             Resources.Theme::class.java,
         )
-        hooked += StatusHooks.hook(module, mDrawable, "honorduo-icon-drawable") { chain ->
+        hooked += SystemUiHook.hook(module, mDrawable, "honorduo-icon-drawable") { chain ->
             val result = chain.proceed()
             val res = chain.thisObject as? Resources ?: return@hook result
             val resId = chain.getArg(0) as? Int ?: return@hook result
@@ -132,7 +132,7 @@ internal object StatusBarIconHook {
             "getDrawable",
             Int::class.javaPrimitiveType!!,
         )
-        hooked += StatusHooks.hook(module, mTypedArray, "honorduo-icon-ta-drawable") { chain ->
+        hooked += SystemUiHook.hook(module, mTypedArray, "honorduo-icon-ta-drawable") { chain ->
             val result = chain.proceed()
             val ta = chain.thisObject as? TypedArray ?: return@hook result
             val index = chain.getArg(0) as? Int ?: return@hook result

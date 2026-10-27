@@ -10,13 +10,15 @@
  */
 
 package io.github.odomu.honorduo.hook.tracker
-import android.content.Context
 
+import android.content.Context
 import android.hardware.display.DisplayManager
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.Choreographer
+import android.view.Display
+import io.github.odomu.honorduo.hook.statusbar.StatusBarRowManager
 import io.github.odomu.honorduo.model.ModuleConfig
 import io.github.odomu.honorduo.model.Prefs
 import kotlin.math.roundToInt
@@ -62,7 +64,7 @@ internal object FpsTicker {
         try {
             val app = context.applicationContext ?: context
             manager = app.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager
-            displayId = manager?.getDisplay(android.view.Display.DEFAULT_DISPLAY)?.displayId ?: -1
+            displayId = manager?.getDisplay(Display.DEFAULT_DISPLAY)?.displayId ?: -1
             val handler = Handler(Looper.getMainLooper())
             main = handler
             ScreenStateTracker.addListener { screenOn ->
@@ -79,7 +81,7 @@ internal object FpsTicker {
 
     private fun isFpsActive(): Boolean {
         val a = ModuleConfig.appearance()
-        return ScreenStateTracker.isScreenOn && BarVisibility.shown && a.enabled &&
+        return ScreenStateTracker.isScreenOn && BarVisibility.shown && !StatusBarRowManager.suppressed && a.enabled &&
             (a.perfFps || a.placed(Prefs.PART_FPS) || (!a.glyph && a.hasRingPart(Prefs.PART_FPS)))
     }
 

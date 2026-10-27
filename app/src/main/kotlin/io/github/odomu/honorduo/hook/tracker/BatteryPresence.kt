@@ -19,11 +19,13 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import io.github.odomu.honorduo.hook.core.StatusHooks
+import android.os.PowerManager
+import io.github.odomu.honorduo.hook.core.SystemUiHook
 import io.github.odomu.honorduo.model.ModuleConfig
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.StatusState
 import kotlin.math.roundToInt
+
 /**
  * Event-driven battery state for the out-of-ring readouts: charging power and
  * battery temperature.
@@ -48,7 +50,7 @@ internal object BatteryPresence {
     private var watchdogRunning = false
     private var appContext: Context? = null
     private var batteryManager: BatteryManager? = null
-    private var powerManager: android.os.PowerManager? = null
+    private var powerManager: PowerManager? = null
     private val watchdogTick = object : Runnable {
         override fun run() {
             val ctx = appContext ?: return
@@ -110,7 +112,7 @@ internal object BatteryPresence {
             // The threshold may have moved under the latch; recompute before the
             // watchdog's next read, so the next repaint already has the right ink.
             if (StatusState.updateBatteryHot(ModuleConfig.appearance().tempThreshold)) {
-                StatusHooks.invalidateHosts()
+                SystemUiHook.invalidateHosts()
             }
             ensureWatchdog()
         }
@@ -121,7 +123,7 @@ internal object BatteryPresence {
         val app = context.applicationContext ?: context
         appContext = app
         batteryManager = app.getSystemService(BatteryManager::class.java)
-        powerManager = app.getSystemService(android.os.PowerManager::class.java)
+        powerManager = app.getSystemService(PowerManager::class.java)
         ScreenStateTracker.addListener { screenOn ->
                 if (screenOn) {
                     refresh(app)
@@ -145,7 +147,7 @@ internal object BatteryPresence {
 
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(ignored: Context?, intent: Intent?) {
-                if (!BarVisibility.shown || !isWatchdogNeeded()) return
+                if (!ScreenStateTracker.isScreenOn) return
                 refresh(context, intent)
             }
         }
@@ -176,7 +178,7 @@ internal object BatteryPresence {
      * bar returns, which is also when it first needs to be right.
      */
     private fun refresh(context: Context, directIntent: Intent? = null) {
-        if (!BarVisibility.shown || !isWatchdogNeeded()) return
+        if (!ScreenStateTracker.isScreenOn) return
         try {
             val battery = directIntent ?: context.registerReceiver(
                 null,
@@ -227,7 +229,7 @@ internal object BatteryPresence {
      * a user notices as stutter.
      */
     private fun thermalStatus(context: Context): Int = try {
-        powerManager?.currentThermalStatus ?: context.getSystemService(android.os.PowerManager::class.java)
+        powerManager?.currentThermalStatus ?: context.getSystemService(PowerManager::class.java)
             ?.currentThermalStatus
             ?: StatusState.THERMAL_UNKNOWN
     } catch (_: RuntimeException) {
@@ -289,6 +291,6 @@ internal object BatteryPresence {
             beforeTemperature != temperature ||
             beforeCurrent != currentUa ||
             beforeVoltage != voltageMv
-        if (moved || hotMoved) StatusHooks.invalidateHosts()
+        if (moved || hotMoved) SystemUiHook.invalidateHosts()
     }
 }

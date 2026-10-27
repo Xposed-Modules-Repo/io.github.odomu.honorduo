@@ -12,17 +12,20 @@
 package io.github.odomu.honorduo.hook.statusbar
 
 import android.content.Context
+import android.icu.util.ChineseCalendar
 import android.os.Handler
 import android.os.Looper
-import io.github.odomu.honorduo.hook.core.StatusHooks
+import io.github.odomu.honorduo.hook.core.SystemUiHook
 import io.github.odomu.honorduo.hook.tracker.BarVisibility
 import io.github.odomu.honorduo.hook.tracker.ScreenStateTracker.addListener
 import io.github.odomu.honorduo.hook.tracker.ScreenStateTracker.isScreenOn
 import io.github.odomu.honorduo.model.ModuleConfig
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.StatusState
+import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 import android.text.format.DateFormat as AndroidDateFormat
 
@@ -50,9 +53,9 @@ internal object ClockTicker {
 
     private var started = false
 
-    private var timeFormat: java.text.DateFormat? = null
+    private var timeFormat: DateFormat? = null
 
-    private var dateFormat: java.text.DateFormat? = null
+    private var dateFormat: DateFormat? = null
 
     private var weekdayFormat: SimpleDateFormat? = null
     private var is24Hour = true
@@ -72,7 +75,7 @@ internal object ClockTicker {
         timeFormat = AndroidDateFormat.getTimeFormat(app)
         val locales = app.resources.configuration.locales
         val locale = if (locales.size() > 0) locales[0] else Locale.getDefault()
-        dateFormat = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM, locale)
+        dateFormat = DateFormat.getDateInstance(DateFormat.MEDIUM, locale)
         weekdayFormat = SimpleDateFormat("EEEE", locale)
         is24Hour = AndroidDateFormat.is24HourFormat(app)
         addListener { screenOn ->
@@ -94,7 +97,7 @@ internal object ClockTicker {
         main.post(tickRunnable)
     }
 
-    fun formatDate(now: java.util.Date, format: Int): String {
+    fun formatDate(now: Date, format: Int): String {
         return when (format) {
             Prefs.CLOCK_DATE_SLASH_YMD -> synchronized(FMT_SLASH_YMD) { FMT_SLASH_YMD.format(now) }
             Prefs.CLOCK_DATE_ZH_MD -> synchronized(FMT_ZH_MD) { FMT_ZH_MD.format(now) }
@@ -103,7 +106,7 @@ internal object ClockTicker {
         }
     }
 
-    fun formatWeekday(now: java.util.Date, format: Int): String {
+    fun formatWeekday(now: Date, format: Int): String {
         val cal = Calendar.getInstance().apply { time = now }
         val dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
         val idx = (dayOfWeek - 1).coerceIn(0, 6)
@@ -116,13 +119,13 @@ internal object ClockTicker {
         }
     }
 
-    fun formatLunar(now: java.util.Date): String {
+    fun formatLunar(now: Date): String {
         return try {
-            val cal = android.icu.util.ChineseCalendar()
+            val cal = ChineseCalendar()
             cal.time = now
-            val month = cal.get(android.icu.util.ChineseCalendar.MONTH)
-            val day = cal.get(android.icu.util.ChineseCalendar.DAY_OF_MONTH)
-            val isLeap = cal.get(android.icu.util.ChineseCalendar.IS_LEAP_MONTH) == 1
+            val month = cal.get(ChineseCalendar.MONTH)
+            val day = cal.get(ChineseCalendar.DAY_OF_MONTH)
+            val isLeap = cal.get(ChineseCalendar.IS_LEAP_MONTH) == 1
             val months = arrayOf("正月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "冬月", "腊月")
             val days = arrayOf(
                 "初一", "初二", "初三", "初四", "初五", "初六", "初七", "初八", "初九", "初十",
@@ -171,7 +174,7 @@ internal object ClockTicker {
         if (!isScreenOn) return
         var delay = MAX_LATENESS_MS
         try {
-            if (BarVisibility.shown && timeFormat != null && usesClock()) publishNow()
+            if (BarVisibility.shown && !StatusBarRowManager.suppressed && timeFormat != null && usesClock()) publishNow()
             // Recomputed either way: the style can be switched at any moment and
             // the next tick should already be aligned to the boundary.
             delay = millisToNextMinute()
@@ -201,7 +204,7 @@ internal object ClockTicker {
      */
     private fun seconds(): Boolean = ModuleConfig.appearance().clockSeconds
 
-    private fun format(now: java.util.Date): String {
+    private fun format(now: Date): String {
         if (!seconds()) {
             return timeFormat?.format(now).orEmpty()
         }
@@ -233,7 +236,7 @@ internal object ClockTicker {
         val format = timeFormat ?: return
         val time = format.format(now)
         StatusState.sClockText = time
-        StatusHooks.invalidateHosts()
+        SystemUiHook.invalidateHosts()
     }
 
     /** The longest a tick may be late before the boundary is recomputed. */

@@ -22,7 +22,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import io.github.libxposed.api.XposedModule
 import io.github.odomu.honorduo.hook.core.Refl
-import io.github.odomu.honorduo.hook.core.StatusHooks
+import io.github.odomu.honorduo.hook.core.SystemUiHook
 import io.github.odomu.honorduo.hook.tracker.BarVisibility.shown
 import io.github.odomu.honorduo.hook.tracker.ScreenStateTracker.isScreenOn
 import io.github.odomu.honorduo.hook.tracker.WeatherManager
@@ -83,7 +83,7 @@ internal object BarClockManager {
         sOperatorWidth = Refl.field(controllerCls, "mOperatorViewWidth")
         sPaddingLeft = Refl.field(contentsCls, "mCurrentPaddingLeft")
         sPaddingRight = Refl.field(contentsCls, "mCurrentPaddingRight")
-        return StatusHooks.hook(module, method, "honorduo-pivot") { chain ->
+        return SystemUiHook.hook(module, method, "honorduo-pivot") { chain ->
             val first = chain.getArg(0) as? ViewGroup
             val second = chain.getArg(1) as? ViewGroup
             if (first != null && second != null) {
@@ -144,8 +144,8 @@ internal object BarClockManager {
                 }
             }
         }
-        if (!a.enabled || native == null || a.barClockHidden || (a.glyph && a.hidesStatusClock()) ||
-            !a.drawsBarClock()
+        if (!a.enabled || native == null || a.barClockHidden || StatusBarRowManager.suppressed ||
+            (a.glyph && a.hidesStatusClock()) || !a.drawsBarClock()
         ) {
             removeBarClock()
             // The clock's visibility is decided by ownership, never by this branch:

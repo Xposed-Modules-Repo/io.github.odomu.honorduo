@@ -44,7 +44,7 @@ internal object SignalIconHook {
         val hn = Refl.cls("com.android.systemui.utils.HnSignalUtils", cl)
         val hnMethod = Refl.methodNamed(hn, "setIconForView", 2)
         if (hnMethod != null) {
-            n += StatusHooks.hook(module, hnMethod, "honorduo-signal-new") { chain ->
+            n += SystemUiHook.hook(module, hnMethod, "honorduo-signal-new") { chain ->
                 val result = chain.proceed()
                 val view = chain.getArg(0) as? View
                 val id = chain.getArg(1)
@@ -58,7 +58,7 @@ internal object SignalIconHook {
             val hw = Refl.cls("com.android.systemui.utils.HwSignalUtil", cl)
             val hwMethod = Refl.methodNamed(hw, "setIconForView", 2)
             if (hwMethod != null) {
-                n += StatusHooks.hook(module, hwMethod, "honorduo-signal-classic") { chain ->
+                n += SystemUiHook.hook(module, hwMethod, "honorduo-signal-classic") { chain ->
                     val result = chain.proceed()
                     noteIcon(chain.getArg(0) as? View, chain.getArg(1))
                     result
@@ -75,7 +75,7 @@ internal object SignalIconHook {
         val id = (idObj as? Number)?.toInt() ?: return
         if (id > 0) {
             StatusState.noteSignalIcon(view?.resources, id)
-            StatusHooks.invalidateHosts()
+            SystemUiHook.invalidateHosts()
         }
     }
 
@@ -114,7 +114,7 @@ internal object SignalIconHook {
     private fun hookTypeViews(module: XposedModule, cl: ClassLoader): Int {
         val unit = Refl.cls("com.android.systemui.statusbar.SignalUnitNormalView", cl) ?: return 0
         sUnitTypeField = Refl.field(unit, "mMobileType")
-        return StatusHooks.hook(module, Refl.methodNamed(unit, "updateView", 2), "honorduo-unit-type") { chain ->
+        return SystemUiHook.hook(module, Refl.methodNamed(unit, "updateView", 2), "honorduo-unit-type") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             val target = chain.getArg(0)

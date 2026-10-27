@@ -14,6 +14,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
 import android.os.PowerManager
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -66,7 +67,7 @@ internal object ScreenStateTracker {
         }
 
         try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 app.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
             } else {
                 app.registerReceiver(receiver, filter)

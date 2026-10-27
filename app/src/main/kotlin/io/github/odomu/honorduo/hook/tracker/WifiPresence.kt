@@ -23,7 +23,7 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import io.github.odomu.honorduo.hook.core.StatusHooks
+import io.github.odomu.honorduo.hook.core.SystemUiHook
 import io.github.odomu.honorduo.model.StatusState
 
 /**
@@ -158,7 +158,7 @@ internal object WifiPresence {
                     StatusState.sWifiLevel
                 }
             }
-            StatusHooks.invalidateHosts()
+            SystemUiHook.invalidateHosts()
         } catch (_: RuntimeException) {
             // Permissions or ROM differences must never crash SystemUI.
         }
@@ -167,7 +167,7 @@ internal object WifiPresence {
     private fun publish(next: Boolean) {
         connected = next
         if (!next) StatusState.sWifiLevel = -1
-        if (StatusState.setWifiPresent(next)) StatusHooks.invalidateHosts()
+        if (StatusState.setWifiPresent(next)) SystemUiHook.invalidateHosts()
     }
 
     /** Levels the glyph draws: five states, 0..4. */
