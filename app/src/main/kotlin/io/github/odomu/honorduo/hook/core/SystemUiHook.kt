@@ -23,10 +23,13 @@ import io.github.odomu.honorduo.hook.tracker.BarVisibility
 import io.github.odomu.honorduo.hook.tracker.BatteryPresence
 import io.github.odomu.honorduo.hook.tracker.FpsTicker
 import io.github.odomu.honorduo.hook.tracker.ScreenStateTracker
+import io.github.odomu.honorduo.hook.tracker.WeatherManager
+import io.github.odomu.honorduo.log.LogManager
 import io.github.odomu.honorduo.model.ModuleConfig
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.StatusState
 import java.lang.reflect.Method
+
 /**
  * Main Xposed hook coordinator and lifecycle dispatcher for MagicOS SystemUI.
  *
@@ -37,7 +40,7 @@ import java.lang.reflect.Method
  * - [BarClockManager]: status-bar clock styling, dual-row date/weekday stacking, and positioning.
  * - [StatusBarRowManager]: container management, glyph views, capsule avoidance, and anti-burn-in.
  */
-internal object StatusHooks {
+internal object SystemUiHook {
 
 
     const val LOG_INFO = 4
@@ -61,8 +64,8 @@ internal object StatusHooks {
         hooked += SignalIconHook.install(module, cl)
         hooked += BarClockManager.hookPivotXY(module, cl)
         hooked += StatusBarIconHook.install(module, cl)
-        hooked += ShadeHook.install(module, cl)
-
+        hooked += NotifCenterHook.install(module, cl)
+        hooked += ControlCenterHook.install(module, cl)
         log(
             module,
             "HonorDuo installed, hooks=$hooked enabled=${ModuleConfig.get().enabled}",
@@ -87,9 +90,12 @@ internal object StatusHooks {
             a.hideAlarmIcon,
             a.hideBluetoothIcon,
         )
-        ShadeHook.onConfigChanged(a)
+        NotifCenterHook.onConfigChanged(a)
+        ControlCenterHook.onConfigChanged(a)
+        SystemBarHook.updateEffectiveScopeState()
         FpsTicker.onConfigChanged()
         BatteryPresence.onConfigChanged()
+        StatusState.appContext()?.let { WeatherManager.onConfigChanged(it) }
     }
 
     fun ensureScreenStateTracker(context: Context) {
@@ -178,24 +184,39 @@ internal object StatusHooks {
             0
         }
     }
-
-
-    fun log(module: XposedModule, msg: String) {
-        try {
-            module.log(LOG_INFO, Prefs.TAG, msg)
-        } catch (ignored: Throwable) {
-            // logging must never break hook installation.
+    fun hook(
+        module: XposedModule,
+        c: java.lang.reflect.Constructor<*>?,
+        id: String,
+        hooker: XposedInterface.Hooker,
+    ): Int {
+        if (c == null) {
+            if (debugLog()) {
+                log(module, "skip $id: constructor not found")
+            }
+            return 0
+        }
+        return try {
+            module.hook(c).setId(id).intercept(hooker)
+            1
+        } catch (t: Throwable) {
+            log(module, "skip $id: $t")
+            0
         }
     }
 
-    /** Logs through the handle captured at install time. */
+
+    fun log(module: XposedModule, msg: String) {
+        LogManager.i(Prefs.TAG, msg)
+    }
+
     fun log(priority: Int, msg: String) {
-        val module = sModule ?: return
-        try {
-            module.log(priority, Prefs.TAG, msg)
-        } catch (ignored: Throwable) {
-            // logging must never break a config change.
+        val level = when (priority) {
+            LOG_ERROR -> "E"
+            LOG_WARN -> "W"
+            else -> "I"
         }
+        LogManager.log(level, Prefs.TAG, msg)
     }
 
     /** True when the user asked for verbose logging. */
