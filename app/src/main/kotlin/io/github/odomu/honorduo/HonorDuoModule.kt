@@ -13,7 +13,8 @@ package io.github.odomu.honorduo
 
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
-import io.github.odomu.honorduo.hook.core.StatusHooks
+import io.github.odomu.honorduo.hook.core.SystemUiHook
+import io.github.odomu.honorduo.log.LogManager
 import io.github.odomu.honorduo.model.Prefs
 
 /**
@@ -29,17 +30,14 @@ class HonorDuoModule : XposedModule() {
     override fun onPackageReady(param: XposedModuleInterface.PackageReadyParam) {
         if (param.packageName != Prefs.SYSTEMUI_PACKAGE) return
         try {
-            StatusHooks.install(this, param.classLoader)
+            SystemUiHook.install(this, param.classLoader)
         } catch (t: Throwable) {
             log(5, "install failed: $t")
         }
     }
 
     private fun log(priority: Int, message: String) {
-        try {
-            log(priority, Prefs.TAG, message)
-        } catch (_: Throwable) {
-            // Logging must never break the module.
-        }
+        val level = if (priority >= 6) "E" else if (priority == 5) "W" else "I"
+        LogManager.log(level, Prefs.TAG, message)
     }
 }

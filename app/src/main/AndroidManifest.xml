@@ -89,6 +89,12 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Independent cross-process log provider (root-free). -->
+        <provider
+            android:name=".log.AppLogProvider"
+            android:authorities="io.github.odomu.honorduo.log"
+            android:exported="false" />
     </application>
 
 </manifest>

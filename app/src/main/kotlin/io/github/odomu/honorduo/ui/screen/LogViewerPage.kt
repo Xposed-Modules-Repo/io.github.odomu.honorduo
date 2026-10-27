@@ -5,6 +5,7 @@
 
 package io.github.odomu.honorduo.ui.screen
 
+import android.content.ClipData
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -39,6 +40,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -67,6 +69,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.FileProvider
 import io.github.odomu.honorduo.R
+import io.github.odomu.honorduo.log.LogManager
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.ui.manager.SettingsRepository
 import kotlinx.coroutines.Dispatchers
@@ -96,93 +99,54 @@ import java.util.Locale
 import kotlin.time.Duration.Companion.milliseconds
 
 private const val MAX_LOG_LINES = 2000
+private val UNIFIED_LOG_REGEX =
+    Regex("""^\[(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+)\]\s*\[([VDIWE])\]\s*\[([^\]]+)\]\s*(.*)$""")
 private val LOG_LEVEL_REGEX = Regex("""\s([VDIWE])/LSPosedFramework""")
 private val LOG_TIME_REGEX = Regex("""\[\s*\d{4}-(\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})\.\d+""")
 private val LOG_PID_REGEX = Regex("""\s+(\d+:\s*\d+):""")
 private val LOG_HOST_REGEX = Regex("""\((com\.[^)]+)\)""")
 private val LOG_MODULE_REGEX = Regex("""\[([^,\s]+),([^,\s]+),.*?\]""")
-private const val MODULE_LOG_GLOB = "/data/adb/lspd/log/modules_*.log"
-private fun isNoiseLog(line: String): Boolean {
-    val isHonorDuo = line.contains("honorduo", ignoreCase = true) ||
-        line.contains("io.github.odomu.honorduo", ignoreCase = true)
-    if (!isHonorDuo) return true
-    return line.startsWith("grep:") || line.startsWith("==>") || line.startsWith("tail:")
-}
+
+private fun isNoiseLog(line: String): Boolean =
+    line.startsWith("grep:") || line.startsWith("==>") || line.startsWith("tail:")
 
 /** Whether a raw line passes the level tab and the search box. */
 private fun String.matchesFilter(level: Int, query: String): Boolean {
     if (isNoiseLog(this)) return false
     val passesLevel = when (level) {
-        Prefs.LOG_LEVEL_ERROR -> contains(" E/LSPosed") || contains(" ERROR ") || contains(" E/")
-        Prefs.LOG_LEVEL_WARN -> contains(" E/LSPosed") || contains(" W/LSPosed") || contains(" ERROR ") || contains(" WARN ")
-        Prefs.LOG_LEVEL_INFO -> contains(" E/LSPosed") || contains(" W/LSPosed") || contains(" I/LSPosed") || !contains(" D/LSPosed")
+        Prefs.LOG_LEVEL_ERROR -> contains("] [E] ") || contains(" E/LSPosed") || contains(" ERROR ") || contains(
+            " E/"
+        )
+
+        Prefs.LOG_LEVEL_WARN -> contains("] [E] ") || contains("] [W] ") || contains(" E/LSPosed") || contains(
+            " W/LSPosed"
+        ) || contains(" ERROR ") || contains(" WARN ")
+
+        Prefs.LOG_LEVEL_INFO -> contains("] [E] ") || contains("] [W] ") || contains("] [I] ") || contains(
+            " E/LSPosed"
+        ) || contains(" W/LSPosed") || contains(" I/LSPosed") || (!contains("] [D] ") && !contains(" D/LSPosed"))
+
         else -> true
     }
     return passesLevel && (query.isBlank() || contains(query, ignoreCase = true))
 }
-/** Inspects current byte length of the newest module log file. */
-private fun getModuleLogSize(): Long = runCatching {
-    runSuCommand("stat -c %s $MODULE_LOG_GLOB 2>/dev/null")
-        .firstOrNull()?.trim()?.toLongOrNull() ?: 0L
-}.getOrDefault(0L)
 
-/** Reads the latest snapshot from the log tail, returning lines and current size. */
-private fun readSnapshot(all: Boolean): LogReadResult = runCatching {
-    val size = getModuleLogSize()
-    val cmd = "tail -n $MAX_LOG_LINES $MODULE_LOG_GLOB 2>/dev/null | grep -ih 'honorduo'"
-    val rawLines = runSuCommand(cmd)
-    val lines = rawLines
-        .map(String::trim)
-        .filter(String::isNotEmpty)
-        .filterNot(::isNoiseLog)
-    LogReadResult(lines, size)
-}.getOrDefault(LogReadResult(emptyList(), 0L))
-
-/**
- * Incrementally reads only bytes written after [afterOffset].
- * If file shrank (rotated/cleared), returns a fresh full snapshot.
- */
-private fun readIncremental(all: Boolean, afterOffset: Long): LogReadResult {
-    val currentSize = getModuleLogSize()
-    if (currentSize <= 0L) return LogReadResult(emptyList(), 0L)
-    if (currentSize < afterOffset) {
-        // Log rotated or truncated, resync snapshot
-        return readSnapshot(all)
-    }
-    if (currentSize == afterOffset) {
-        // Nothing new, zero parsing cost
-        return LogReadResult(emptyList(), currentSize)
-    }
-    return runCatching {
-        val startByte = afterOffset + 1L
-        val cmd = "tail -c +$startByte $MODULE_LOG_GLOB 2>/dev/null | grep -ih 'honorduo'"
-        val rawLines = runSuCommand(cmd)
-        val lines = rawLines
-            .map(String::trim)
-            .filter(String::isNotEmpty)
-        .filterNot(::isNoiseLog)
-        LogReadResult(lines, currentSize)
-    }.getOrDefault(LogReadResult(emptyList(), currentSize))
-}
-
-/** Executes a command in root shell via stdin without parameter escaping issues. */
-private fun runSuCommand(command: String): List<String> = try {
-    val process = ProcessBuilder("su").redirectErrorStream(true).start()
-    process.outputStream.bufferedWriter(Charsets.UTF_8).use {
-        it.write(command)
-        it.write("\nexit\n")
-        it.flush()
-    }
-    val lines = process.inputStream.bufferedReader(Charsets.UTF_8).readLines()
-    process.waitFor()
-    lines
-} catch (_: Throwable) {
-    emptyList()
-}
 private data class LogReadResult(
     val lines: List<String>,
     val newSize: Long,
 )
+
+private fun readSnapshot(context: android.content.Context): LogReadResult = runCatching {
+    val (lines, size) = LogManager.readSnapshot(context, MAX_LOG_LINES)
+    LogReadResult(lines, size)
+}.getOrDefault(LogReadResult(emptyList(), 0L))
+
+private fun readIncremental(context: android.content.Context, afterOffset: Long): LogReadResult =
+    runCatching {
+        val (lines, size) = LogManager.readIncremental(context, afterOffset, MAX_LOG_LINES)
+        LogReadResult(lines, size)
+    }.getOrDefault(LogReadResult(emptyList(), afterOffset))
+
 /**
  * Log viewer page:
  * - TopAppBar with quick action buttons: Toggle scroll (top/bottom) and Export log
@@ -231,7 +195,7 @@ internal fun LogViewerPage(
         if (logs.isEmpty()) {
             isLoading = true
             isTruncated = false
-            val snapshot = withContext<LogReadResult>(Dispatchers.IO) { readSnapshot(all = true) }
+            val snapshot = withContext<LogReadResult>(Dispatchers.IO) { readSnapshot(context) }
             lastOffset = snapshot.newSize
             logs.addAll(snapshot.lines)
             isLoading = false
@@ -239,19 +203,27 @@ internal fun LogViewerPage(
 
         while (isActive) {
             delay(1000.milliseconds)
-            val delta = withContext<LogReadResult>(Dispatchers.IO) { readIncremental(all = true, lastOffset) }
-            lastOffset = delta.newSize
-            if (delta.lines.isNotEmpty()) {
+            val delta =
+                withContext<LogReadResult>(Dispatchers.IO) { readIncremental(context, lastOffset) }
+            if (delta.newSize < lastOffset) {
+                // Log was cleared or truncated
+                logs.clear()
                 logs.addAll(delta.lines)
+                lastOffset = delta.newSize
+            } else if (delta.lines.isNotEmpty()) {
+                logs.addAll(delta.lines)
+                lastOffset = delta.newSize
                 if (logs.size > MAX_LOG_LINES) {
                     logs.removeRange(0, logs.size - MAX_LOG_LINES)
                     isTruncated = true
                 }
+            } else {
+                lastOffset = delta.newSize
             }
         }
     }
     val filteredLogs by remember {
-        androidx.compose.runtime.derivedStateOf {
+        derivedStateOf {
             logs.filter { it.matchesFilter(currentLevel, searchQuery) }
         }
     }
@@ -292,8 +264,12 @@ internal fun LogViewerPage(
                         onClick = {
                             scope.launch {
                                 val file = withContext(Dispatchers.IO) {
-                                    val directory = File(context.cacheDir, "logs").apply { mkdirs() }
-                                    val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.ROOT).format(Date())
+                                    val directory =
+                                        File(context.cacheDir, "logs").apply { mkdirs() }
+                                    val stamp = SimpleDateFormat(
+                                        "yyyyMMdd_HHmmss",
+                                        Locale.ROOT
+                                    ).format(Date())
                                     File(directory, "honorduo_$stamp.txt").apply {
                                         writeText(filteredLogs.joinToString("\n"), Charsets.UTF_8)
                                     }
@@ -307,12 +283,17 @@ internal fun LogViewerPage(
                                     type = "text/plain"
                                     putExtra(Intent.EXTRA_STREAM, uri)
                                     putExtra(Intent.EXTRA_TITLE, file.name)
-                                    clipData = android.content.ClipData.newUri(
+                                    clipData = ClipData.newUri(
                                         context.contentResolver, file.name, uri,
                                     )
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
-                                context.startActivity(Intent.createChooser(intent, contextGetStringExport))
+                                context.startActivity(
+                                    Intent.createChooser(
+                                        intent,
+                                        contextGetStringExport
+                                    )
+                                )
                             }
                         },
                     ) {
@@ -342,7 +323,9 @@ internal fun LogViewerPage(
                                 onScrollTop = { scope.launch { listState.animateScrollToItem(0) } },
                                 onScrollBottom = {
                                     scope.launch {
-                                        if (filteredLogs.isNotEmpty()) listState.animateScrollToItem(filteredLogs.lastIndex)
+                                        if (filteredLogs.isNotEmpty()) listState.animateScrollToItem(
+                                            filteredLogs.lastIndex
+                                        )
                                     }
                                 },
                                 onClearNow = { showClearConfirmation = true },
@@ -359,13 +342,14 @@ internal fun LogViewerPage(
             onDismiss = { showClearConfirmation = false },
             onConfirm = {
                 showClearConfirmation = false
-                // Like Cirno: clearing resets the view window by moving offset to current size,
-                // without destroying the framework's shared log on disk.
                 scope.launch(Dispatchers.IO) {
-                    lastOffset = getModuleLogSize()
+                    LogManager.clearLogs(context)
+                    lastOffset = 0L
+                    withContext(Dispatchers.Main) {
+                        logs.clear()
+                        initialScrollDone = false
+                    }
                 }
-                logs.clear()
-                initialScrollDone = false
             },
         )
         Column(
@@ -407,7 +391,9 @@ internal fun LogViewerPage(
                                 Text(
                                     text = "搜索日志内容…",
                                     fontSize = 14.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.6f),
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(
+                                        alpha = 0.6f
+                                    ),
                                 )
                             }
                             BasicTextField(
@@ -486,38 +472,38 @@ internal fun LogViewerPage(
                         modifier = Modifier.weight(1f),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                    items(levelTabs) { (title, level) ->
-                        val isSelected = currentLevel == level
-                        val activeBg = if (isSelected) {
-                            MiuixTheme.colorScheme.primary
-                        } else {
-                            MiuixTheme.colorScheme.surfaceContainerHigh
-                        }
-                        val activeTextColor = if (isSelected) {
-                            MiuixTheme.colorScheme.onPrimary
-                        } else {
-                            MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        }
+                        items(levelTabs) { (title, level) ->
+                            val isSelected = currentLevel == level
+                            val activeBg = if (isSelected) {
+                                MiuixTheme.colorScheme.primary
+                            } else {
+                                MiuixTheme.colorScheme.surfaceContainerHigh
+                            }
+                            val activeTextColor = if (isSelected) {
+                                MiuixTheme.colorScheme.onPrimary
+                            } else {
+                                MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            }
 
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(activeBg)
-                                .clickable {
-                                    currentLevel = level
-                                    repository.setLogFilter(level)
-                                }
-                                .padding(horizontal = 14.dp, vertical = 6.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = title,
-                                fontSize = 13.sp,
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = activeTextColor,
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(activeBg)
+                                    .clickable {
+                                        currentLevel = level
+                                        repository.setLogFilter(level)
+                                    }
+                                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = title,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = activeTextColor,
+                                )
+                            }
                         }
-                    }
                     }
                 }
             }
@@ -578,24 +564,37 @@ internal fun LogViewerPage(
                                         lineHeight = 16.sp,
                                         softWrap = wrapText,
                                         color = when {
-                                            line.contains(" E/LSPosed") || line.contains("ERROR") -> Color(0xFFEF5350)
-                                            line.contains(" W/LSPosed") || line.contains("WARN") -> Color(0xFFFFA726)
-                                            line.contains(" D/LSPosed") || line.contains("DEBUG") -> Color(0xFF66BB6A)
+                                            line.contains(" E/LSPosed") || line.contains("ERROR") -> Color(
+                                                0xFFEF5350
+                                            )
+
+                                            line.contains(" W/LSPosed") || line.contains("WARN") -> Color(
+                                                0xFFFFA726
+                                            )
+
+                                            line.contains(" D/LSPosed") || line.contains("DEBUG") -> Color(
+                                                0xFF66BB6A
+                                            )
+
                                             else -> MiuixTheme.colorScheme.onSurface
                                         },
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .then(if (!wrapText) Modifier.horizontalScroll(scrollState) else Modifier)
+                                            .then(
+                                                if (!wrapText) Modifier.horizontalScroll(
+                                                    scrollState
+                                                ) else Modifier
+                                            )
                                             .padding(vertical = 1.dp),
                                     )
                                 }
                             }
                         }
+                    }
                 }
             }
         }
     }
-}
 }
 
 @Composable
@@ -606,7 +605,10 @@ private fun ClearLogsConfirmation(show: Boolean, onDismiss: () -> Unit, onConfir
         summary = stringResource(R.string.log_clear_confirm),
         onDismissRequest = onDismiss,
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             TextButton(
                 text = stringResource(R.string.cancel),
                 onClick = onDismiss,
@@ -654,7 +656,7 @@ private fun LogMoreMenuPopup(
             Column(modifier = Modifier.padding(vertical = 6.dp)) {
                 MenuEntry(
                     title = if (isParsedView) stringResource(R.string.log_menu_raw_view)
-                            else stringResource(R.string.log_menu_parsed_view),
+                    else stringResource(R.string.log_menu_parsed_view),
                     onClick = {
                         onDismiss()
                         onToggleParsedView()
@@ -818,6 +820,29 @@ private fun ParsedLogCard(parsed: ParsedLspLog) {
 }
 
 private fun parseLspLine(raw: String): ParsedLspLog {
+    val unifiedMatch = UNIFIED_LOG_REGEX.find(raw)
+    if (unifiedMatch != null) {
+        val fullTime = unifiedMatch.groupValues[1]
+        val time = if (fullTime.length >= 19) fullTime.substring(5, 19) else fullTime
+        val levelChar = unifiedMatch.groupValues[2]
+        val tag = unifiedMatch.groupValues[3]
+        val msg = unifiedMatch.groupValues[4]
+        val (levelLabel, levelColor) = when (levelChar) {
+            "E" -> "错误" to Color(0xFFEF5350)
+            "W" -> "警告" to Color(0xFFFFA726)
+            "D", "V" -> "调试" to Color(0xFF66BB6A)
+            else -> "信息" to Color(0xFF42A5F5)
+        }
+        return ParsedLspLog(
+            levelLabel = levelLabel,
+            levelColor = levelColor,
+            time = time,
+            header = tag,
+            subHeader = null,
+            message = msg,
+        )
+    }
+
     val levelChar = LOG_LEVEL_REGEX.find(raw)?.groupValues?.get(1) ?: "I"
     val (levelLabel, levelColor) = when (levelChar) {
         "E" -> "错误" to Color(0xFFEF5350)
@@ -837,7 +862,7 @@ private fun parseLspLine(raw: String): ParsedLspLog {
         moduleName != null && pidMatch.isNotEmpty() -> "$moduleName ($pidMatch)"
         moduleName != null -> moduleName
         pidMatch.isNotEmpty() -> "System ($pidMatch)"
-        else -> "LSPosed"
+        else -> "HonorDuo"
     }
     val subHeader = if (modulePkg != null && hostMatch != null) {
         "$modulePkg → $hostMatch"
