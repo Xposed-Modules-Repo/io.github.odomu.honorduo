@@ -23,6 +23,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -173,7 +174,7 @@ internal fun AmbientMeshBackground(
 ) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
 
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val surface = MiuixTheme.colorScheme.surface
     val painter = remember(context) { AmbientMeshShaderPainter(context) }
 

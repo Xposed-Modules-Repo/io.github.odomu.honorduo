@@ -719,7 +719,9 @@ class ModuleSettings {
             s.shadeWeather = p.getBoolean(Prefs.KEY_SHADE_WEATHER, Prefs.DEF_SHADE_WEATHER)
             s.shadeWeatherPosition = p.getInt(Prefs.KEY_SHADE_WEATHER_POSITION, Prefs.DEF_SHADE_WEATHER_POSITION)
             s.shadeWeatherStyle = p.getInt(Prefs.KEY_SHADE_WEATHER_STYLE, Prefs.DEF_SHADE_WEATHER_STYLE)
-            s.effectiveScope = p.getInt(Prefs.KEY_EFFECTIVE_SCOPE, Prefs.DEF_EFFECTIVE_SCOPE)
+            s.effectiveScope = Prefs.normalizeScope(
+                p.getInt(Prefs.KEY_EFFECTIVE_SCOPE, Prefs.DEF_EFFECTIVE_SCOPE),
+            )
             s.capsuleNoScale = p.getBoolean(Prefs.KEY_CAPSULE_NO_SCALE, Prefs.DEF_CAPSULE_NO_SCALE)
             s.hideHdVolte = p.getBoolean(Prefs.KEY_HIDE_HD_VOLTE, Prefs.DEF_HIDE_HD_VOLTE)
             s.hideHdVowifi = p.getBoolean(Prefs.KEY_HIDE_HD_VOWIFI, Prefs.DEF_HIDE_HD_VOWIFI)
@@ -1048,7 +1050,9 @@ class ModuleSettings {
             s.shadeWeatherStyle = bundle.getInt(Prefs.KEY_SHADE_WEATHER_STYLE, Prefs.DEF_SHADE_WEATHER_STYLE)
             s.shadeWeatherPosition = bundle.getInt(Prefs.KEY_SHADE_WEATHER_POSITION, Prefs.DEF_SHADE_WEATHER_POSITION)
             s.shadeWeatherClick = bundle.getInt(Prefs.KEY_SHADE_WEATHER_CLICK, Prefs.DEF_SHADE_WEATHER_CLICK)
-            s.effectiveScope = bundle.getInt(Prefs.KEY_EFFECTIVE_SCOPE, Prefs.DEF_EFFECTIVE_SCOPE)
+            s.effectiveScope = Prefs.normalizeScope(
+                bundle.getInt(Prefs.KEY_EFFECTIVE_SCOPE, Prefs.DEF_EFFECTIVE_SCOPE),
+            )
             s.capsuleNoScale = bundle.getBoolean(Prefs.KEY_CAPSULE_NO_SCALE, Prefs.DEF_CAPSULE_NO_SCALE)
             s.hideHdVolte = bundle.getBoolean(Prefs.KEY_HIDE_HD_VOLTE, Prefs.DEF_HIDE_HD_VOLTE)
             s.hideHdVowifi = bundle.getBoolean(Prefs.KEY_HIDE_HD_VOWIFI, Prefs.DEF_HIDE_HD_VOWIFI)

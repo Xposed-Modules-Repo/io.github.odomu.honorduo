@@ -93,7 +93,7 @@ internal class GlyphView(context: Context) : View(context) {
         if (!ModuleConfig.get().enabled || width <= 0 || height <= 0) return
         // Read the live state on every frame: battery, signal and ink all change
         // without anybody telling this view, and every one of those changes
-        // invalidates it through StatusHooks.
+        // invalidates it through SystemUiHook.
         state.refresh()
         // The glyph owns this view's whole box, and a plain View is not cleared
         // for it between frames: the arcs' track and the unlit dots are

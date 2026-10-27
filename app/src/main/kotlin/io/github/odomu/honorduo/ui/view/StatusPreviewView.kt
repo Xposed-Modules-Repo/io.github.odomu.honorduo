@@ -10,8 +10,8 @@
  */
 
 package io.github.odomu.honorduo.ui.view
-import android.content.Context
 
+import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
@@ -28,6 +28,7 @@ import io.github.odomu.honorduo.model.StatusState
 import io.github.odomu.honorduo.ui.render.IconGeometry
 import io.github.odomu.honorduo.ui.render.IconRenderer
 import io.github.odomu.honorduo.ui.render.IconZones
+import java.util.Calendar
 
 /**
  * Renders the status glyph for the settings app's live preview.
@@ -95,7 +96,7 @@ class StatusPreviewView @JvmOverloads constructor(
         settings = value ?: ModuleSettings.defaults()
         StatusState.sClockText = "00:01"
         StatusState.sClockBarText = if (settings.clockSeconds) "00:01:01" else "00:01"
-        val today = java.util.Calendar.getInstance().time
+        val today = Calendar.getInstance().time
         StatusState.sClockDate = ClockTicker.formatDate(today, settings.clockDateFormat)
         StatusState.sClockWeekday = ClockTicker.formatWeekday(today, settings.clockWeekdayFormat)
         StatusState.sClockLunar = ClockTicker.formatLunar(today)

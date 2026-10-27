@@ -639,7 +639,7 @@ private fun SettingsPage(
     )
     val restartTitle = stringResource(R.string.restart_title)
     val surfaceColor = MiuixTheme.colorScheme.surface
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val progressiveBlurShader = remember(context) { loadProgressiveBlurShader(context) }
     val barBlurSupported = isRuntimeShaderSupported()
     val pageBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()

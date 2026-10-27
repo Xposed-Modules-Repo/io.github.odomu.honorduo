@@ -324,6 +324,11 @@ internal object SystemBarHook {
      *
      * One predicate for the three exclusions, so a panel closing and the lockscreen
      * going away cannot each clear the other's state.
+     *
+     * The scopes are not independent and are not OR-ed blindly: [ScopeTracker] already
+     * resolves the one overlap - a panel expanded over the lockscreen - in favour of the
+     * panel, so "show in the notification panel" keeps working there instead of being
+     * cancelled by the lockscreen row.
      */
     fun updateEffectiveScopeState() {
         val a = ModuleConfig.appearance()

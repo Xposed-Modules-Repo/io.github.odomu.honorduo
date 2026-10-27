@@ -606,7 +606,15 @@ internal fun ContentControlRow(
                 R.string.scope_option_shade,
                 R.string.scope_option_keyguard,
             ),
+            // The row's own value line uses the short labels: three full names plus the
+            // separators wrap, and the list in the popup is where the full ones belong.
+            shortOptions = listOf(
+                R.string.scope_short_cc,
+                R.string.scope_short_shade,
+                R.string.scope_short_keyguard,
+            ),
             dependencies = listOf(settings.enabled to R.string.master_title),
+            minimumSelected = 1,
         ) { next -> update { it.setEffectiveScope(scopeMaskOf(next)) } }
 
     }
@@ -1023,24 +1031,30 @@ private fun scopeMaskOf(active: Set<Int>): Int {
 
 /**
  * Miuix-style multi-select dropdown using GlassMultiDropdownPreference with Checkbox on the left.
+ *
+ * @param minimumSelected how many entries must stay checked. The scope row is the one
+ *   caller that sets it: "nothing checked" would mean the module shows nowhere, which is
+ *   not a place the user can pick a scope for and reads as an error rather than a choice.
+ *   So the last checked entry cannot be cleared, and the row always states a scope.
  */
 @Composable
 private fun ContentMultiChoice(
     selected: Set<Int>,
     title: Int,
     options: List<Int>,
+    shortOptions: List<Int>,
     dependencies: List<Pair<Boolean, Int>>,
+    minimumSelected: Int = 0,
     onChange: (Set<Int>) -> Unit,
 ) {
     ContentGate(dependencies) {
         val labels = options.map { stringResource(it) }
-        val summary = if (selected.isEmpty()) {
-            stringResource(R.string.scope_none)
-        } else if (selected.size == options.size) {
+        val shortLabels = shortOptions.map { stringResource(it) }
+        val summary = if (selected.size >= options.size) {
             stringResource(R.string.scope_all)
         } else {
             options.indices.filter { it in selected }.joinToString(stringResource(R.string.scope_list_separator)) {
-                labels[it]
+                shortLabels.getOrElse(it) { labels[it] }
             }
         }
         GlassMultiDropdownPreference(
@@ -1050,7 +1064,7 @@ private fun ContentMultiChoice(
             onToggleIndex = { index ->
                 val next = selected.toMutableSet()
                 if (!next.remove(index)) next.add(index)
-                onChange(next)
+                if (next.size >= minimumSelected) onChange(next)
             },
             summary = summary,
             insideMargin = SettingsItemMargin,

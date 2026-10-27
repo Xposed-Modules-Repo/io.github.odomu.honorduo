@@ -29,6 +29,16 @@ import io.github.odomu.honorduo.model.ModuleSettings
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.StatusAppearance
 import io.github.odomu.honorduo.model.StatusState
+import io.github.odomu.honorduo.ui.render.IconRenderer.FLOW_LIFT
+import io.github.odomu.honorduo.ui.render.IconRenderer.RING_POINT
+import io.github.odomu.honorduo.ui.render.IconRenderer.TEXT
+import io.github.odomu.honorduo.ui.render.IconRenderer.animPhase
+import io.github.odomu.honorduo.ui.render.IconRenderer.batteryRing
+import io.github.odomu.honorduo.ui.render.IconRenderer.boltMoving
+import io.github.odomu.honorduo.ui.render.IconRenderer.drawType
+import io.github.odomu.honorduo.ui.render.IconRenderer.fitSize
+import io.github.odomu.honorduo.ui.render.IconRenderer.quickCharge
+import io.github.odomu.honorduo.ui.render.IconRenderer.textInkHeight
 import io.github.odomu.honorduo.ui.view.GlyphView
 import java.util.Locale
 import kotlin.math.PI
@@ -442,7 +452,14 @@ object IconRenderer {
         mobileLevel: Int, levels: IntArray?, type: String?, role: Int, fg: Int,
         a: StatusAppearance, r: StatusAppearance.Ring,
     ) {
-        drawBattery(c, level, role, fg, a, r.gapStart(), r.gapEnd(), r.sweep(), r.arcStart(), charging)
+        val hasLeftDots = r.hasLeftDots
+        val hasRightDots = r.hasRightDots
+        val hasLeftWifi = r.hasLeftWifi
+        val hasRightWifi = r.hasRightWifi
+        drawBattery(
+            c, level, role, fg, a, r.gapStart(), r.gapEnd(), r.sweep(), r.arcStart(), charging,
+            openLeft = hasLeftDots, openRight = hasRightDots,
+        )
         for (z in 0 until 3) {
             val chain = a.ringZones.getOrNull(z)
             val hasDotInZone = chain != null && chain.any { p ->
@@ -481,20 +498,45 @@ object IconRenderer {
                     c.translate(-IconGeometry.BOLT_CX_REF, -IconGeometry.BOLT_INK_CY)
                     drawBoltShape(c, if (quickCharging) IconGeometry.QUICK_CHARGE else fg, a)
                 } else if (hasDotInZone || part == Prefs.PART_MOBILE || part == Prefs.PART_SIM_1 || part == Prefs.PART_SIM_2) {
+                    val btLevel = StatusState.sBluetoothBatteryLevel
+                    val btActive = z == 2 && a.btBatteryMode > 0 && btLevel in 0..100
+                    if (btActive) {
+                        if (a.btBatteryMode == Prefs.BT_BATTERY_DIGIT) {
+                            TEXT.textSize = 22f
+                            TEXT.typeface = Typeface.DEFAULT_BOLD
+                            TEXT.textAlign = Paint.Align.CENTER
+                            TEXT.color = fg
+                            c.drawText(btLevel.toString(), 0f, 6f, TEXT)
+                        } else {
+                            val rho = IconGeometry.B_R
+                            ARC.set(-rho, -rho, rho, rho)
+                            STROKE.style = Paint.Style.STROKE
+                            STROKE.strokeWidth = 6f
+                            STROKE.strokeCap = Paint.Cap.ROUND
+                            STROKE.color = withAlpha(fg, a.trackAlpha)
+                            val startDeg = 65f
+                            val sweepDeg = 50f
+                            c.drawArc(ARC, startDeg, sweepDeg, false, STROKE)
+                            if (btLevel > 0) {
+                                STROKE.color = fg
+                                val progressDeg = sweepDeg * (btLevel / 100f)
+                                c.drawArc(ARC, startDeg + sweepDeg - progressDeg, progressDeg, false, STROKE)
+                            }
+                        }
+                    } else {
                     val columns = a.signalColumns.coerceIn(4, 5)
                     val baseDotR = IconGeometry.arcRowDotR(z, a.ringStroke, width, a.dotScaleFactor())
 
-                    val dataSlot = StatusState.sDataSlot
-                    val dataLevel = if (levels != null && dataSlot in levels.indices && levels[dataSlot] >= 0) levels[dataSlot] else mobileLevel
-                    val sim1Level = if (levels != null && levels.isNotEmpty() && levels[0] >= 0) levels[0] else mobileLevel
-                    val sim2Level = if (levels != null && levels.size > 1 && levels[1] >= 0) levels[1] else mobileLevel
+                    val dataLevel = StatusState.dataSimSignalLevel()
+                    val sim1Level = if (levels != null && levels.isNotEmpty() && levels[0] >= 0) levels[0] else dataLevel
+                    val sim2Level = if (levels != null && levels.size > 1 && levels[1] >= 0) levels[1] else dataLevel
 
                     val isStackedDual = !a.dataSimOnly && chain != null && (
                         (chain.contains(Prefs.PART_SIM_1) && chain.contains(Prefs.PART_SIM_2)) ||
                         (chain.contains(Prefs.PART_MOBILE) && a.dualSim && (levels?.size ?: 0) >= 2)
                     )
 
-                    val ringStroke = a.ringStroke * 0.68f
+                    val ringStroke = a.ringStroke * IconGeometry.RING_STROKE_RATIO
                     val rhoMid = IconGeometry.B_R - ringStroke * 0.5f
                     val baseCapDotR = if (columns == 5) 4.2f else 4.9f
                     val dotR = baseCapDotR * a.dotScaleFactor()
@@ -507,8 +549,8 @@ object IconRenderer {
                         val isSim2First = firstPart == Prefs.PART_SIM_2
                         val l1 = if (isSim2First) sim2Level else sim1Level
                         val l2 = if (isSim2First) sim1Level else sim2Level
-                        val active1 = if (l1 < 0) 0 else min(columns, l1)
-                        val active2 = if (l2 < 0) 0 else min(columns, l2)
+                        val active1 = if (l1 < 0) 0 else levelMapped(l1, columns)
+                        val active2 = if (l2 < 0) 0 else levelMapped(l2, columns)
 
                         val inward = 3.8f
                         val r1 = rhoMid - inward
@@ -535,12 +577,12 @@ object IconRenderer {
                             c.drawCircle(x, y, dotR, FILL)
                         }
                     } else {
-                        val rowLevel = if (a.dataSimOnly) dataLevel else when (part) {
+                        val rowLevel = when (part) {
                             Prefs.PART_SIM_1 -> sim1Level
                             Prefs.PART_SIM_2 -> sim2Level
-                            else -> mobileLevel
+                            else -> dataLevel
                         }
-                        val active = if (rowLevel < 0) 0 else min(columns, rowLevel)
+                        val active = if (rowLevel < 0) 0 else levelMapped(rowLevel, columns)
                         val rho = IconGeometry.B_R
                         val openingRad = Math.toRadians(IconGeometry.GAP_WIDTH_DEG.toDouble()).toFloat()
                         val inset = (dotR + ringStroke * 0.5f + 1f) / rho
@@ -555,6 +597,7 @@ object IconRenderer {
                             FILL.color = if (dot < active) fg else inactive
                             c.drawCircle(x, y, dotR, FILL)
                         }
+                    }
                     }
                 } else {
                     val text = when (part) {
@@ -633,6 +676,59 @@ object IconRenderer {
                 }
             }
         }
+        if (hasLeftDots || hasRightDots) {
+            val columns = a.signalColumns.coerceIn(4, 5)
+            val dataLevel = StatusState.dataSimSignalLevel()
+            val sim1Level = if (levels != null && levels.isNotEmpty() && levels[0] >= 0) levels[0] else dataLevel
+            val sim2Level = if (levels != null && levels.size > 1 && levels[1] >= 0) levels[1] else dataLevel
+            val dotR = IconGeometry.flankDotR(columns, a.dotScaleFactor())
+            val inactive = withAlpha(fg, a.trackAlpha)
+            val rho = IconGeometry.B_R
+            val halfDiv = (columns - 1) * 0.5f
+            // The row's own span, not the notch's: the arc is cut wider than the row, so the
+            // end beads keep their clearance instead of merging into the arc's round caps.
+            val rowHalfAngle = Math.toRadians(IconGeometry.flankRowHalfDeg(columns, dotR).toDouble()).toFloat()
+            if (hasLeftDots) {
+                val part = r.parts[Prefs.ZONE_LEFT]
+                val rowLevel = when (part) {
+                    Prefs.PART_SIM_1 -> sim1Level
+                    Prefs.PART_SIM_2 -> sim2Level
+                    else -> dataLevel
+                }
+                val active = if (rowLevel < 0) 0 else levelMapped(rowLevel, columns)
+                for (dot in 0 until columns) {
+                    val t = (dot - halfDiv) / halfDiv
+                    val angle = Math.toRadians(180.0).toFloat() + t * rowHalfAngle
+                    val x = IconGeometry.B_CX + rho * kotlin.math.cos(angle)
+                    val y = IconGeometry.B_CY + rho * kotlin.math.sin(angle)
+                    FILL.color = if (dot < active) fg else inactive
+                    c.drawCircle(x, y, dotR, FILL)
+                }
+            }
+            if (hasRightDots) {
+                val part = r.parts[Prefs.ZONE_RIGHT]
+                val rowLevel = when (part) {
+                    Prefs.PART_SIM_2 -> sim2Level
+                    Prefs.PART_SIM_1 -> sim1Level
+                    else -> dataLevel
+                }
+                val active = if (rowLevel < 0) 0 else levelMapped(rowLevel, columns)
+                for (dot in 0 until columns) {
+                    val t = (dot - halfDiv) / halfDiv
+                    val angle = t * rowHalfAngle
+                    val x = IconGeometry.B_CX + rho * kotlin.math.cos(angle)
+                    val y = IconGeometry.B_CY + rho * kotlin.math.sin(angle)
+                    FILL.color = if (dot < active) fg else inactive
+                    c.drawCircle(x, y, dotR, FILL)
+                }
+            }
+        }
+        if (hasLeftWifi) {
+            drawRingFlankWifi(c, wifiLevel, fg, a, isLeft = true)
+        }
+        if (hasRightWifi) {
+            drawRingFlankWifi(c, wifiLevel, fg, a, isLeft = false)
+        }
     }
 
     /**
@@ -698,7 +794,11 @@ object IconRenderer {
         // One reach per opening, because the two openings no longer necessarily hold the same thing.
         val topReach = openingReach(cap, IconZones.Zone.TOP, stroke, level, mobileType)
         val bottomReach = openingReach(cap, IconZones.Zone.BOTTOM, stroke, level, mobileType)
-        buildCapsuleOutline(CAPSULE, topReach, bottomReach, left, right)
+        val openLeft = cap.dotsIn(IconZones.Zone.LEFT)
+        val openRight = cap.dotsIn(IconZones.Zone.RIGHT)
+        val hasLeftWifi = cap.parts[IconZones.Zone.LEFT.ordinal] == Prefs.PART_WIFI
+        val hasRightWifi = cap.parts[IconZones.Zone.RIGHT.ordinal] == Prefs.PART_WIFI
+        buildCapsuleOutline(CAPSULE, topReach, bottomReach, left, right, openLeft, openRight)
         val animated = a.animatesOutline(charging, level)
         val wave = if (animated && a.boltAnim == Prefs.BOLT_ANIM_PULSE) pulseWave() else 1f
         STROKE.color = withAlpha(fg, a.trackAlpha)
@@ -706,7 +806,7 @@ object IconRenderer {
 
         if (level > 0) {
             STROKE.color = withAlpha(role, (255 * wave).toInt())
-            drawCapsuleFill(canvas, min(1f, level / 100f), topReach, bottomReach, left, right)
+            drawCapsuleFill(canvas, min(1f, level / 100f), topReach, bottomReach, left, right, openLeft, openRight)
         }
 
         if (animated) {
@@ -727,6 +827,12 @@ object IconRenderer {
 
         if (cap.dots) {
             drawCapsuleDots(canvas, mobileLevel, slotLevels, cap.dual, fg, a, cap, left, right)
+        }
+        if (hasLeftWifi) {
+            drawCapsuleFlankWifi(canvas, stroke, wifiLevel, fg, a, left, right, isLeft = true)
+        }
+        if (hasRightWifi) {
+            drawCapsuleFlankWifi(canvas, stroke, wifiLevel, fg, a, left, right, isLeft = false)
         }
 
         // Three bands, the same three the ring has: the two openings and the interior.
@@ -803,10 +909,12 @@ object IconRenderer {
         // The margin the ink keeps from each cap IS the spacing setting - one control, not
         // a constant beside it. 100% is the reference inset; 0% lets a reading run to the
         // cap, which is also the only way two pieces can meet in the middle.
-        val inset = CAP_CELL_PADDING * a.capGap / 100f
-        val track = IconGeometry.capReadingsWidth(stroke, right) - 2f * inset
-        val edgeLeft = IconGeometry.capTextLeft(stroke) + inset
-        val edgeRight = IconGeometry.capTextRight(stroke, right) - inset
+        val baseInset = CAP_CELL_PADDING * a.capGap / 100f
+        val leftExtra = if (cap.dotsIn(IconZones.Zone.LEFT)) 8f else 0f
+        val rightExtra = if (cap.dotsIn(IconZones.Zone.RIGHT)) 8f else 0f
+        val track = IconGeometry.capReadingsWidth(stroke, right) - 2f * baseInset - leftExtra - rightExtra
+        val edgeLeft = IconGeometry.capTextLeft(stroke) + baseInset + leftExtra
+        val edgeRight = IconGeometry.capTextRight(stroke, right) - baseInset - rightExtra
         // A lone piece occupies the first cell, which reads from the interior's left edge.
         drawCapsulePiece(
             c, stroke, first, level, quickCharging, wifiLevel, type, fg, a,
@@ -825,7 +933,7 @@ object IconRenderer {
                 else -> IconGeometry.W_INK_W * IconGeometry.capWifiScale(stroke) *
                     a.wifiScaleFactor() * 0.5f
             }
-            IconGeometry.capRightIconCx(stroke, right, inset, inkHalf) + a.capsuleRightDx
+            IconGeometry.capRightIconCx(stroke, right, baseInset + rightExtra, inkHalf) + a.capsuleRightDx
         } else {
             edgeRight + a.capsuleRightDx
         }
@@ -968,6 +1076,7 @@ object IconRenderer {
 
     private fun buildCapsuleOutline(
         p: Path, topReach: Float, bottomReach: Float, left: Float, right: Float,
+        openLeft: Boolean = false, openRight: Boolean = false,
     ) {
         val top = IconGeometry.CAP_TOP
         val bottom = IconGeometry.CAP_BOTTOM
@@ -979,13 +1088,21 @@ object IconRenderer {
         p.reset()
         p.moveTo(cx + topReach, top)
         p.lineTo(right - r, top)
-        p.cubicTo(right - r + k, top, right, cy - k, right, cy)
-        p.cubicTo(right, cy + k, right - r + k, bottom, right - r, bottom)
+        if (!openRight) {
+            p.cubicTo(right - r + k, top, right, cy - k, right, cy)
+            p.cubicTo(right, cy + k, right - r + k, bottom, right - r, bottom)
+        } else {
+            p.moveTo(right - r, bottom)
+        }
         p.lineTo(cx + bottomReach, bottom)
         p.moveTo(cx - bottomReach, bottom)
         p.lineTo(left + r, bottom)
-        p.cubicTo(left + r - k, bottom, left, cy + k, left, cy)
-        p.cubicTo(left, cy - k, left + r - k, top, left + r, top)
+        if (!openLeft) {
+            p.cubicTo(left + r - k, bottom, left, cy + k, left, cy)
+            p.cubicTo(left, cy - k, left + r - k, top, left + r, top)
+        } else {
+            p.moveTo(left + r, top)
+        }
         p.lineTo(cx - topReach, top)
     }
 
@@ -1007,6 +1124,7 @@ object IconRenderer {
     private fun drawCapsuleFill(
         c: Canvas, fraction: Float, topReach: Float, bottomReach: Float,
         left: Float, right: Float,
+        openLeft: Boolean = false, openRight: Boolean = false,
     ) {
         val top = IconGeometry.CAP_TOP
         val bottom = IconGeometry.CAP_BOTTOM
@@ -1020,8 +1138,9 @@ object IconRenderer {
         val bottomLeft = (cx - bottomReach) - (left + r)
         val bottomRight = (right - r) - (cx + bottomReach)
         val topRight = (right - r) - (cx + topReach)
-        val capLen = PI.toFloat() * r
-        val total = topLeft + capLen + bottomLeft + bottomRight + capLen + topRight
+        val leftCapLen = if (openLeft) 0f else PI.toFloat() * r
+        val rightCapLen = if (openRight) 0f else PI.toFloat() * r
+        val total = topLeft + leftCapLen + bottomLeft + bottomRight + rightCapLen + topRight
         if (total <= 0f) {
             return
         }
@@ -1029,10 +1148,14 @@ object IconRenderer {
 
         // The six pieces, clockwise from the bottom gap's left edge. Each starts exactly where the previous one ended, so the fill has no seam.
         left0 = run(c, left0, bottomLeft, cx - bottomReach, bottom, left + r, bottom)
-        left0 = cap(c, left0, capLen, left + r, cy, r, 90f, 180f)
+        if (!openLeft) {
+            left0 = cap(c, left0, leftCapLen, left + r, cy, r, 90f, 180f)
+        }
         left0 = run(c, left0, topLeft, left + r, top, cx - topReach, top)
         left0 = run(c, left0, topRight, cx + topReach, top, right - r, top)
-        left0 = cap(c, left0, capLen, right - r, cy, r, 270f, 180f)
+        if (!openRight) {
+            left0 = cap(c, left0, rightCapLen, right - r, cy, r, 270f, 180f)
+        }
         run(c, left0, bottomRight, right - r, bottom, cx + bottomReach, bottom)
     }
 
@@ -1180,27 +1303,50 @@ object IconRenderer {
         c: Canvas, level: Int, slotLevels: IntArray?, dual: Boolean,
         fg: Int, a: StatusAppearance, cap: StatusAppearance.Capsule?, left: Float, right: Float,
     ) {
-        val dataSlot = StatusState.sDataSlot
-        val dataLevel = if (slotLevels != null && dataSlot in slotLevels.indices && slotLevels[dataSlot] >= 0) slotLevels[dataSlot] else level
-        val top = if (a.dataSimOnly) dataLevel else if (dual && slotLevels != null) slotLevels[0] else level
-        val bottom = if (a.dataSimOnly) -1 else if (dual && slotLevels != null) slotLevels[1] else level
+        val dataLevel = StatusState.dataSimSignalLevel()
+        val top = if (a.dataSimOnly) dataLevel else if (dual && slotLevels != null) slotLevels[0] else dataLevel
+        val bottom = if (a.dataSimOnly) -1 else if (dual && slotLevels != null) slotLevels[1] else -1
         val topRow = cap == null || cap.dotsIn(IconZones.Zone.TOP)
         val bottomRow = !a.dataSimOnly && (cap == null || cap.dotsIn(IconZones.Zone.BOTTOM))
+        val leftFlank = cap?.dotsIn(IconZones.Zone.LEFT) == true
+        val rightFlank = cap?.dotsIn(IconZones.Zone.RIGHT) == true
         val inactive = withAlpha(fg, a.trackAlpha)
         val columns = a.signalColumns.coerceIn(4, 5)
-        val topActive = if (top < 0) 0 else min(columns, top)
-        val bottomActive = if (bottom < 0) 0 else min(columns, bottom)
+        val topActive = if (top < 0) 0 else levelMapped(top, columns)
+        val bottomActive = if (bottom < 0) 0 else levelMapped(bottom, columns)
         val topY = IconGeometry.capDotTopY()
         val bottomY = IconGeometry.capDotBottomY()
         val pitch = if (columns == 5) IconGeometry.CAP_DOT_PITCH * 0.82f else IconGeometry.CAP_DOT_PITCH
         val halfSpan = (columns - 1) * pitch * 0.5f
         val first = IconGeometry.capDotCx(left, right) - halfSpan
         val dotR = if (columns == 5) IconGeometry.CAP_DOT_R * 0.85f else IconGeometry.CAP_DOT_R
+        val btLevel = StatusState.sBluetoothBatteryLevel
+        val btActive = a.btBatteryMode > 0 && btLevel in 0..100
+        if (btActive && topRow) {
+            val cx = IconGeometry.capDotCx(left, right)
+            if (a.btBatteryMode == Prefs.BT_BATTERY_DIGIT) {
+                TEXT.textSize = 20f
+                TEXT.typeface = Typeface.DEFAULT_BOLD
+                TEXT.textAlign = Paint.Align.CENTER
+                TEXT.color = fg
+                c.drawText(btLevel.toString(), cx, topY + 6f, TEXT)
+            } else {
+                val halfBar = 16f
+                STROKE.style = Paint.Style.STROKE
+                STROKE.strokeWidth = 4f
+                STROKE.strokeCap = Paint.Cap.ROUND
+                STROKE.color = inactive
+                c.drawLine(cx - halfBar, topY, cx + halfBar, topY, STROKE)
+                if (btLevel > 0) {
+                    STROKE.color = fg
+                    c.drawLine(cx - halfBar, topY, cx - halfBar + (2f * halfBar * (btLevel / 100f)), topY, STROKE)
+                }
+            }
+        }
         FILL.style = Paint.Style.FILL
-
         for (i in 0 until columns) {
             val x = first + i * pitch
-            if (topRow) {
+            if (topRow && !btActive) {
                 FILL.color = if (i < topActive) fg else inactive
                 c.drawCircle(x, topY, dotR, FILL)
             }
@@ -1209,8 +1355,52 @@ object IconRenderer {
                 c.drawCircle(x, bottomY, dotR, FILL)
             }
         }
+        if (leftFlank || rightFlank) {
+            val capCy = (IconGeometry.CAP_TOP + IconGeometry.CAP_BOTTOM) * 0.5f
+            val sim1Level = if (slotLevels != null && slotLevels.isNotEmpty() && slotLevels[0] >= 0) slotLevels[0] else dataLevel
+            val sim2Level = if (slotLevels != null && slotLevels.size > 1 && slotLevels[1] >= 0) slotLevels[1] else dataLevel
+            val capR = IconGeometry.CAP_RADIUS
+            val halfDiv = (columns - 1) * 0.5f
+            val arcHalfAngle = Math.toRadians(55.0).toFloat()
+            val flankDotR = (if (columns == 5) 4.0f else 4.6f) * a.dotScaleFactor()
+            if (leftFlank) {
+                val leftPart = a.ringZones.getOrNull(Prefs.ZONE_LEFT)?.firstOrNull { Prefs.isSignalRow(it) }
+                val lLevel = when (leftPart) {
+                    Prefs.PART_SIM_1 -> sim1Level
+                    Prefs.PART_SIM_2 -> sim2Level
+                    else -> dataLevel
+                }
+                val lActive = if (lLevel < 0) 0 else levelMapped(lLevel, columns)
+                val arcCenterCx = left + capR
+                for (i in 0 until columns) {
+                    val t = (i - halfDiv) / halfDiv
+                    val angle = Math.toRadians(180.0).toFloat() + t * arcHalfAngle
+                    val x = arcCenterCx + capR * kotlin.math.cos(angle)
+                    val y = capCy + capR * kotlin.math.sin(angle)
+                    FILL.color = if (i < lActive) fg else inactive
+                    c.drawCircle(x, y, flankDotR, FILL)
+                }
+            }
+            if (rightFlank) {
+                val rightPart = a.ringZones.getOrNull(Prefs.ZONE_RIGHT)?.firstOrNull { Prefs.isSignalRow(it) }
+                val rLevel = when (rightPart) {
+                    Prefs.PART_SIM_2 -> sim2Level
+                    Prefs.PART_SIM_1 -> sim1Level
+                    else -> dataLevel
+                }
+                val rActive = if (rLevel < 0) 0 else levelMapped(rLevel, columns)
+                val arcCenterCx = right - capR
+                for (i in 0 until columns) {
+                    val t = (i - halfDiv) / halfDiv
+                    val angle = 0f + t * arcHalfAngle
+                    val x = arcCenterCx + capR * kotlin.math.cos(angle)
+                    val y = capCy + capR * kotlin.math.sin(angle)
+                    FILL.color = if (i < rActive) fg else inactive
+                    c.drawCircle(x, y, flankDotR, FILL)
+                }
+            }
+        }
     }
-
     /**
      * Draws the time one character at a time so each glyph can take its own colour.
      *
@@ -1364,6 +1554,69 @@ object IconRenderer {
         ) {
             c.scale(scale, scale)
             drawWifiArcs(c, level, fg, a)
+        }
+    }
+
+    private fun drawCapsuleFlankWifi(
+        c: Canvas, stroke: Float, wifiLevel: Int, fg: Int, a: StatusAppearance,
+        left: Float, right: Float, isLeft: Boolean,
+    ) {
+        val capR = IconGeometry.CAP_RADIUS
+        val capCy = (IconGeometry.CAP_TOP + IconGeometry.CAP_BOTTOM) * 0.5f
+        val arcCenterCx = if (isLeft) left + capR else right - capR
+        val inactive = withAlpha(fg, a.trackAlpha)
+        val strokeWidth = stroke * 0.78f
+        STROKE.strokeWidth = strokeWidth
+        STROKE.strokeCap = Paint.Cap.ROUND
+        STROKE.style = Paint.Style.STROKE
+
+        val arcParams = if (isLeft) arrayOf(Triple(156f, 48f, 9.0f), Triple(144f, 72f, 19.0f)) else arrayOf(Triple(-24f, 48f, 9.0f), Triple(-36f, 72f, 19.0f))
+
+        for (idx in arcParams.indices) {
+            val (startAngle, sweepAngle, offset) = arcParams[idx]
+            val r = capR + offset
+            ARC.set(arcCenterCx - r, capCy - r, arcCenterCx + r, capCy + r)
+            val active = if (idx == 0) wifiLevel >= 1 else wifiLevel >= 3
+            STROKE.color = if (active) fg else inactive
+            c.drawArc(ARC, startAngle, sweepAngle, false, STROKE)
+        }
+    }
+
+    private fun drawRingFlankWifi(
+        c: Canvas, wifiLevel: Int, fg: Int, a: StatusAppearance, isLeft: Boolean,
+    ) {
+        val cx = IconGeometry.B_CX
+        val cy = IconGeometry.B_CY
+        val inactive = withAlpha(fg, a.trackAlpha)
+        val ringStroke = a.ringStroke * IconGeometry.RING_STROKE_RATIO
+        val strokeWidth = IconGeometry.flankWifiStroke(ringStroke)
+        val radii = IconGeometry.flankWifiRadii(ringStroke, IconGeometry.B_R)
+        STROKE.strokeWidth = strokeWidth
+        STROKE.strokeCap = Paint.Cap.ROUND
+        STROKE.style = Paint.Style.STROKE
+
+        // The fan keeps its own sweeps; only their radii come from the ring, so the small arc
+        // stays clear of the ring's stroke instead of being drawn onto its edge.
+        val innerSweep = IconGeometry.FLANK_WIFI_SWEEP_INNER
+        val outerSweep = IconGeometry.FLANK_WIFI_SWEEP_OUTER
+        val arcParams = if (isLeft) {
+            arrayOf(
+                Triple(180f - innerSweep * 0.5f, innerSweep, radii[0]),
+                Triple(180f - outerSweep * 0.5f, outerSweep, radii[1]),
+            )
+        } else {
+            arrayOf(
+                Triple(-innerSweep * 0.5f, innerSweep, radii[0]),
+                Triple(-outerSweep * 0.5f, outerSweep, radii[1]),
+            )
+        }
+
+        for (idx in arcParams.indices) {
+            val (startAngle, sweepAngle, r) = arcParams[idx]
+            ARC.set(cx - r, cy - r, cx + r, cy + r)
+            val active = if (idx == 0) wifiLevel >= 1 else wifiLevel >= 3
+            STROKE.color = if (active) fg else inactive
+            c.drawArc(ARC, startAngle, sweepAngle, false, STROKE)
         }
     }
 
@@ -1664,20 +1917,31 @@ object IconRenderer {
         c: Canvas, level: Int, role: Int, fg: Int,
         a: StatusAppearance, gapStart: Float, gapEnd: Float,
         sweep: Float, start: Float, charging: Boolean,
+        openLeft: Boolean = false, openRight: Boolean = false,
     ) {
-        val ringStroke = a.ringStroke * 0.68f
+        val ringStroke = a.ringStroke * IconGeometry.RING_STROKE_RATIO
         STROKE.strokeWidth = ringStroke
+        // A flank that holds a bead row cuts the ring at the row's own span plus the bead,
+        // the arc's cap and their clearance. Cutting it at the row's span exactly - or at a
+        // fixed 60.4 degrees - puts the outermost bead on the cap, where it reads as the
+        // ring's blunt end rather than as a dot: a four-bead flank then looks like two.
+        val flankHalfDeg = if (openLeft || openRight) {
+            val columns = a.signalColumns.coerceIn(4, 5)
+            IconGeometry.flankOpenHalfDeg(columns, ringStroke, IconGeometry.flankDotR(columns, a.dotScaleFactor()))
+        } else {
+            0f
+        }
         val animated = a.animatesOutline(charging, level)
         // Breathing moves the whole ring; the other two move a light along it. One
         // vocabulary per style, so the outline and the bolt always read as one piece.
         val wave = if (animated && a.boltAnim == Prefs.BOLT_ANIM_PULSE) pulseWave() else 1f
 
         STROKE.color = withAlpha(fg, a.trackAlpha)
-        batteryRing(c, 0f, 1f, gapStart, gapEnd, sweep, start)
+        batteryRing(c, 0f, 1f, gapStart, gapEnd, sweep, start, openLeft, openRight, flankHalfDeg)
 
         if (level > 0) {
             STROKE.color = withAlpha(role, (255 * wave).toInt())
-            batteryRing(c, 0f, min(1f, level / 100f), gapStart, gapEnd, sweep, start)
+            batteryRing(c, 0f, min(1f, level / 100f), gapStart, gapEnd, sweep, start, openLeft, openRight, flankHalfDeg)
         }
         if (!animated) {
             return
@@ -1837,37 +2101,118 @@ object IconRenderer {
     private fun batteryRing(
         c: Canvas, fromIn: Float, toIn: Float, gapStart: Float, gapEnd: Float,
         sweep: Float, start: Float,
+        openLeft: Boolean = false, openRight: Boolean = false,
+        flankHalfDeg: Float = 0f,
     ) {
         val from = clamp01(fromIn)
         val to = clamp01(toIn)
         if (to <= from) {
             return
         }
-        val mouthStart = clamp01(gapStart)
-        val mouthEnd = clamp01(gapEnd)
-        // Path length that actually carries ink; the level is spread over it.
-        val drawn = mouthStart + (1f - mouthEnd)
-        if (drawn <= 0f) {
+        if (!openLeft && !openRight) {
+            val mouthStart = clamp01(gapStart)
+            val mouthEnd = clamp01(gapEnd)
+            // Path length that actually carries ink; the level is spread over it.
+            val drawn = mouthStart + (1f - mouthEnd)
+            if (drawn <= 0f) {
+                return
+            }
+            val visibleFrom = from * drawn
+            val visibleTo = to * drawn
+            // First segment: visible progress [0, mouthStart] is path [0, mouthStart].
+            val firstEnd = min(visibleTo, mouthStart)
+            if (firstEnd > visibleFrom) {
+                arcByProgress(
+                    c, visibleFrom, firstEnd, IconGeometry.B_CX, IconGeometry.B_CY,
+                    IconGeometry.B_R, sweep, start,
+                )
+            }
+            // Second segment: visible progress (mouthStart, drawn] is path (mouthEnd, 1].
+            val secondFrom = max(visibleFrom, mouthStart)
+            if (visibleTo > secondFrom) {
+                arcByProgress(
+                    c, mouthEnd + secondFrom - mouthStart, mouthEnd + visibleTo - mouthStart,
+                    IconGeometry.B_CX, IconGeometry.B_CY, IconGeometry.B_R, sweep, start,
+                )
+            }
             return
         }
-        val visibleFrom = from * drawn
-        val visibleTo = to * drawn
-        // First segment: visible progress [0, mouthStart] is path [0, mouthStart].
-        val firstEnd = min(visibleTo, mouthStart)
-        if (firstEnd > visibleFrom) {
-            arcByProgress(
-                c, visibleFrom, firstEnd, IconGeometry.B_CX, IconGeometry.B_CY,
-                IconGeometry.B_R, sweep, start,
-            )
+
+        val segs = buildRingSegments(
+            gapStart != gapEnd, sweep < 360f, openLeft, openRight,
+            flankHalfDeg, Math.toDegrees((STROKE.strokeWidth / IconGeometry.B_R).toDouble()).toFloat(),
+        )
+        var totalDrawn = 0f
+        for (i in segs.indices) totalDrawn += segs[i].second
+        if (totalDrawn <= 0f) return
+
+        val startDrawn = from * totalDrawn
+        val endDrawn = to * totalDrawn
+        var curDist = 0f
+
+        for (i in segs.indices) {
+            val seg = segs[i]
+            val segStartDeg = seg.first
+            val segSweepDeg = seg.second
+            val segEndDist = curDist + segSweepDeg
+
+            val drawStart = max(startDrawn, curDist)
+            val drawEnd = min(endDrawn, segEndDist)
+
+            if (drawEnd > drawStart) {
+                val segDrawStartDeg = segStartDeg + (drawStart - curDist)
+                val segDrawSweep = drawEnd - drawStart
+                arc(c, IconGeometry.B_CX, IconGeometry.B_CY, IconGeometry.B_R, segDrawStartDeg, segDrawSweep)
+            }
+            curDist = segEndDist
         }
-        // Second segment: visible progress (mouthStart, drawn] is path (mouthEnd, 1].
-        val secondFrom = max(visibleFrom, mouthStart)
-        if (visibleTo > secondFrom) {
-            arcByProgress(
-                c, mouthEnd + secondFrom - mouthStart, mouthEnd + visibleTo - mouthStart,
-                IconGeometry.B_CX, IconGeometry.B_CY, IconGeometry.B_R, sweep, start,
-            )
+    }
+
+    private fun buildRingSegments(
+        topGap: Boolean, bottomOpen: Boolean, openLeft: Boolean, openRight: Boolean,
+        flankHalfDeg: Float = 0f, minSegDeg: Float = 0f,
+    ): List<Pair<Float, Float>> {
+        val start = if (bottomOpen) 130.2f else 90f
+        val end = if (bottomOpen) 409.8f else 450f
+        val segs = ArrayList<Pair<Float, Float>>(4)
+        var curr = start
+
+        // A flank that holds a bead row cuts the ring wider than the row's own span, so the
+        // end beads keep their clearance from the arc's round caps instead of merging into
+        // them. The cut is clamped to whatever ink is left, so a very large bead cannot
+        // invert the segment it sits in.
+        if (openLeft) {
+            val cutFrom = maxOf(curr, 180f - flankHalfDeg)
+            if (cutFrom > curr) {
+                segs.add(Pair(curr, cutFrom - curr))
+            }
+            curr = maxOf(curr, 180f + flankHalfDeg)
         }
+
+        val topStart = if (topGap) 229.8f else 270f
+        val topEnd = if (topGap) 310.2f else 270f
+
+        if (topGap && curr < topStart) {
+            segs.add(Pair(curr, topStart - curr))
+            curr = topEnd
+        }
+
+        if (openRight) {
+            val cutFrom = maxOf(curr, 360f - flankHalfDeg)
+            if (cutFrom > curr) {
+                segs.add(Pair(curr, cutFrom - curr))
+            }
+            curr = maxOf(curr, 360f + flankHalfDeg)
+        }
+
+        if (curr < end) {
+            segs.add(Pair(curr, end - curr))
+        }
+        // A wide flank cut can leave a sliver of arc between itself and the next opening.
+        // Shorter than its own two round caps it draws as a blob rather than as a piece of
+        // the ring, so the two openings are allowed to merge instead of leaving a nub.
+        if (minSegDeg <= 0f) return segs
+        return segs.filter { it.second >= minSegDeg }
     }
 
     private fun arcByProgress(
@@ -3240,19 +3585,14 @@ object IconRenderer {
         out[0] = scale
         if (appearance.capsule) {
             val boxH = IconGeometry.CAP_INK_BOTTOM - IconGeometry.CAP_INK_TOP
-            out[1] = (w - IconGeometry.capInkW(appearance) * scale) / 2f -
-                IconGeometry.CAP_INK_X * scale
+            out[1] = (w - IconGeometry.capInkW(appearance) * scale) / 2f - IconGeometry.capInkX(appearance) * scale
             out[2] = (h - boxH * scale) / 2f - IconGeometry.CAP_INK_TOP * scale
         } else if (rect) {
-            out[1] = (w - IconGeometry.RECT_INK_W * scale) / 2f -
-                IconGeometry.RECT_INK_X * scale
-            out[2] = (h - IconGeometry.RECT_INK_H * scale) / 2f -
-                IconGeometry.RECT_INK_Y * scale
+            out[1] = (w - IconGeometry.RECT_INK_W * scale) / 2f - IconGeometry.RECT_INK_X * scale
+            out[2] = (h - IconGeometry.RECT_INK_H * scale) / 2f - IconGeometry.RECT_INK_Y * scale
         } else {
-            val hasBottomStacked = !appearance.dataSimOnly && (
-                (appearance.ringZones.getOrNull(2)?.size ?: 0) > 1 ||
-                (appearance.ringZones.getOrNull(2)?.contains(Prefs.PART_MOBILE) == true && appearance.dualSim)
-            )
+            val hasBottomStacked = !appearance.dataSimOnly && ((appearance.ringZones.getOrNull(2)?.size ?: 0) > 1 ||
+                (appearance.ringZones.getOrNull(2)?.contains(Prefs.PART_MOBILE) == true && appearance.dualSim))
             val stackShiftY = if (hasBottomStacked) 2.0f * scale else 0f
             out[1] = (w - IconGeometry.INK_W * scale) / 2f - IconGeometry.INK_X * scale
             out[2] = (h - IconGeometry.INK_H * scale) / 2f - IconGeometry.INK_Y * scale - stackShiftY

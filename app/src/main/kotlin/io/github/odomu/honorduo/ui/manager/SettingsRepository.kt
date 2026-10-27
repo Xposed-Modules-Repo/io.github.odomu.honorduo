@@ -306,7 +306,7 @@ class SettingsRepository(val context: Context) {
     fun setShadeLunar(value: Boolean) = writeBoolean(Prefs.KEY_SHADE_LUNAR, value)
     fun setShadeWeather(value: Boolean) = writeBoolean(Prefs.KEY_SHADE_WEATHER, value)
     fun setShadeWeatherStyle(value: Int) = writeInt(Prefs.KEY_SHADE_WEATHER_STYLE, value)
-    fun setEffectiveScope(value: Int) = writeInt(Prefs.KEY_EFFECTIVE_SCOPE, value)
+    fun setEffectiveScope(value: Int) = writeInt(Prefs.KEY_EFFECTIVE_SCOPE, Prefs.normalizeScope(value))
     fun setCapsuleNoScale(value: Boolean) = writeBoolean(Prefs.KEY_CAPSULE_NO_SCALE, value)
     fun setHideHdVolte(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_HD_VOLTE, value)
     fun setHideHdVowifi(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_HD_VOWIFI, value)

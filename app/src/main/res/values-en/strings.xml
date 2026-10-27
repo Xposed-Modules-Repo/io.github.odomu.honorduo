@@ -551,12 +551,11 @@
     <string name="ring_spacing_y_summary">Adjust vertical clearance between ring top/bottom openings and center content.</string>
 
     <string name="effective_scope_title">Module scope</string>
-    <string name="effective_scope_summary">Checked places show the module; unchecked places show the stock icons</string>
+    <string name="effective_scope_summary">Checked places show the module; unchecked places show the stock icons, and at least one stays checked. An expanded panel is judged by its own page; the lockscreen is judged only while no panel is open.</string>
     <string name="scope_all">Everywhere</string>
     <string name="scope_option_cc">Control Center</string>
     <string name="scope_option_shade">Shade</string>
     <string name="scope_option_keyguard">Lockscreen</string>
-    <string name="scope_none">Hidden everywhere</string>
     <string name="scope_short_cc">Control Center</string>
     <string name="scope_short_shade">Shade</string>
     <string name="scope_short_keyguard">Lockscreen</string>

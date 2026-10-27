@@ -38,12 +38,13 @@ import kotlin.math.roundToInt
  */
 object IconZones {
 
-    /** The three bands, in the order [Prefs.ZONE_*] stores them. */
-    enum class Zone { TOP, CENTRE, BOTTOM }
+    /** The bands and flanks, in the order [Prefs.ZONE_*] stores them. */
+    enum class Zone { TOP, CENTRE, BOTTOM, LEFT, RIGHT }
 
     /** The pieces the editor can point at. */
     enum class Part {
         BOLT, WIFI, MOBILE, VALUE, TYPE, SIM_1, SIM_2, CLOCK, POWER, TEMP, RUNNING, FPS, CURRENT,
+        VOLTAGE, SIGNAL, BT,
     }
 
     /**
@@ -111,6 +112,7 @@ object IconZones {
                         RECT_SEAM_LEFT, RECT_CENTRE_BOTTOM, RECT_SEAM_RIGHT, IconGeometry.BOX,
                     ),
                 )
+                Zone.LEFT, Zone.RIGHT -> emptyArray()
             }
         }
         return when (zone) {
@@ -118,12 +120,16 @@ object IconZones {
                 floatArrayOf(0f, 0f, IconGeometry.BOX, RING_TOP_BOTTOM),
             )
             Zone.CENTRE -> arrayOf(
-                floatArrayOf(0f, RING_TOP_BOTTOM, IconGeometry.BOX, RING_CENTRE_BOTTOM),
+                floatArrayOf(RING_TOP_BOTTOM, RING_TOP_BOTTOM, IconGeometry.BOX - RING_TOP_BOTTOM, RING_CENTRE_BOTTOM),
             )
-            // Full width: the level dots sit along the arc's own opening, which is the
-            // full width of the glyph at that height.
             Zone.BOTTOM -> arrayOf(
                 floatArrayOf(0f, RING_CENTRE_BOTTOM, IconGeometry.BOX, IconGeometry.BOX),
+            )
+            Zone.LEFT -> arrayOf(
+                floatArrayOf(0f, RING_TOP_BOTTOM, RING_TOP_BOTTOM, RING_CENTRE_BOTTOM),
+            )
+            Zone.RIGHT -> arrayOf(
+                floatArrayOf(IconGeometry.BOX - RING_TOP_BOTTOM, RING_TOP_BOTTOM, IconGeometry.BOX, RING_CENTRE_BOTTOM),
             )
         }
     }
@@ -137,7 +143,19 @@ object IconZones {
      */
     @JvmStatic
     fun boxes(zone: Zone, a: StatusAppearance): Array<FloatArray> {
-        if (!a.capsule) return boxes(zone, a.rect)
+        if (!a.capsule) {
+            val base = boxes(zone, a.rect)
+            // A flank holding the Wi-Fi arcs draws *outside* the ring's ink box, so the host
+            // carries that width as margin - and the tap that selects that flank has to
+            // reach the margin too, or tapping the arcs the user placed lands on nothing.
+            val extra = if (a.ring) IconGeometry.ringFlankWifiExtra(a) else 0f
+            if (extra <= 0f) return base
+            return when (zone) {
+                Zone.LEFT -> base.map { floatArrayOf(it[0] - extra, it[1], it[2], it[3]) }.toTypedArray()
+                Zone.RIGHT -> base.map { floatArrayOf(it[0], it[1], it[2] + extra, it[3]) }.toTypedArray()
+                else -> base
+            }
+        }
         val stroke = a.ringStroke * IconGeometry.CAP_STROKE_RATIO
         val top = IconGeometry.capInteriorTop(stroke)
         val bottom = IconGeometry.capInteriorBottom(stroke)
@@ -150,19 +168,29 @@ object IconZones {
         val shapeLeft = IconGeometry.capLeftFor(shapeRight, IconGeometry.capPairRight(a))
         val left = shapeLeft + stroke * 0.5f - fringe
         val right = shapeRight + stroke * 0.5f + fringe
+        val hasLeftWifi = a.ringZones.getOrNull(Prefs.ZONE_LEFT)?.contains(Prefs.PART_WIFI) == true
+        val hasRightWifi = a.ringZones.getOrNull(Prefs.ZONE_RIGHT)?.contains(Prefs.PART_WIFI) == true
+        val leftWifiExtra = if (hasLeftWifi) IconGeometry.CAP_FLANK_WIFI_W else 0f
+        val rightWifiExtra = if (hasRightWifi) IconGeometry.CAP_FLANK_WIFI_W else 0f
+        val flankWidth = IconGeometry.CAP_RADIUS + fringe
         return when (zone) {
             Zone.TOP -> arrayOf(
-                floatArrayOf(left, IconGeometry.CAP_INK_TOP - fringe, right, top),
+                floatArrayOf(left + flankWidth, IconGeometry.CAP_INK_TOP - fringe, right - flankWidth, top),
             )
             Zone.CENTRE -> arrayOf(
-                floatArrayOf(IconGeometry.capInteriorLeft(stroke), top, right, bottom),
+                floatArrayOf(left + flankWidth, top, right - flankWidth, bottom),
             )
             Zone.BOTTOM -> arrayOf(
-                floatArrayOf(left, bottom, right, IconGeometry.CAP_INK_BOTTOM + fringe),
+                floatArrayOf(left + flankWidth, bottom, right - flankWidth, IconGeometry.CAP_INK_BOTTOM + fringe),
+            )
+            Zone.LEFT -> arrayOf(
+                floatArrayOf(left - leftWifiExtra, IconGeometry.CAP_INK_TOP - fringe, left + flankWidth, IconGeometry.CAP_INK_BOTTOM + fringe),
+            )
+            Zone.RIGHT -> arrayOf(
+                floatArrayOf(right - flankWidth, IconGeometry.CAP_INK_TOP - fringe, right + rightWifiExtra, IconGeometry.CAP_INK_BOTTOM + fringe),
             )
         }
     }
-
     /** The zone a view-space point lands in, or `null` outside every box. */
     @JvmStatic
     fun zoneAt(transform: FloatArray?, a: StatusAppearance?, viewX: Float, viewY: Float): Zone? {
@@ -239,9 +267,12 @@ object IconZones {
     @JvmStatic
     fun occupant(zone: Zone, a: StatusAppearance?, r: StatusAppearance.Ring?): Part? {
         if (a == null || r == null) return null
-        // One answer, because there is one layout: the slot says what is drawn, and
-        // StatusAppearance has already blanked the slots whose piece has nothing to show
-        // this frame.
+        if (zone == Zone.LEFT || zone == Zone.RIGHT) {
+            val resolved = r.parts[zone.ordinal]
+            if (resolved != Prefs.PART_NONE) return decodePart(resolved)
+            val partId = a.ringZones.getOrNull(zone.ordinal)?.firstOrNull { Prefs.isSignalRow(it) || it == Prefs.PART_WIFI }
+            return decodePart(partId ?: Prefs.PART_NONE)
+        }
         return decodePart(r.parts[zone.ordinal])
     }
 
@@ -265,6 +296,7 @@ object IconZones {
             // The bar is the battery and is not optional; what the user can switch down
             // here is the dot columns framing it.
             Zone.BOTTOM -> if (rc.dots) Part.MOBILE else null
+            Zone.LEFT, Zone.RIGHT -> null
         }
     }
 
@@ -278,7 +310,10 @@ object IconZones {
     @JvmStatic
     fun occupant(zone: Zone, a: StatusAppearance?, cap: StatusAppearance.Capsule?): Part? {
         if (a == null || cap == null) return null
-        if (cap.dotsIn(zone)) return Part.MOBILE
+        if (cap.dotsIn(zone)) {
+            val dotPart = a.ringZones.getOrNull(zone.ordinal)?.firstOrNull { Prefs.isSignalRow(it) }
+            return decodePart(dotPart ?: Prefs.PART_MOBILE)
+        }
         return decodePart(cap.parts[zone.ordinal])
     }
 
@@ -363,6 +398,7 @@ object IconZones {
     @JvmStatic
     fun accepts(zone: Zone, part: Part?, current: ModuleSettings?): Boolean {
         if (current == null || part == null) return true
+        if (zone == Zone.LEFT || zone == Zone.RIGHT) return isSignalRow(part) || part == Part.WIFI
         return current.trioStyle != Prefs.STYLE_RING || ringAccepts(zone, part)
     }
 
@@ -382,6 +418,9 @@ object IconZones {
         Part.RUNNING -> Prefs.PART_RUNNING
         Part.FPS -> Prefs.PART_FPS
         Part.CURRENT -> Prefs.PART_CURRENT
+        Part.VOLTAGE -> Prefs.PART_VOLTAGE
+        Part.SIGNAL -> Prefs.PART_SIGNAL
+        Part.BT -> Prefs.PART_BT
         null -> Prefs.PART_NONE
     }
 
@@ -401,6 +440,9 @@ object IconZones {
         Prefs.PART_RUNNING -> Part.RUNNING
         Prefs.PART_FPS -> Part.FPS
         Prefs.PART_CURRENT -> Part.CURRENT
+        Prefs.PART_VOLTAGE -> Part.VOLTAGE
+        Prefs.PART_SIGNAL -> Part.SIGNAL
+        Prefs.PART_BT -> Part.BT
         else -> null
     }
 

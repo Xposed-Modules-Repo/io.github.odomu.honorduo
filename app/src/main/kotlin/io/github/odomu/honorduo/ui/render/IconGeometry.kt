@@ -221,6 +221,49 @@ object IconGeometry {
     const val ARC_ROW_CLEARANCE = 1f
 
     /**
+     * Clearance kept between a flank bead row and the arc's own round cap, in design units.
+     *
+     * The flank row replaces a stretch of the ring rather than sitting in a mouth the ring
+     * already left, so this is what stops the end bead from merging into the arc's cap and
+     * reading as the arc's rounded end instead of as a dot - the defect that made a
+     * four-bead flank look like two beads with a blunt ring.
+     */
+    const val FLANK_ROW_CLEARANCE = 3f
+
+    /**
+     * Clear space between the ring's own stroke and the flank's inner Wi-Fi arc.
+     *
+     * The flank arcs are threaded onto the ring's outside, so without this the small arc
+     * is drawn straight onto the ring's stroke edge and reads as a thickening of it rather
+     * than as its own mark. It is wide on purpose: at the status bar's size the arcs are a
+     * few pixels, and anything tighter than this turns the pair into one thick band.
+     */
+    const val FLANK_WIFI_GAP = 4f
+
+    /** Clear space between the flank's two Wi-Fi arcs. */
+    const val FLANK_WIFI_ARC_GAP = 4f
+
+    /**
+     * The flank arcs' stroke, as a share of the ring's own drawn stroke.
+     *
+     * Nearly the ring's weight: thinner marks read as a second, fainter outline of the
+     * ring at status-bar size, which is what "too small" looked like.
+     */
+    const val FLANK_WIFI_STROKE_RATIO = 0.85f
+
+    /** The flank fan's angular width, in degrees: the near arc and the far one. */
+    const val FLANK_WIFI_SWEEP_INNER = 46f
+    const val FLANK_WIFI_SWEEP_OUTER = 70f
+
+    /**
+     * The ring's drawn stroke as a fraction of the stored `ringStroke` setting.
+     *
+     * The stored value is the ring's visual weight; the arc is drawn at this share of it so
+     * the beads and the flank arcs keep their proportions when the slider moves.
+     */
+    const val RING_STROKE_RATIO = 0.68f
+
+    /**
      * Clearance kept between a fitted line's edge and the arc, in design units.
      *
      * Both are antialiased, so "touching exactly" still interleaves pixels. Small
@@ -721,7 +764,14 @@ object IconGeometry {
      * default, the way [#RECT_INK_W] is: fitting the extremes means no
      * setting can push ink outside the host, where the platform clips it.
      */
+    const val CAP_FLANK_WIFI_W = 24f
     const val CAP_INK_X = CAP_LEFT - Prefs.MAX_RING_STROKE * CAP_STROKE_RATIO * 0.5f
+
+    @JvmStatic
+    fun capInkX(a: StatusAppearance?): Float {
+        val hasLeftWifi = a?.ringZones?.getOrNull(Prefs.ZONE_LEFT)?.contains(Prefs.PART_WIFI) == true
+        return if (hasLeftWifi) CAP_INK_X - CAP_FLANK_WIFI_W else CAP_INK_X
+    }
 
     /**
      * The top of the capsule's ink: the outline plus its stroke.
@@ -756,7 +806,12 @@ object IconGeometry {
 
     /** The capsule's ink box, widened by the user's extra run. */
     @JvmStatic
-    fun capInkW(a: StatusAppearance?): Float = CAP_INK_W + capExtra(a)
+    fun capInkW(a: StatusAppearance?): Float {
+        val hasLeftWifi = a?.ringZones?.getOrNull(Prefs.ZONE_LEFT)?.contains(Prefs.PART_WIFI) == true
+        val hasRightWifi = a?.ringZones?.getOrNull(Prefs.ZONE_RIGHT)?.contains(Prefs.PART_WIFI) == true
+        val flankW = (if (hasLeftWifi) CAP_FLANK_WIFI_W else 0f) + (if (hasRightWifi) CAP_FLANK_WIFI_W else 0f)
+        return CAP_INK_W + capExtra(a) + flankW
+    }
 
     /** The two-cell body's right edge, widened by the user's extra run. */
     @JvmStatic
@@ -946,6 +1001,92 @@ object IconGeometry {
     @JvmStatic
     fun maxBeadR(): Float {
         return INK_W / 2f - B_R
+    }
+
+    /** The radius of one flank bead at scale 1, by column count. */
+    @JvmStatic
+    fun flankBeadR(columns: Int): Float = if (columns == 5) 4.2f else 4.9f
+
+    /** Gap kept between two flank beads, in design units. */
+    const val FLANK_BEAD_GAP = 2f
+
+    /** The flank bead the row draws with: the user's size, capped by the ink box. */
+    @JvmStatic
+    fun flankDotR(columns: Int, scale: Float): Float =
+        minOf(flankBeadR(columns) * maxOf(0.01f, scale), maxBeadR())
+
+    /**
+     * The flank Wi-Fi arcs' stroke, from the ring's own drawn stroke.
+     */
+    @JvmStatic
+    fun flankWifiStroke(ringStroke: Float): Float = ringStroke * FLANK_WIFI_STROKE_RATIO
+
+    /**
+     * Radii of the flank's two Wi-Fi arcs, measured from the ring's centre.
+     *
+     * Derived from the ring's stroke, [FLANK_WIFI_GAP] and [FLANK_WIFI_ARC_GAP] rather than
+     * fixed: the arcs sit outside the ring, so a thicker ring has to push them outward or
+     * the inner one is drawn onto the ring's edge - the fault that made the small arc look
+     * like a thick spot on the ring itself.
+     *
+     * @return `{inner, outer}`
+     */
+    @JvmStatic
+    fun flankWifiRadii(ringStroke: Float, baseR: Float): FloatArray {
+        val wifiStroke = flankWifiStroke(ringStroke)
+        val inner = baseR + ringStroke * 0.5f + FLANK_WIFI_GAP + wifiStroke * 0.5f
+        val outer = inner + wifiStroke + FLANK_WIFI_ARC_GAP
+        return floatArrayOf(inner, outer)
+    }
+
+    /**
+     * How far one flank's Wi-Fi arcs reach past the ring's own ink box, in design units.
+     *
+     * The ring's box is the ring: [INK_W] is the stroke's outer edge plus the widest bead. The
+     * flank arcs are the one piece drawn deliberately outside it, so this is the extra width
+     * [hostAspect] asks for, and therefore what stops the host clipping them.
+     */
+    @JvmStatic
+    fun ringFlankWifiExtra(a: StatusAppearance?): Float {
+        if (a == null || !a.ring) return 0f
+        val left = a.ringZones.getOrNull(Prefs.ZONE_LEFT)?.contains(Prefs.PART_WIFI) == true
+        val right = a.ringZones.getOrNull(Prefs.ZONE_RIGHT)?.contains(Prefs.PART_WIFI) == true
+        if (!left && !right) return 0f
+        val stroke = a.ringStroke * RING_STROKE_RATIO
+        val radii = flankWifiRadii(stroke, B_R)
+        val reach = radii[1] + flankWifiStroke(stroke) * 0.5f
+        // One unit of slack for the antialiased edge, or the outermost arc's fringe is cut
+        // by the view it asked for.
+        return maxOf(0f, reach + 1f - INK_W * 0.5f)
+    }
+
+    /** Half the angular span the row's bead centres occupy on the ring, in degrees. */
+    @JvmStatic
+    fun flankRowHalfDeg(columns: Int, dotR: Float): Float {
+        val span = (columns - 1) * (2f * dotR + FLANK_BEAD_GAP) * 0.5f
+        return Math.toDegrees((span / B_R).toDouble()).toFloat()
+    }
+
+    /**
+     * Half the angular width the ring must be cut at a flank that holds a bead row, in degrees.
+     *
+     * The row is centred on 9 or 3 o'clock and the arc ends have round caps, so the cut is
+     * the row's own half span plus the cap, the bead and [FLANK_ROW_CLEARANCE]. Cutting it
+     * at a fixed 60.4 degrees - which is what the flanks did - put the outer two beads
+     * exactly on the caps, where they read as the arc's blunt ends: a four-bead flank then
+     * looked like two beads. Cutting it at the row's span alone has the same fault.
+     *
+     * The row is packed at [FLANK_BEAD_GAP], not spread across the notch's
+     * [BEAD_SPAN_DEG], so the arc keeps most of its length: a wide cut would have merged
+     * the flank opening with the top and bottom ones on a fully loaded ring.
+     */
+    @JvmStatic
+    fun flankOpenHalfDeg(columns: Int, ringStroke: Float, dotR: Float): Float {
+        val clearance = dotR + ringStroke * 0.5f + FLANK_ROW_CLEARANCE
+        val half = flankRowHalfDeg(columns, dotR) +
+            Math.toDegrees((clearance / B_R).toDouble()).toFloat()
+        // A ceiling so an extreme dot size cannot turn the two arcs into a broken circle.
+        return minOf(half, 60f)
     }
 
     /**
@@ -1814,7 +1955,12 @@ object IconGeometry {
         if (a.rect) {
             return RECT_INK_W / RECT_INK_H
         }
-        return INK_W / INK_H
+        // A flank holding the Wi-Fi arcs is the one ring arrangement whose ink reaches
+        // outside the ring's own box: the arcs sit *outside* the stroke with a gap, so the
+        // host is asked for that width. The scale stays height-driven, so the glyph keeps its
+        // size and the extra width becomes margin, instead of the arcs being clipped at the
+        // view's edge as they were.
+        return (INK_W + 2f * ringFlankWifiExtra(a)) / INK_H
     }
 
 }

@@ -18,31 +18,50 @@ import io.github.odomu.honorduo.hook.core.SystemBarHook
 /**
  * The two inputs the effective scope needs: the lockscreen from the platform's own
  * callback (no hook), the pull-down panel from the one transition-only hook.
+ *
+ * The panel type is resolved into two separate facts - *which* panel is expanded and
+ * whether it is expanded over the lockscreen. Keeping them separate is what stops the
+ * scope from going ambiguous: the old encoding mapped only type 2 to the control center,
+ * so a control center pulled down over the lockscreen (type 4) was read as the
+ * notification panel and "exclude the control center" silently stopped applying there.
  */
 internal object ScopeTracker {
 
+    private const val PANEL_NONE = 0
     private const val PANEL_SHADE = 1
     private const val PANEL_CONTROL_CENTER = 2
-    private const val PANEL_THIRD = 3
-    private const val PANEL_SHADE_OVER_KEYGUARD = 4
+    private const val PANEL_SHADE_OVER_KEYGUARD = 3
+    private const val PANEL_CONTROL_CENTER_OVER_KEYGUARD = 4
 
     @Volatile
-    private var panelType = 0
+    private var panelType = PANEL_NONE
 
     @Volatile
     private var keyguardActive = false
 
     private var keyguardWatched = false
 
+    /** A panel is expanded, whichever page it is and whether it is over the lockscreen. */
+    val panelExpanded: Boolean
+        get() = panelType != PANEL_NONE
+
     val shadeActive: Boolean
-        get() = panelType == PANEL_SHADE || panelType == PANEL_THIRD ||
-            panelType == PANEL_SHADE_OVER_KEYGUARD
+        get() = panelType == PANEL_SHADE || panelType == PANEL_SHADE_OVER_KEYGUARD
 
     val controlCenterActive: Boolean
-        get() = panelType == PANEL_CONTROL_CENTER
+        get() = panelType == PANEL_CONTROL_CENTER || panelType == PANEL_CONTROL_CENTER_OVER_KEYGUARD
 
+    /**
+     * The lockscreen scope, which counts only while no panel is expanded over it.
+     *
+     * The two scopes can be true at once - the panel can be pulled down on the lockscreen -
+     * and whichever answer the module gives, the setting would read ambiguously: "show in
+     * the notification panel" would do nothing there while "hide on the lockscreen" was
+     * unticked. So the panel wins, because an expanded panel is what the user is looking at;
+     * the lockscreen row describes its own status bar only.
+     */
     val lockscreenActive: Boolean
-        get() = keyguardActive
+        get() = keyguardActive && !panelExpanded
 
     @android.annotation.SuppressLint("NewApi", "MissingPermission")
     fun start(context: Context?) {
@@ -81,12 +100,21 @@ internal object ScopeTracker {
         }
         SystemBarHook.updateEffectiveScopeState()
     }
-    /** Fed by the panel hook; the type walks 1/2 for the two panels, 3/4 over keyguard. */
+    /**
+     * Fed by the panel hook.
+     *
+     * The platform's encoding is 0 collapsed, 1 the notification panel, 2 the control
+     * center, and 3/4 the same two pulled down over the lockscreen - in that order, which
+     * is why the two "over keyguard" codes are read as panel types rather than as a
+     * separate lockscreen flag.
+     */
     fun onPanelType(type: Int) {
         if (type == panelType) return
         panelType = type
         SystemBarHook.updateEffectiveScopeState()
     }
 
-    fun describe(): String = "panel=$panelType keyguard=$keyguardActive"
+    fun describe(): String =
+        "panel=$panelType shade=$shadeActive cc=$controlCenterActive " +
+            "keyguard=$keyguardActive lockscreen=$lockscreenActive"
 }

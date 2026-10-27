@@ -550,15 +550,14 @@
     <string name="ring_spacing_y_summary">调整圆环顶部和底部内容与中间内容的垂直间距，正值向外扩大，负值向内紧凑。</string>
 
     <string name="effective_scope_title">模块生效范围</string>
-    <string name="effective_scope_summary">勾选的位置显示模块效果，未勾选的位置显示系统原生图标</string>
+    <string name="effective_scope_summary">勾选的位置显示模块效果，未勾选的位置显示系统原生图标，至少保留一项；下拉面板展开时按控制中心或通知面板判断，锁屏只在面板收起时判断。</string>
     <string name="scope_all">所有位置</string>
     <string name="scope_option_cc">控制中心</string>
     <string name="scope_option_shade">通知面板</string>
     <string name="scope_option_keyguard">锁屏</string>
-    <string name="scope_none">全部隐藏</string>
     <string name="scope_short_cc">控制中心</string>
     <string name="scope_short_shade">通知面板</string>
-    <string name="scope_short_keyguard">锁屏</string>
+    <string name="scope_short_keyguard">锁屏界面</string>
     <string name="scope_list_separator">、</string>
 
     <string name="capsule_no_scale_title">胶囊缩放</string>

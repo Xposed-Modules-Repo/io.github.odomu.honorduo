@@ -1051,7 +1051,7 @@ object Prefs {
      * One key for the top and the bottom: the two rows are the same ink - four beads
      * threaded onto the ring's own openings - and the whole point of them is that they
      * read as the ring cut into segments. The reference size is the one
-     * [IconGeometry.arcRowDotR] derives from the stroke, so 100% keeps that exactly.
+     * derives from the stroke, so 100% keeps that exactly.
      */
     const val KEY_DOT_SCALE = "dot_scale"
 
@@ -1553,5 +1553,20 @@ object Prefs {
             i++
         }
         return out
+    }
+
+    /**
+     * The scope as the selector can express it: at least one location stays checked.
+     *
+     * The mask stores exclusions, so "every bit set" means "show nowhere" - a stored
+     * value the old free-form list could produce but the drawing cannot do anything
+     * sensible with (the module is either switched on somewhere or switched off). It
+     * is read back as [SCOPE_ALL] rather than kept, so an install that once cleared
+     * every entry is not left arguing with a row that cannot show its own state.
+     */
+    @JvmStatic
+    fun normalizeScope(mask: Int): Int {
+        val exclusions = mask and (SCOPE_BIT_CC or SCOPE_BIT_SHADE or SCOPE_BIT_KEYGUARD)
+        return if (exclusions == (SCOPE_BIT_CC or SCOPE_BIT_SHADE or SCOPE_BIT_KEYGUARD)) SCOPE_ALL else exclusions
     }
 }

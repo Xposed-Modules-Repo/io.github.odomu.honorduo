@@ -8,8 +8,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -24,6 +24,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
@@ -34,19 +37,25 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
+import com.kyant.backdrop.highlight.HighlightStyle
 import io.github.odomu.honorduo.R
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.ui.component.navigationDragInput
@@ -59,6 +68,7 @@ import top.yukonga.miuix.kmp.basic.NavigationBarItem
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.nav.core.NavKey
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 enum class SettingsTab(val labelRes: Int, val route: Route) {
@@ -231,89 +241,189 @@ fun NavigationPill(
         animationSpec = spring(dampingRatio = 0.7f, stiffness = 500f),
         label = "navigationPress",
     )
-
-    Box(
+    val stretch by animateFloatAsState(
+        targetValue = abs(interaction.velocity),
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = 350f),
+        label = "navigationStretch",
+    )
+    val panelShift by animateFloatAsState(
+        targetValue = if (liquid) with(density) { 4.dp.toPx() } *
+                interaction.travel.coerceIn(-1f, 1f) else 0f,
+        animationSpec = spring(dampingRatio = 0.75f, stiffness = 300f),
+        label = "navigationPanelShift",
+    )
+    val tabsBackdrop = rememberLayerBackdrop()
+    val selectionBackdrop = if (liquid && backdrop != null) {
+        rememberCombinedBackdrop(backdrop, tabsBackdrop)
+    } else null
+    val baseScale = { if (liquid) 1f + 0.025f * press else 1f - 0.03f * press }
+    val material = if (backdrop != null) {
+        Modifier.drawBackdrop(
+            backdrop = backdrop,
+            shape = { shape },
+            effects = {
+                vibrancy()
+                blur(12.dp.toPx())
+                lens(
+                    lensHeight.toPx(), lensAmount.toPx(),
+                    depthEffect = true, chromaticAberration = chromaticAberration
+                )
+            },
+            highlight = {
+                Highlight.Default.copy(
+                    width = 0.75.dp, blurRadius = 0.4.dp,
+                    alpha = if (darkTheme) 0.78f else 0.96f
+                )
+            },
+            shadow = null,
+            layerBlock = { scaleX = baseScale(); scaleY = baseScale() },
+            onDrawSurface = { drawRect(surface) },
+            onDrawFront = {
+                if (liquid && press > 0f) {
+                    val center = Offset(
+                        size.width / 2f + direction *
+                                (interaction.position - (count - 1) / 2f) * (size.width - 8.dp.toPx()) / count,
+                        size.height / 2f,
+                    )
+                    drawRect(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                Color.White.copy(
+                                    alpha = 0.16f * press.coerceIn(
+                                        0f,
+                                        1f
+                                    )
+                                ), Color.Transparent
+                            ),
+                            center = center,
+                            radius = size.height * 1.5f,
+                        )
+                    )
+                }
+            },
+        )
+    } else {
         Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(bottom = 12.dp),
-        contentAlignment = Alignment.BottomCenter,
-    ) {
+            .graphicsLayer { scaleX = baseScale(); scaleY = baseScale() }
+            .background(surface, shape)
+    }
+
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         BoxWithConstraints(
             Modifier
                 .fillMaxWidth(widthFraction)
-                .height(height)
-                .navigationDragInput(interaction)
-                .then(
-                    if (backdrop != null) {
-                        Modifier.drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { shape },
-                            effects = {
-                                vibrancy()
-                                blur(16.dp.toPx())
-                                lens(
-                                    lensHeight.toPx() * (1f + 0.15f * press),
-                                    lensAmount.toPx() * (1f + 0.20f * press),
-                                    chromaticAberration = chromaticAberration,
-                                )
-                            },
-                            highlight = {
-                                Highlight.Default.copy(
-                                    width = 0.75.dp,
-                                    blurRadius = 0.4.dp,
-                                    alpha = 0.76f,
-                                )
-                            },
-                            onDrawSurface = {
-                                drawRect(surface)
-                                if (liquid) {
-                                    val pillWidth = (size.width - 8.dp.toPx()) / count
-                                    drawCircle(
-                                        color = accent.copy(alpha = 0.28f * press),
-                                        radius = pillWidth * 0.55f * (0.8f + 0.2f * press),
-                                        center = androidx.compose.ui.geometry.Offset(
-                                            size.width / 2f + direction *
-                                                (interaction.position - (count - 1) / 2f) * (size.width - 8.dp.toPx()) / count,
-                                            size.height / 2f,
-                                        ),
-                                    )
-                                }
-                            },
-                        )
-                    } else {
-                        Modifier
-                            .clip(shape)
-                            .background(surface)
-                    },
-                )
-                .padding(4.dp),
+                .navigationBarsPadding()
+                .padding(bottom = 8.dp)
+                .height(height),
         ) {
             val slot = (maxWidth - 8.dp) / count
             val slotPx = with(density) { slot.toPx() }
             Box(
                 Modifier
-                    .width(slot)
-                    .fillMaxHeight()
-                    .align(Alignment.Center)
-                    .graphicsLayer {
-                        translationX = direction * (interaction.position - (count - 1) / 2f) * slotPx
-                    }
-                    .clip(RoundedCornerShape(percent = 50))
-                    .background(
-                        if (liquid) accent.copy(alpha = 0.16f + 0.14f * press)
-                        else if (darkTheme) Color.White.copy(alpha = 0.14f)
-                        else Color.Black.copy(alpha = 0.08f),
-                    ),
-            )
+                    .matchParentSize()
+                    .absoluteOffset { IntOffset(panelShift.roundToInt(), 0) }
+                    .shadow(6.dp, shape, clip = false)
+                    .then(material))
 
+            if (!liquid) {
+                Box(
+                    Modifier
+                        .align(Alignment.Center)
+                        .absoluteOffset {
+                            IntOffset(
+                                (direction * (interaction.position - (count - 1) / 2f) * slotPx).roundToInt(),
+                                0
+                            )
+                        }
+                        .width(slot)
+                        .height(height - 8.dp)
+                        .clip(shape)
+                        .background(
+                            if (darkTheme) Color.White.copy(alpha = 0.18f)
+                            else Color.Black.copy(alpha = 0.08f)
+                        ))
+            }
             NavigationTabRow(
-                labels = labels,
-                openIndex = openIndex,
-                color = ink,
-                modifier = Modifier.fillMaxSize(),
+                labels, openIndex, ink,
+                Modifier
+                    .matchParentSize()
+                    .absoluteOffset { IntOffset(panelShift.roundToInt(), 0) }
+                    .padding(horizontal = 4.dp),
                 onSelect = onSelect,
             )
+
+            if (liquid) {
+                if (selectionBackdrop != null) {
+                    // Record only the tinted source row. The lens that reads this source
+                    // is a sibling, outside the recording, keeping the sampling graph acyclic.
+                    Box(
+                        Modifier
+                            .matchParentSize()
+                            .absoluteOffset { IntOffset(panelShift.roundToInt(), 0) }
+                            .clearAndSetSemantics { }
+                            .graphicsLayer { alpha = 0f }
+                            .layerBackdrop(tabsBackdrop)
+                            .then(material)) {
+                        NavigationTabRow(
+                            labels, openIndex, accent,
+                            Modifier
+                                .matchParentSize()
+                                .padding(horizontal = 4.dp),
+                            contentScale = { 1f + 0.2f * press },
+                        )
+                    }
+                }
+                val lensScaleX = { (1f + 0.35f * press) * (1f + 0.16f * stretch) }
+                val lensScaleY = { (1f + 0.35f * press) * (1f - 0.08f * stretch) }
+                val lensMaterial = if (selectionBackdrop != null) {
+                    Modifier.drawBackdrop(
+                        backdrop = selectionBackdrop,
+                        shape = { shape },
+                        effects = {
+                            val p = press.coerceIn(0f, 1f)
+                            lens(
+                                (8.dp + 8.dp * p).toPx(), (10.dp + 12.dp * p).toPx(),
+                                depthEffect = true, chromaticAberration = true
+                            )
+                        },
+                        highlight = {
+                            Highlight.Default.copy(
+                                width = 0.8.dp,
+                                alpha = 0.25f + 0.65f * press.coerceIn(0f, 1f),
+                                style = HighlightStyle.Default(angle = 45f + 40f * interaction.velocity),
+                            )
+                        },
+                        shadow = null,
+                        layerBlock = { scaleX = lensScaleX(); scaleY = lensScaleY() },
+                        onDrawSurface = {
+                            val p = press.coerceIn(0f, 1f)
+                            drawRect((if (darkTheme) Color.White else Color.Black).copy(alpha = 0.10f * (1f - p)))
+                            drawRect(Color.White.copy(alpha = 0.035f * p))
+                        },
+                    )
+                } else {
+                    Modifier
+                        .graphicsLayer { scaleX = lensScaleX(); scaleY = lensScaleY() }
+                        .background(accent.copy(alpha = 0.16f), shape)
+                }
+                Box(
+                    Modifier
+                        .align(Alignment.Center)
+                        .absoluteOffset {
+                            IntOffset(
+                                (direction * (interaction.position - (count - 1) / 2f) * slotPx + panelShift).roundToInt(),
+                                0
+                            )
+                        }
+                        .width(slot)
+                        .height(height - 8.dp)
+                        .then(lensMaterial))
+            }
+            // Input stays on the unscaled capsule. Enlarging the glass does not move
+            // the hit targets or interfere with the system gesture area below it.
+            Box(Modifier
+                .matchParentSize()
+                .navigationDragInput(interaction))
         }
     }
 }

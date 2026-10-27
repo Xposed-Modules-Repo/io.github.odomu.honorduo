@@ -3,6 +3,7 @@ package io.github.odomu.honorduo.ui.manager
 import android.content.Context
 import android.graphics.Typeface
 import android.net.Uri
+import android.provider.OpenableColumns
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedInputStream
@@ -85,7 +86,7 @@ internal object FontInstaller {
 
     private fun queryName(context: Context, source: Uri): String? = try {
         context.contentResolver.query(source, null, null, null, null)?.use { cursor ->
-            val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
             if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
         }
     } catch (_: Throwable) {

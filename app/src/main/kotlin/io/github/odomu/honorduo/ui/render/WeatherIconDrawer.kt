@@ -14,8 +14,6 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
-import kotlin.math.cos
-import kotlin.math.sin
 
 /**
  * Draws sharp, procedural vector weather icons on Canvas directly with exact scale and ink color.
