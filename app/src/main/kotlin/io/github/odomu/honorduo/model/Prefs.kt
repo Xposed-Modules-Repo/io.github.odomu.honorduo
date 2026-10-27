@@ -69,6 +69,8 @@ object Prefs {
     const val WEATHER_URI = "content://com.hihonor.android.weather/weatherInfo"
     const val ACTION_WEATHER_CHANGE = "com.hihonor.android.action.WEATHER_CHANGE"
     const val ACTION_WIDGET_CHANGE = "com.hihonor.android.action.WIDGET_CHANGE"
+    const val ACTION_TEMPERATURE_FORMAT_CHANGE = "com.hihonor.android.action.TEMPERATURE_FORMAT_CHANGE"
+    const val ACTION_CITYINFO_CHANGE = "com.hihonor.android.action.CITYINFO_CHANGE"
     // Keys.
     const val KEY_ENABLED = "enabled"
     const val KEY_MERGE_ICONS = "merge_icons"
@@ -299,9 +301,15 @@ object Prefs {
 
     /** The battery current, as its own piece: "420mA" or "1.42A". */
     const val PART_CURRENT = 13
+    /** The pack voltage as a slot piece; see [PART_POWER]. */
+    const val PART_VOLTAGE = 14
+    /** The radio signal strength as a slot piece. */
+    const val PART_SIGNAL = 15
+    /** The headset battery as a slot piece. */
+    const val PART_BT = 16
 
     /** The highest valid part id. */
-    const val PART_MAX = PART_CURRENT
+    const val PART_MAX = PART_BT
 
     /** How the current is written: milliamps ([CURRENT_UNIT_MA]) or amps. */
     const val KEY_CURRENT_UNIT = "current_unit"
@@ -325,7 +333,10 @@ object Prefs {
      * top, middle, bottom. Append-only: reordering would reinterpret every stored
      * layout.
      */
-    const val ZONE_COUNT = 3
+    const val ZONE_COUNT = 5
+
+    /** The top band. */
+    const val ZONE_TOP = 0
 
     /** The middle band, in the order [ZONE_COUNT] stores them. */
     const val ZONE_CENTRE = 1
@@ -333,20 +344,24 @@ object Prefs {
     /** The bottom band, in the same order. */
     const val ZONE_BOTTOM = 2
 
+    /** The left flank, specialized for signal dots beside the glyph. */
+    const val ZONE_LEFT = 3
+
+    /** The right flank, specialized for signal dots beside the glyph. */
+    const val ZONE_RIGHT = 4
+
     /**
-     * Whether the ring's zone `zone` may hold part `id`.
+     * Whether zone `zone` may hold part `id`.
      *
-     * One placement is refused, and only one: a signal row may not sit in the
-     * ring's middle band. The ring's outline is already cut at 12 and 6 o'clock, and
-     * those two openings are where a row of level beads belongs; the middle has no
-     * opening, so the same beads there are a short horizontal smudge across a closed
-     * ring.
-     *
-     * Applies to the ring only: the capsule draws its rows across its two openings
-     * and the rectangle has no middle band.
+     * 1. A signal row may not sit in the ring's middle band.
+     * 2. The left and right flanks currently ONLY accept signal rows.
      */
     @JvmStatic
-    fun zoneAccepts(zone: Int, id: Int): Boolean = !(zone == ZONE_CENTRE && isSignalRow(id))
+    fun zoneAccepts(zone: Int, id: Int): Boolean = when (zone) {
+        ZONE_CENTRE -> !isSignalRow(id)
+        ZONE_LEFT, ZONE_RIGHT -> isSignalRow(id) || id == PART_WIFI
+        else -> true
+    }
 
     /** Whether `id` is a row of level dots: the aggregate meter or either card's row. */
     @JvmStatic
@@ -591,6 +606,10 @@ object Prefs {
     /** Show the battery voltage as one of the out-of-ring readings. */
     const val KEY_PERF_VOLTAGE = "perf_voltage"
     const val DEF_PERF_VOLTAGE = false
+
+    /** Show cellular signal strength as one of the out-of-ring hardware readouts (item #6). */
+    const val KEY_PERF_SIGNAL = "perf_signal"
+    const val DEF_PERF_SIGNAL = false
     /**
      * Overall size of the two performance readouts, as a percentage of the size
      * [KEY_OUT_TYPE_SIZE_DP] and the adaptive fit settle on.
@@ -856,16 +875,57 @@ object Prefs {
 
     /** Hides the notification-management bell beside the shade's clock. */
     const val KEY_SHADE_HIDE_BELL = "shade_hide_notif_bell"
+    /** Hides the charging/USB charging notification. */
+    const val KEY_SHADE_HIDE_CHARGE_NOTIF = "shade_hide_charge_notif"
+    /** Hides the mobile hotspot tethering notification. */
+    const val KEY_SHADE_HIDE_HOTSPOT_NOTIF = "shade_hide_hotspot_notif"
+    /** Hides the USB debugging connected notification. */
+    const val KEY_SHADE_HIDE_ADB_NOTIF = "shade_hide_adb_notif"
 
     /** Appends the lunar date to the shade's date line. */
     const val KEY_SHADE_LUNAR = "shade_lunar"
 
-    /** Appends the current weather to the shade's date line. */
+    /** Pull-down panel weather master switch. */
     const val KEY_SHADE_WEATHER = "shade_weather"
 
-    /** How the shade weather reads: text, glyph or both - same ids as the clock's. */
-    const val KEY_SHADE_WEATHER_STYLE = "shade_weather_style"
+    /** Pull-down panel weather position: 0=after date/time, 1=traffic row. */
+    const val KEY_SHADE_WEATHER_POSITION = "shade_weather_position"
+    const val SHADE_WEATHER_POS_DATE = 0
+    const val SHADE_WEATHER_POS_TRAFFIC = 1
 
+    /** Pull-down panel weather display style: 0=text, 1=icon, 2=symbol. */
+    const val KEY_SHADE_WEATHER_STYLE = "shade_weather_style"
+    /** Effective scope bitmask: 0=all locations, bit 0 (1)=exclude CC, bit 1 (2)=exclude shade, bit 2 (4)=exclude keyguard. */
+    const val KEY_EFFECTIVE_SCOPE = "effective_scope"
+    const val SCOPE_ALL = 0
+    const val SCOPE_BIT_CC = 1
+    const val SCOPE_BIT_SHADE = 2
+    const val SCOPE_BIT_KEYGUARD = 4
+    const val DEF_EFFECTIVE_SCOPE = SCOPE_ALL
+
+    /** Disables status bar scaling when a live capsule message is docked. */
+    const val KEY_CAPSULE_NO_SCALE = "capsule_no_scale"
+    const val DEF_CAPSULE_NO_SCALE = false
+    const val KEY_HIDE_HD_VOLTE = "hide_hd_volte"
+    const val DEF_HIDE_HD_VOLTE = false
+    const val KEY_HIDE_HD_VOWIFI = "hide_hd_vowifi"
+    const val DEF_HIDE_HD_VOWIFI = false
+    const val KEY_CC_SLIDER_LONG_PRESS = "cc_slider_long_press"
+    const val DEF_CC_SLIDER_LONG_PRESS = false
+
+    /** Trio Bluetooth headset battery indicator mode: 0=off, 1=arc, 2=digit. */
+    const val KEY_BT_BATTERY_MODE = "bt_battery_mode"
+    const val BT_BATTERY_OFF = 0
+    const val BT_BATTERY_ARC = 1
+    const val BT_BATTERY_DIGIT = 2
+    const val DEF_BT_BATTERY_MODE = BT_BATTERY_OFF
+
+    /** Click action on pull-down panel weather: 0=disabled, 1=open weather app, 2=native action. */
+    const val KEY_SHADE_WEATHER_CLICK = "shade_weather_click"
+    const val WEATHER_CLICK_DISABLED = 0
+    const val WEATHER_CLICK_OPEN_APP = 1
+    const val WEATHER_CLICK_NATIVE = 2
+    const val DEF_SHADE_WEATHER_CLICK = WEATHER_CLICK_OPEN_APP
     /**
      * The order of the three out-of-ring pieces, from the battery outwards.
      *
@@ -939,7 +999,9 @@ object Prefs {
     const val PERF_ITEM_CURRENT = 3
     const val PERF_ITEM_VOLTAGE = 4
     const val PERF_ITEM_FPS = 5
-    const val PERF_ITEM_COUNT = 5
+    const val PERF_ITEM_SIGNAL = 6
+    const val PERF_ITEM_BT = 7
+    const val PERF_ITEM_COUNT = 7
 
     @JvmField
     val PERF_DEFAULT_ORDER = intArrayOf(
@@ -948,8 +1010,10 @@ object Prefs {
         PERF_ITEM_CURRENT,
         PERF_ITEM_VOLTAGE,
         PERF_ITEM_FPS,
+        PERF_ITEM_SIGNAL,
+        PERF_ITEM_BT,
     )
-    const val PERF_DEFAULT_ORDER_STRING = "1,2,3,4,5"
+    const val PERF_DEFAULT_ORDER_STRING = "1,2,3,4,5,6,7"
     @JvmStatic
     fun decodePerfOrder(stored: String?): IntArray {
         val ids = ArrayList<Int>()
@@ -1230,9 +1294,13 @@ object Prefs {
     /** Off by default: the host's own shade and control center are left untouched. */
     const val DEF_SHADE_HIDE_POWER = false
     const val DEF_SHADE_HIDE_BELL = false
+    const val DEF_SHADE_HIDE_CHARGE_NOTIF = false
+    const val DEF_SHADE_HIDE_HOTSPOT_NOTIF = false
+    const val DEF_SHADE_HIDE_ADB_NOTIF = false
     const val DEF_SHADE_LUNAR = false
     const val DEF_SHADE_WEATHER = false
     const val DEF_SHADE_WEATHER_STYLE = WEATHER_STYLE_TEXT
+    const val DEF_SHADE_WEATHER_POSITION = SHADE_WEATHER_POS_TRAFFIC
 
     const val DEF_RING_SPACING_X = 0
     const val DEF_RING_SPACING_Y = 0

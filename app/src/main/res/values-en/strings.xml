@@ -48,15 +48,15 @@
     <string name="drawing_move_summary">%1$s is currently in %2$s. Moving it here takes it out of %2$s.</string>
     <string name="drawing_move_confirm">Move here</string>
     <string name="drawing_priority_add">Add component</string>
-    <string name="drawing_occupant_clock">Time</string>
+    <string name="drawing_occupant_clock">Clock time</string>
     <string name="drawing_occupant_power">Charge power</string>
     <string name="drawing_occupant_temp">Battery temp</string>
     <string name="drawing_occupant_running">Running power</string>
-    <string name="drawing_occupant_fps">Frame rate</string>
-    <string name="perf_power_summary">Draws the wattage as its own component while charging.</string>
-    <string name="perf_temp_summary">Draws the battery temperature as its own component.</string>
-    <string name="perf_running_summary">Draws the wattage as its own component while unplugged.</string>
-    <string name="perf_fps_summary">Draws the current screen refresh rate as its own component.</string>
+    <string name="drawing_occupant_fps">Screen frame rate</string>
+    <string name="perf_power_summary">Placeable in glyph slots or out-of-ring reading strip with adaptive stacking.</string>
+    <string name="perf_temp_summary">Placeable in glyph slots or out-of-ring reading strip with adaptive stacking.</string>
+    <string name="perf_running_summary">Placeable in glyph slots or out-of-ring reading strip with adaptive stacking.</string>
+    <string name="perf_fps_summary">Placeable in glyph slots or out-of-ring reading strip with adaptive stacking.</string>
     <string name="drawing_clock_fixed">The time is drawn only where it is placed; otherwise the bar keeps its own clock.</string>
     <string name="drawing_pick_title">%1$s: currently %2$s</string>
     <string name="drawing_pick_none_summary">Remove optional components from this area; the ring and battery bar stay.</string>
@@ -69,6 +69,8 @@
     <string name="drawing_hint_top">Top</string>
     <string name="drawing_hint_centre">Middle</string>
     <string name="drawing_hint_bottom">Bottom</string>
+    <string name="drawing_hint_left">Left</string>
+    <string name="drawing_hint_right">Right</string>
     <string name="drawing_state_title">Preview state</string>
     <string name="drawing_scene_normal">Normal</string>
     <string name="drawing_scene_charging">Charging</string>
@@ -167,10 +169,17 @@
     <string name="shade_hide_bell_title">Hide bell</string>
     <string name="shade_hide_bell_summary">Removes the notification-management entry beside the shade clock.</string>
     <string name="shade_lunar_title">Show lunar</string>
-    <string name="shade_lunar_summary">Appends the lunar date to the shade\'s date line; the date itself stays intact.</string>
-    <string name="shade_weather_title">Show weather</string>
-    <string name="shade_weather_summary">Appends the live weather and temperature to the shade\'s date line; the date itself stays intact.</string>
-    <string name="weather_style_title">Weather style</string>
+    <string name="shade_lunar_summary">Appends the lunar date to the Notification Shade (left pull) date line; the date itself stays intact.</string>
+    <string name="shade_weather_title">Notification Shade weather</string>
+    <string name="shade_weather_summary">Display real-time weather in Notification Shade (left pull) with customizable position and style.</string>
+    <string name="shade_weather_position_title">Weather position</string>
+    <string name="shade_weather_position_date">After date/time</string>
+    <string name="shade_weather_position_traffic">Traffic row</string>
+    <string name="shade_weather_style_title">Weather display style</string>
+    <string name="shade_weather_click_title">Weather click action</string>
+    <string name="shade_weather_click_disabled">No action</string>
+    <string name="shade_weather_click_open_app">Open Weather app</string>
+    <string name="shade_weather_click_native">Keep native action</string>
 
 
 
@@ -178,15 +187,14 @@
 
 
 
-    <string name="perf_power_title">Power</string>
+    <string name="perf_power_title">Charging power</string>
 
     <string name="perf_running_title">Running power</string>
     <string name="perf_temp_title">Battery temp</string>
     <string name="perf_fps_title">Frame rate</string>
     <string name="perf_current_title">Battery current</string>
-    <string name="perf_current_summary" formatted="false">Show the battery\'s current. Placeable anywhere in the ring or capsule, or left in the out-of-ring strip.</string>
     <string name="perf_voltage_title">Battery voltage</string>
-    <string name="perf_voltage_summary" formatted="false">Show the battery\'s live voltage (e.g. 3.85V) in the out-of-ring strip.</string>
+    <string name="perf_signal_title">Signal strength</string>
     <string name="current_unit_title">Current unit</string>
     <string name="current_unit_summary">Milliamps read most naturally; amps keep two decimals.</string>
     <string name="current_unit_ma">Milliamps mA</string>
@@ -283,6 +291,10 @@
     <string name="clock_weather_summary">Show real-time weather and temperature in status bar clock.</string>
     <string name="hide_status_clock_title">Hide status bar clock</string>
     <string name="hide_status_clock_summary">Forces hiding the stock status bar clock; useful when time is in the glyph or to resolve clock overlaps.</string>
+    <string name="hide_hd_volte_title">Hide VoLTE HD badge</string>
+    <string name="hide_hd_volte_summary">No HD mark in the status bar while the carrier runs voice over LTE</string>
+    <string name="hide_hd_vowifi_title">Hide Wi‑Fi calling HD badge</string>
+    <string name="hide_hd_vowifi_summary">No HD mark in the status bar while calling over Wi‑Fi</string>
     <string name="hide_alarm_icon_title">Hide alarm</string>
     <string name="hide_alarm_icon_summary">Hides the alarm icon in the status bar; the alarm still rings as usual.</string>
     <string name="hide_bluetooth_icon_title">Hide Bluetooth</string>
@@ -355,7 +367,7 @@
     <string name="language_zh">Simplified Chinese</string>
     <string name="language_en">English</string>
     <string name="about_module_version">Module version: %1$s</string>
-    <string name="about_scope_count">Scoped apps</string>
+    <string name="about_hook_count">Active hooks</string>
     <string name="about_enabled_count">Enabled toggles</string>
     <string name="back">Back</string>
     <string name="about_title">About</string>
@@ -484,10 +496,10 @@
     <string name="stack_style_title">Stacked style</string>
     <string name="stack_style_dots">Dots</string>
     <string name="stack_style_rows">Two bar rows</string>
-    <string name="signal_columns_title">Signal bars style</string>
-    <string name="signal_columns_summary">Choose 4 bars (default) or 5 bars; automatically scales proportions.</string>
-    <string name="signal_columns_4">4 signal bars (default)</string>
-    <string name="signal_columns_5">5 signal bars</string>
+    <string name="signal_columns_title">Signal count</string>
+    <string name="signal_columns_summary">Choose 4 or 5 signal levels</string>
+    <string name="signal_columns_4">4 signals</string>
+    <string name="signal_columns_5">5 signals</string>
     <string name="out_dot_size_title">Dot size</string>
     <string name="out_dot_size_summary">100% matches the bar width; 40–180.</string>
     <string name="out_signal_size_title">Stacked signal size</string>
@@ -504,6 +516,9 @@
     <string name="ring_position_temp">Battery temp position</string>
     <string name="ring_position_running">Running power position</string>
     <string name="ring_position_fps">Frame rate position</string>
+    <string name="ring_position_voltage">Voltage slot</string>
+    <string name="ring_position_signal">Signal strength slot</string>
+    <string name="ring_position_bt">Bluetooth battery slot</string>
     <string name="ring_position_current">Battery current position</string>
     <string name="drawing_part_battery">Battery outline</string>
     <string name="drawing_part_ring">Battery ring</string>
@@ -534,6 +549,35 @@
     <string name="ring_spacing_x_summary">Adjust horizontal clearance between ring arcs and center content.</string>
     <string name="ring_spacing_y_title">Ring vertical spacing</string>
     <string name="ring_spacing_y_summary">Adjust vertical clearance between ring top/bottom openings and center content.</string>
+
+    <string name="effective_scope_title">Module scope</string>
+    <string name="effective_scope_summary">Checked places show the module; unchecked places show the stock icons</string>
+    <string name="scope_all">Everywhere</string>
+    <string name="scope_option_cc">Control Center</string>
+    <string name="scope_option_shade">Shade</string>
+    <string name="scope_option_keyguard">Lockscreen</string>
+    <string name="scope_none">Hidden everywhere</string>
+    <string name="scope_short_cc">Control Center</string>
+    <string name="scope_short_shade">Shade</string>
+    <string name="scope_short_keyguard">Lockscreen</string>
+    <string name="scope_list_separator">, </string>
+
+    <string name="capsule_no_scale_title">No scaling on notification capsule</string>
+    <string name="capsule_no_scale_summary">Keep status bar icons at original size when notification capsule is docked (default off)</string>
+    <string name="cc_slider_long_press_title">Long press to switch audio output</string>
+    <string name="cc_slider_long_press_summary">Long press the control center volume slider to pick the audio output device</string>
+    <string name="shade_hide_charge_notif_title">Hide charging notification</string>
+    <string name="shade_hide_charge_notif_summary">Hide SuperCharge and USB charging system notifications</string>
+    <string name="shade_hide_hotspot_notif_title">Hide hotspot notification</string>
+    <string name="shade_hide_hotspot_notif_summary">Hide tethering hotspot active system notification</string>
+    <string name="shade_hide_adb_notif_title">Hide USB debugging notification</string>
+    <string name="shade_hide_adb_notif_summary">Hide USB debugging connected system notification</string>
+    <string name="bt_battery_title">Trio Bluetooth battery</string>
+    <string name="bt_battery_summary">Display connected Bluetooth headset battery level inside the trio glyph</string>
+    <string name="bt_battery_off">Off</string>
+    <string name="bt_battery_arc">Arc</string>
+    <string name="bt_battery_digit">Digit</string>
+
 
     <string name="group_update">Update</string>
     <string name="group_launcher_icon">Launcher icon</string>

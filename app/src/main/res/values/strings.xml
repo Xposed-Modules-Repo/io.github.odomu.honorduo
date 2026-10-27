@@ -64,10 +64,10 @@
     <string name="stack_style_title">堆叠风格</string>
     <string name="stack_style_dots">圆点副卡</string>
     <string name="stack_style_rows">双排柱</string>
-    <string name="signal_columns_title">信号柱风格</string>
-    <string name="signal_columns_summary">可选 4 信号柱（默认）或 5 信号柱；自动等比自适应显示比例。</string>
-    <string name="signal_columns_4">4 信号柱（默认）</string>
-    <string name="signal_columns_5">5 信号柱</string>
+    <string name="signal_columns_title">信号数量</string>
+    <string name="signal_columns_summary">选择 4 信号或 5 信号显示</string>
+    <string name="signal_columns_4">4信号</string>
+    <string name="signal_columns_5">5信号</string>
     <string name="out_dot_size_title">信号点大小</string>
     <string name="out_dot_size_summary">默认 100%，与信号条同宽；可调 40–180。</string>
     <string name="out_signal_size_title">堆叠信号大小</string>
@@ -84,6 +84,9 @@
     <string name="ring_position_temp">电池温度的位置</string>
     <string name="ring_position_running">运行功率的位置</string>
     <string name="ring_position_fps">帧率的位置</string>
+    <string name="ring_position_voltage">电压的位置</string>
+    <string name="ring_position_signal">信号强度的位置</string>
+    <string name="ring_position_bt">蓝牙电量的位置</string>
     <string name="ring_position_current">电流的位置</string>
     <string name="ring_position_native">归还系统</string>
     <string name="drawing_occupant_sim_1">卡一信号点</string>
@@ -104,7 +107,7 @@
     <string name="drawing_theme_dark">深色</string>
     <string name="drawing_theme_light">浅色</string>
     <string name="drawing_theme_system">跟随系统</string>
-    <string name="drawing_occupant_clock">时间</string>
+    <string name="drawing_occupant_clock">时钟时间</string>
     <string name="drawing_clock_fixed">时间放进位置后才显示；未放入时状态栏保留系统时钟。</string>
     <string name="drawing_pick_title">%1$s：现在是%2$s</string>
     <string name="drawing_pick_none_summary">清除这一处的可选组件；圆环和电量条保留。</string>
@@ -117,6 +120,8 @@
     <string name="drawing_hint_top">上部</string>
     <string name="drawing_hint_centre">中部</string>
     <string name="drawing_hint_bottom">下部</string>
+    <string name="drawing_hint_left">左侧</string>
+    <string name="drawing_hint_right">右侧</string>
     <string name="drawing_state_title">预览状态</string>
     <string name="drawing_scene_normal">正常</string>
     <string name="drawing_scene_charging">充电</string>
@@ -127,17 +132,17 @@
     <string name="drawing_occupant_none">空</string>
     <string name="drawing_occupant_value">电量数字</string>
     <string name="drawing_occupant_bolt">充电闪电</string>
-    <string name="drawing_occupant_wifi">Wi-Fi 弧</string>
+    <string name="drawing_occupant_wifi">Wi-Fi 弧形</string>
     <string name="drawing_occupant_mobile">移动信号点</string>
     <string name="drawing_occupant_type">网络类型</string>
     <string name="drawing_occupant_power">充电功率</string>
     <string name="drawing_occupant_temp">电池温度</string>
     <string name="drawing_occupant_running">运行功率</string>
-    <string name="drawing_occupant_fps">帧率</string>
-    <string name="perf_power_summary">充电时把瓦数作为一个独立组件绘制。</string>
-    <string name="perf_temp_summary">把电池温度作为一个独立组件绘制。</string>
-    <string name="perf_running_summary">未充电时把瓦数作为一个独立组件绘制。</string>
-    <string name="perf_fps_summary">把屏幕当前的刷新率作为一个独立组件绘制。</string>
+    <string name="drawing_occupant_fps">屏幕帧率</string>
+    <string name="perf_power_summary">参与环内/环外读数排布，支持自适应堆叠。</string>
+    <string name="perf_temp_summary">参与环内/环外读数排布，支持自适应堆叠。</string>
+    <string name="perf_running_summary">参与环内/环外读数排布，支持自适应堆叠。</string>
+    <string name="perf_fps_summary">参与环内/环外读数排布，支持自适应堆叠。</string>
     <string name="drawing_master_off">已关闭模块总开关，所有增强功能已暂停显示。</string>
     <string name="drawing_merge_off">已关闭三合一图标合并，环内组件将在状态栏作为独立组件自动外显。</string>
     <string name="drawing_settings_title">「%1$s」的设置</string>
@@ -196,17 +201,24 @@
     <string name="mobile_type_outside">环外</string>
     <string name="show_out_type_title">显示环外网络类型</string>
     <string name="show_out_type_summary">关闭后不在状态栏环外及堆叠信号上显示 5G/4G 等网络制式。</string>
-    <string name="drawing_part_shade">通知面板</string>
-    <string name="card_shade_summary">隐藏关机与铃铛按钮，日期上方显示农历、天气。</string>
+    <string name="drawing_part_shade">下拉面板</string>
+    <string name="card_shade_summary">控制中心隐藏电源键，通知面板隐藏铃铛并显示农历、天气。</string>
     <string name="shade_hide_power_title">隐藏关机</string>
-    <string name="shade_hide_power_summary">收起控制中心右上角的电源按钮，需要关机时仍可长按电源键。</string>
+    <string name="shade_hide_power_summary">收起控制中心（右侧下拉）右上角的电源按钮，关机仍可长按物理电源键。</string>
     <string name="shade_hide_bell_title">隐藏铃铛</string>
-    <string name="shade_hide_bell_summary">移除通知中心大时间右侧的通知管理入口。</string>
+    <string name="shade_hide_bell_summary">移除通知面板（左侧下拉）大时间右侧的通知管理入口。</string>
     <string name="shade_lunar_title">显示农历</string>
-    <string name="shade_lunar_summary">在通知中心日期行后追加农历，不影响原日期显示。</string>
+    <string name="shade_lunar_summary">在通知面板（左侧下拉）日期行后追加农历，不影响原日期显示。</string>
     <string name="shade_weather_title">显示天气</string>
-    <string name="shade_weather_summary">在通知中心日期行后追加实时天气与气温，不影响原日期显示。</string>
-    <string name="weather_style_title">天气样式</string>
+    <string name="shade_weather_summary">在通知面板（左侧下拉）中显示当前实时天气，支持位置与显示效果定制。</string>
+    <string name="shade_weather_position_title">天气位置</string>
+    <string name="shade_weather_position_date">时间后面追加</string>
+    <string name="shade_weather_position_traffic">流量行显示</string>
+    <string name="shade_weather_style_title">天气样式</string>
+    <string name="shade_weather_click_title">点击效果</string>
+    <string name="shade_weather_click_disabled">无响应</string>
+    <string name="shade_weather_click_open_app">打开天气APP</string>
+    <string name="shade_weather_click_native">保持原生操作</string>
 
 
 
@@ -214,16 +226,16 @@
 
 
 
-    <string name="perf_power_title">功率显示</string>
+    <string name="perf_power_title">充电功率</string>
 
     <string name="perf_running_title">运行功率</string>
     <string name="perf_temp_title">电池温度</string>
     <string name="perf_fps_title">帧率显示</string>
     <string name="perf_current_title">电池电流</string>
-    <string name="perf_current_summary" formatted="false">显示电池当前电流；可拖入圆环、胶囊的任意位置，也可留在环外读数条。</string>
+    <string name="perf_reading_common_summary">参与环内/环外读数排布，支持自适应堆叠。</string>
     <string name="perf_voltage_title">电池电压</string>
-    <string name="perf_voltage_summary" formatted="false">显示电池实时电压；留在环外读数条或参与自适应堆叠。</string>
-    <string name="current_unit_title">电流单位</string>
+        <string name="perf_signal_title">信号强度</string>
+        <string name="current_unit_title">电流单位</string>
     <string name="current_unit_summary">毫安（mA）读数更直观，安培（A）保留两位小数。</string>
     <string name="current_unit_ma">毫安 mA</string>
     <string name="current_unit_a">安培 A</string>
@@ -319,6 +331,10 @@
     <string name="clock_weather_summary">在状态栏时钟显示实时天气与气温。</string>
     <string name="hide_status_clock_title">隐藏状态栏时钟</string>
     <string name="hide_status_clock_summary">强制隐藏状态栏原生系统时间；当时间已放入三合一字形或发生时间重叠时开启此项。</string>
+    <string name="hide_hd_volte_title">隐藏 VoLTE HD 图标</string>
+    <string name="hide_hd_volte_summary">运营商开通高清通话时，状态栏不再显示 HD 标记</string>
+    <string name="hide_hd_vowifi_title">隐藏 Wi‑Fi 通话 HD 图标</string>
+    <string name="hide_hd_vowifi_summary">使用 Wi‑Fi 通话时，状态栏不再显示 HD 标记</string>
     <string name="hide_alarm_icon_title">隐藏闹钟</string>
     <string name="hide_alarm_icon_summary">不在状态栏显示闹钟图标；闹钟本身仍会正常响铃。</string>
     <string name="hide_bluetooth_icon_title">隐藏蓝牙</string>
@@ -391,7 +407,7 @@
     <string name="about_inactive">未激活</string>
     <string name="about_inactive_hint">请在 LSPosed 中启用模块</string>
     <string name="about_module_version">模块版本：%1$s</string>
-    <string name="about_scope_count">作用域应用</string>
+    <string name="about_hook_count">生效钩子数</string>
     <string name="about_enabled_count">已开启显示项</string>
     <string name="back">返回</string>
     <string name="about_title">关于</string>
@@ -532,6 +548,35 @@
     <string name="ring_spacing_x_summary">调整圆环左右两段圆弧与中间内容的水平间距，正值向外展开，负值向内收拢。</string>
     <string name="ring_spacing_y_title">圆环上下间距</string>
     <string name="ring_spacing_y_summary">调整圆环顶部和底部内容与中间内容的垂直间距，正值向外扩大，负值向内紧凑。</string>
+
+    <string name="effective_scope_title">模块生效范围</string>
+    <string name="effective_scope_summary">勾选的位置显示模块效果，未勾选的位置显示系统原生图标</string>
+    <string name="scope_all">所有位置</string>
+    <string name="scope_option_cc">控制中心</string>
+    <string name="scope_option_shade">通知面板</string>
+    <string name="scope_option_keyguard">锁屏</string>
+    <string name="scope_none">全部隐藏</string>
+    <string name="scope_short_cc">控制中心</string>
+    <string name="scope_short_shade">通知面板</string>
+    <string name="scope_short_keyguard">锁屏</string>
+    <string name="scope_list_separator">、</string>
+
+    <string name="capsule_no_scale_title">胶囊缩放</string>
+    <string name="capsule_no_scale_summary">通知上岛常驻时保持状态栏图标原始大小，默认关闭</string>
+    <string name="cc_slider_long_press_title">长按音量条切换输出设备</string>
+    <string name="cc_slider_long_press_summary">在控制中心长按音量条，弹出系统音频输出设备列表</string>
+    <string name="shade_hide_charge_notif_title">隐藏充电通知</string>
+    <string name="shade_hide_charge_notif_summary">隐藏「极速充电」及系统 USB 充电通知</string>
+    <string name="shade_hide_hotspot_notif_title">隐藏热点通知</string>
+    <string name="shade_hide_hotspot_notif_summary">隐藏「正在共享热点」系统通知</string>
+    <string name="shade_hide_adb_notif_title">隐藏 USB 调试通知</string>
+    <string name="shade_hide_adb_notif_summary">隐藏「已连接 USB 调试」系统通知</string>
+    <string name="bt_battery_title">蓝牙电量</string>
+    <string name="bt_battery_summary">蓝牙耳机连接时，将剩余电量显示在三合一字形内</string>
+    <string name="bt_battery_off">关闭</string>
+    <string name="bt_battery_arc">圆弧</string>
+    <string name="bt_battery_digit">数字</string>
+
 
     <string name="group_update">更新</string>
     <string name="group_launcher_icon">桌面图标</string>

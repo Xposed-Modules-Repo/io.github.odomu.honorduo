@@ -153,6 +153,13 @@ class StatusAppearance(c: ModuleSettings) {
     @JvmField val perfPower: Boolean = enabled && c.perfPower
     @JvmField val perfRunning: Boolean = enabled && c.perfRunning
     @JvmField val perfVoltage: Boolean = enabled && c.perfVoltage
+    @JvmField val perfSignal: Boolean = enabled && c.perfSignal
+    /** The carrier's VoLTE "HD" badge is hidden. */
+    @JvmField val hideHdVolte: Boolean = enabled && c.hideHdVolte
+    /** The Wi-Fi calling "HD" badge is hidden. */
+    @JvmField val hideHdVowifi: Boolean = enabled && c.hideHdVowifi
+    /** The headset battery as a number, so it joins the reading strip. */
+    @JvmField val perfBt: Boolean = enabled && c.btBatteryMode == Prefs.BT_BATTERY_DIGIT
     @JvmField val fontPath: String = c.fontPath
     @JvmField val replaceWifiIcon: Boolean = enabled && c.replaceWifiIcon
     @JvmField val replaceStatusIcon: Boolean = enabled && c.replaceStatusIcon
@@ -216,12 +223,30 @@ class StatusAppearance(c: ModuleSettings) {
     /** Notification shade: the date line carries the lunar date. */
     @JvmField val shadeLunar: Boolean = enabled && c.shadeLunar
 
-    /** Notification shade: the date line carries the weather. */
+    /** Pull-down panel weather master switch. */
     @JvmField val shadeWeather: Boolean = enabled && c.shadeWeather
 
-    /** Notification shade: text, glyph or both for that weather. */
+    /** Pull-down panel weather position: 0=after date/time, 1=traffic row. */
+    @JvmField val shadeWeatherPosition: Int = c.shadeWeatherPosition
+
+    /** Pull-down panel weather display style: 0=text, 1=icon, 2=symbol. */
     @JvmField val shadeWeatherStyle: Int = c.shadeWeatherStyle
 
+    /** Effective scope: 0=all locations, 1=exclude control center, 2=exclude notification shade, 3=exclude both. */
+    @JvmField val effectiveScope: Int = c.effectiveScope
+
+    /** Disables status bar scaling when a live capsule message is docked. */
+    @JvmField val capsuleNoScale: Boolean = enabled && c.capsuleNoScale
+    /** Long press on the control center volume slider opens the audio output picker. */
+    @JvmField val ccSliderLongPress: Boolean = enabled && c.ccSliderLongPress
+    @JvmField val shadeHideChargeNotif: Boolean = enabled && c.shadeHideChargeNotif
+    @JvmField val shadeHideHotspotNotif: Boolean = enabled && c.shadeHideHotspotNotif
+    @JvmField val shadeHideAdbNotif: Boolean = enabled && c.shadeHideAdbNotif
+
+    /** Trio Bluetooth headset battery indicator mode: 0=off, 1=arc, 2=digit. */
+    @JvmField val btBatteryMode: Int = if (enabled) c.btBatteryMode else Prefs.BT_BATTERY_OFF
+    /** A tap on the weather line opens the weather app itself. */
+    @JvmField val shadeWeatherOpensApp: Boolean = true
     /** The battery temperature is drawn in the same strip. */
     @JvmField val perfTemp: Boolean = enabled && c.perfTemp
 
@@ -490,9 +515,11 @@ class StatusAppearance(c: ModuleSettings) {
      * every caller that mounts or measures that view has to ask - never [perfPower] or
      * [perfTemp] alone.
      */
-    fun perfAnywhere(): Boolean = perfPower || perfTemp || perfCurrent || perfVoltage ||
+    fun perfAnywhere(): Boolean = perfPower || perfTemp || perfCurrent || perfVoltage || perfSignal || perfBt ||
         (!glyph && (hasRingPart(Prefs.PART_POWER) || hasRingPart(Prefs.PART_TEMP) ||
-            hasRingPart(Prefs.PART_RUNNING) || hasRingPart(Prefs.PART_CURRENT)))
+            hasRingPart(Prefs.PART_RUNNING) || hasRingPart(Prefs.PART_CURRENT) ||
+            hasRingPart(Prefs.PART_VOLTAGE) || hasRingPart(Prefs.PART_SIGNAL) ||
+            hasRingPart(Prefs.PART_BT)))
     /**
      * Whether any performance reading is switched on, the frame rate included.
      *
@@ -736,6 +763,15 @@ class StatusAppearance(c: ModuleSettings) {
         fun sweep(): Float = if (bottomOpen()) IconGeometry.B_SWEEP else 360f
 
         fun arcStart(): Float = 270f - sweep() / 2f
+
+        val hasLeftDots: Boolean
+            get() = Prefs.isSignalRow(parts[Prefs.ZONE_LEFT])
+        val hasRightDots: Boolean
+            get() = Prefs.isSignalRow(parts[Prefs.ZONE_RIGHT])
+        val hasLeftWifi: Boolean
+            get() = parts[Prefs.ZONE_LEFT] == Prefs.PART_WIFI
+        val hasRightWifi: Boolean
+            get() = parts[Prefs.ZONE_RIGHT] == Prefs.PART_WIFI
     }
 
     /** The rectangular arrangement's slot assignment for one frame. */
@@ -797,7 +833,9 @@ class StatusAppearance(c: ModuleSettings) {
 
             val anyPlaced = anyPlaced(parts) ||
                 dotBands[IconZones.Zone.TOP.ordinal] ||
-                dotBands[IconZones.Zone.BOTTOM.ordinal]
+                dotBands[IconZones.Zone.BOTTOM.ordinal] ||
+                dotBands[IconZones.Zone.LEFT.ordinal] ||
+                dotBands[IconZones.Zone.RIGHT.ordinal]
             if (!anyPlaced) {
                 // Nothing has ever been placed: behave exactly as before these cells existed.
                 val boltWanted = charging && a.drawsBolt()
@@ -824,7 +862,8 @@ class StatusAppearance(c: ModuleSettings) {
                 a, a.ringZones[IconZones.Zone.CENTRE.ordinal],
                 level, charging, wifiLevel, mobileType,
             )
-            dots = dotBands[IconZones.Zone.TOP.ordinal] || dotBands[IconZones.Zone.BOTTOM.ordinal]
+            dots = dotBands[IconZones.Zone.TOP.ordinal] || dotBands[IconZones.Zone.BOTTOM.ordinal] ||
+                dotBands[IconZones.Zone.LEFT.ordinal] || dotBands[IconZones.Zone.RIGHT.ordinal]
             dual = a.dualSimRows(false, charging, sims)
             bolt = parts.contains(Prefs.PART_BOLT)
             wifi = parts.contains(Prefs.PART_WIFI)
@@ -867,30 +906,35 @@ class StatusAppearance(c: ModuleSettings) {
             wifiLevel: Int,
             mobileType: String?,
         ): Boolean = when (part) {
-            Prefs.PART_WIFI -> a.wifi && a.wifiInk(wifiLevel)
+            Prefs.PART_WIFI -> (a.wifi || a.hasRingPart(Prefs.PART_WIFI)) && (wifiLevel >= 0 || a.wifiInk(wifiLevel))
             Prefs.PART_VALUE -> a.value && level >= 0
             Prefs.PART_BOLT -> a.boltWanted && charging
             Prefs.PART_TYPE -> a.typeInRing && !mobileType.isNullOrEmpty()
-            Prefs.PART_MOBILE -> a.mobile && !a.signalOutOfRing &&
+            Prefs.PART_MOBILE -> (a.mobile || a.hasRingPart(Prefs.PART_MOBILE)) && !a.signalOutOfRing &&
                 (!a.ring || a.hasRingPart(Prefs.PART_MOBILE))
             // The per-card rows are placeable in BOTH slot-based arrangements: the ring threads them onto its openings and the capsule lays them across its two.
-            Prefs.PART_SIM_1 -> a.mobile && a.showSim1 && !a.signalOutOfRing && !a.rect &&
-                (!a.dataSimOnly || StatusState.sDataSlot != 1)
-            Prefs.PART_SIM_2 -> a.mobile && a.showSim2 && !a.signalOutOfRing && !a.rect &&
-                (!a.dataSimOnly || StatusState.sDataSlot == 1)
+            Prefs.PART_SIM_1 -> (a.showSim1 || a.hasRingPart(Prefs.PART_SIM_1)) && !a.signalOutOfRing && !a.rect &&
+                (!a.dataSimOnly || a.hasRingPart(Prefs.PART_SIM_1) || StatusState.sDataSlot != 1)
+            Prefs.PART_SIM_2 -> (a.showSim2 || a.hasRingPart(Prefs.PART_SIM_2)) && !a.signalOutOfRing && !a.rect &&
+                (!a.dataSimOnly || a.hasRingPart(Prefs.PART_SIM_2) || StatusState.sDataSlot == 1)
             // The clock always has something to say; whether the arrangement shows it is
             // the renderer's business.
             Prefs.PART_CLOCK -> true
             // The two watt figures are one reading split by state: charging and running.
             Prefs.PART_POWER -> charging && !StatusState.sChargePowerW.isNaN()
             Prefs.PART_RUNNING -> !charging && !StatusState.sChargePowerW.isNaN()
-            Prefs.PART_TEMP -> StatusState.sBatteryTempC != StatusState.TEMP_UNKNOWN &&
-                (!a.perfTempChargingOnly || charging)
+            Prefs.PART_TEMP -> StatusState.sBatteryTempC != StatusState.TEMP_UNKNOWN && (!a.perfTempChargingOnly || charging)
             // Its own piece: a frame rate has nothing to do with the charger state, so it
             // is drawn whenever the reading is on.
             Prefs.PART_FPS -> a.perfFps || a.placed(Prefs.PART_FPS) || StatusState.sFps > 0
             // Likewise independent of the charger: the current reads on both directions.
             Prefs.PART_CURRENT -> (a.perfCurrent || a.placed(Prefs.PART_CURRENT)) && StatusState.sCurrentUa != StatusState.CURRENT_UNKNOWN
+            Prefs.PART_VOLTAGE -> (a.perfVoltage || a.placed(Prefs.PART_VOLTAGE)) && StatusState.sVoltageMv > 0
+            Prefs.PART_SIGNAL -> {
+                val text = StatusState.signalText()
+                (a.perfSignal || a.placed(Prefs.PART_SIGNAL)) && !text.isNullOrEmpty()
+            }
+            Prefs.PART_BT -> (a.perfBt || a.placed(Prefs.PART_BT)) && StatusState.sBluetoothBatteryLevel in 0..100
             else -> false
         }
 

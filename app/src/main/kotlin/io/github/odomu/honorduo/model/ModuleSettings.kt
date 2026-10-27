@@ -349,11 +349,33 @@ class ModuleSettings {
     /** Notification shade: append the lunar date to the date line. */
     @JvmField var shadeLunar = Prefs.DEF_SHADE_LUNAR
 
-    /** Notification shade: append the current weather to the date line. */
+    /** Pull-down panel weather master switch. */
     @JvmField var shadeWeather = Prefs.DEF_SHADE_WEATHER
 
-    /** Notification shade: text, glyph or both for that weather. */
+    /** Pull-down panel weather position: 0=after date/time, 1=traffic row. */
+    @JvmField var shadeWeatherPosition = Prefs.DEF_SHADE_WEATHER_POSITION
+
+    /** Pull-down panel weather display style: 0=text, 1=icon, 2=symbol. */
     @JvmField var shadeWeatherStyle = Prefs.DEF_SHADE_WEATHER_STYLE
+
+    /** Effective scope: 0=all locations, 1=exclude control center, 2=exclude notification shade, 3=exclude both. */
+    @JvmField var effectiveScope = Prefs.DEF_EFFECTIVE_SCOPE
+
+    /** Disables status bar scaling when a live capsule message is docked. */
+    @JvmField var capsuleNoScale = Prefs.DEF_CAPSULE_NO_SCALE
+    @JvmField var hideHdVolte = Prefs.DEF_HIDE_HD_VOLTE
+    @JvmField var hideHdVowifi = Prefs.DEF_HIDE_HD_VOWIFI
+    @JvmField var ccSliderLongPress = Prefs.DEF_CC_SLIDER_LONG_PRESS
+
+    /** Trio Bluetooth headset battery indicator mode: 0=off, 1=arc, 2=digit. */
+    @JvmField var btBatteryMode = Prefs.DEF_BT_BATTERY_MODE
+    @JvmField var shadeHideChargeNotif = Prefs.DEF_SHADE_HIDE_CHARGE_NOTIF
+    @JvmField var shadeHideHotspotNotif = Prefs.DEF_SHADE_HIDE_HOTSPOT_NOTIF
+    @JvmField var shadeHideAdbNotif = Prefs.DEF_SHADE_HIDE_ADB_NOTIF
+
+
+    /** Click action on notification shade traffic weather: 0=disabled, 1=open weather app, 2=native traffic stats. */
+    @JvmField var shadeWeatherClick = Prefs.DEF_SHADE_WEATHER_CLICK
 
     /** Draws the battery temperature in the same view. */
     @JvmField
@@ -370,6 +392,10 @@ class ModuleSettings {
     /** Show the battery voltage among the readouts. */
     @JvmField
     var perfVoltage = Prefs.DEF_PERF_VOLTAGE
+
+    /** Show cellular signal strength among the hardware readouts (item #6). */
+    @JvmField
+    var perfSignal = Prefs.DEF_PERF_SIGNAL
     /** How the current is written: milliamps or amps. */
     @JvmField
     var currentUnit = Prefs.DEF_CURRENT_UNIT
@@ -472,11 +498,23 @@ class ModuleSettings {
             shadeHideBell = Prefs.DEF_SHADE_HIDE_BELL
             shadeLunar = Prefs.DEF_SHADE_LUNAR
             shadeWeather = Prefs.DEF_SHADE_WEATHER
+            shadeWeatherPosition = Prefs.DEF_SHADE_WEATHER_POSITION
             shadeWeatherStyle = Prefs.DEF_SHADE_WEATHER_STYLE
+            effectiveScope = Prefs.DEF_EFFECTIVE_SCOPE
+            capsuleNoScale = Prefs.DEF_CAPSULE_NO_SCALE
+            hideHdVolte = Prefs.DEF_HIDE_HD_VOLTE
+            hideHdVowifi = Prefs.DEF_HIDE_HD_VOWIFI
+            ccSliderLongPress = Prefs.DEF_CC_SLIDER_LONG_PRESS
+            btBatteryMode = Prefs.DEF_BT_BATTERY_MODE
+            shadeHideChargeNotif = Prefs.DEF_SHADE_HIDE_CHARGE_NOTIF
+            shadeHideHotspotNotif = Prefs.DEF_SHADE_HIDE_HOTSPOT_NOTIF
+            shadeHideAdbNotif = Prefs.DEF_SHADE_HIDE_ADB_NOTIF
+            shadeWeatherClick = Prefs.DEF_SHADE_WEATHER_CLICK
             perfTemp = Prefs.DEF_PERF_TEMP
             perfFps = Prefs.DEF_PERF_FPS
             perfCurrent = Prefs.DEF_PERF_CURRENT
             perfVoltage = Prefs.DEF_PERF_VOLTAGE
+            perfSignal = Prefs.DEF_PERF_SIGNAL
             currentPositive = Prefs.DEF_CURRENT_POSITIVE
             perfScale = Prefs.DEF_PERF_SCALE
             perfWeight = Prefs.DEF_PERF_WEIGHT
@@ -679,11 +717,23 @@ class ModuleSettings {
             s.shadeHideBell = p.getBoolean(Prefs.KEY_SHADE_HIDE_BELL, Prefs.DEF_SHADE_HIDE_BELL)
             s.shadeLunar = p.getBoolean(Prefs.KEY_SHADE_LUNAR, Prefs.DEF_SHADE_LUNAR)
             s.shadeWeather = p.getBoolean(Prefs.KEY_SHADE_WEATHER, Prefs.DEF_SHADE_WEATHER)
+            s.shadeWeatherPosition = p.getInt(Prefs.KEY_SHADE_WEATHER_POSITION, Prefs.DEF_SHADE_WEATHER_POSITION)
             s.shadeWeatherStyle = p.getInt(Prefs.KEY_SHADE_WEATHER_STYLE, Prefs.DEF_SHADE_WEATHER_STYLE)
+            s.effectiveScope = p.getInt(Prefs.KEY_EFFECTIVE_SCOPE, Prefs.DEF_EFFECTIVE_SCOPE)
+            s.capsuleNoScale = p.getBoolean(Prefs.KEY_CAPSULE_NO_SCALE, Prefs.DEF_CAPSULE_NO_SCALE)
+            s.hideHdVolte = p.getBoolean(Prefs.KEY_HIDE_HD_VOLTE, Prefs.DEF_HIDE_HD_VOLTE)
+            s.hideHdVowifi = p.getBoolean(Prefs.KEY_HIDE_HD_VOWIFI, Prefs.DEF_HIDE_HD_VOWIFI)
+            s.ccSliderLongPress = p.getBoolean(Prefs.KEY_CC_SLIDER_LONG_PRESS, Prefs.DEF_CC_SLIDER_LONG_PRESS)
+            s.btBatteryMode = p.getInt(Prefs.KEY_BT_BATTERY_MODE, Prefs.DEF_BT_BATTERY_MODE)
+            s.shadeHideChargeNotif = p.getBoolean(Prefs.KEY_SHADE_HIDE_CHARGE_NOTIF, Prefs.DEF_SHADE_HIDE_CHARGE_NOTIF)
+            s.shadeHideHotspotNotif = p.getBoolean(Prefs.KEY_SHADE_HIDE_HOTSPOT_NOTIF, Prefs.DEF_SHADE_HIDE_HOTSPOT_NOTIF)
+            s.shadeHideAdbNotif = p.getBoolean(Prefs.KEY_SHADE_HIDE_ADB_NOTIF, Prefs.DEF_SHADE_HIDE_ADB_NOTIF)
+            s.shadeWeatherClick = p.getInt(Prefs.KEY_SHADE_WEATHER_CLICK, Prefs.DEF_SHADE_WEATHER_CLICK)
             s.perfTemp = p.getBoolean(Prefs.KEY_PERF_TEMP, Prefs.DEF_PERF_TEMP)
             s.perfFps = p.getBoolean(Prefs.KEY_PERF_FPS, Prefs.DEF_PERF_FPS)
             s.perfCurrent = p.getBoolean(Prefs.KEY_PERF_CURRENT, Prefs.DEF_PERF_CURRENT)
             s.perfVoltage = p.getBoolean(Prefs.KEY_PERF_VOLTAGE, Prefs.DEF_PERF_VOLTAGE)
+            s.perfSignal = p.getBoolean(Prefs.KEY_PERF_SIGNAL, Prefs.DEF_PERF_SIGNAL)
             s.currentUnit = p.getInt(Prefs.KEY_CURRENT_UNIT, Prefs.DEF_CURRENT_UNIT)
                 .coerceIn(Prefs.CURRENT_UNIT_MA, Prefs.CURRENT_UNIT_A)
             s.currentPositive = p.getBoolean(Prefs.KEY_CURRENT_POSITIVE, Prefs.DEF_CURRENT_POSITIVE)
@@ -996,6 +1046,18 @@ class ModuleSettings {
             s.shadeLunar = bundle.getBoolean(Prefs.KEY_SHADE_LUNAR, Prefs.DEF_SHADE_LUNAR)
             s.shadeWeather = bundle.getBoolean(Prefs.KEY_SHADE_WEATHER, Prefs.DEF_SHADE_WEATHER)
             s.shadeWeatherStyle = bundle.getInt(Prefs.KEY_SHADE_WEATHER_STYLE, Prefs.DEF_SHADE_WEATHER_STYLE)
+            s.shadeWeatherPosition = bundle.getInt(Prefs.KEY_SHADE_WEATHER_POSITION, Prefs.DEF_SHADE_WEATHER_POSITION)
+            s.shadeWeatherClick = bundle.getInt(Prefs.KEY_SHADE_WEATHER_CLICK, Prefs.DEF_SHADE_WEATHER_CLICK)
+            s.effectiveScope = bundle.getInt(Prefs.KEY_EFFECTIVE_SCOPE, Prefs.DEF_EFFECTIVE_SCOPE)
+            s.capsuleNoScale = bundle.getBoolean(Prefs.KEY_CAPSULE_NO_SCALE, Prefs.DEF_CAPSULE_NO_SCALE)
+            s.hideHdVolte = bundle.getBoolean(Prefs.KEY_HIDE_HD_VOLTE, Prefs.DEF_HIDE_HD_VOLTE)
+            s.hideHdVowifi = bundle.getBoolean(Prefs.KEY_HIDE_HD_VOWIFI, Prefs.DEF_HIDE_HD_VOWIFI)
+            s.ccSliderLongPress = bundle.getBoolean(Prefs.KEY_CC_SLIDER_LONG_PRESS, Prefs.DEF_CC_SLIDER_LONG_PRESS)
+            s.btBatteryMode = bundle.getInt(Prefs.KEY_BT_BATTERY_MODE, Prefs.DEF_BT_BATTERY_MODE)
+            s.shadeHideChargeNotif = bundle.getBoolean(Prefs.KEY_SHADE_HIDE_CHARGE_NOTIF, Prefs.DEF_SHADE_HIDE_CHARGE_NOTIF)
+            s.shadeHideHotspotNotif = bundle.getBoolean(Prefs.KEY_SHADE_HIDE_HOTSPOT_NOTIF, Prefs.DEF_SHADE_HIDE_HOTSPOT_NOTIF)
+            s.shadeHideAdbNotif = bundle.getBoolean(Prefs.KEY_SHADE_HIDE_ADB_NOTIF, Prefs.DEF_SHADE_HIDE_ADB_NOTIF)
+            s.perfSignal = bundle.getBoolean(Prefs.KEY_PERF_SIGNAL, Prefs.DEF_PERF_SIGNAL)
             s.perfTemp = bundle.getBoolean(Prefs.KEY_PERF_TEMP, Prefs.DEF_PERF_TEMP)
             s.perfFps = bundle.getBoolean(Prefs.KEY_PERF_FPS, Prefs.DEF_PERF_FPS)
             s.perfCurrent = bundle.getBoolean(Prefs.KEY_PERF_CURRENT, Prefs.DEF_PERF_CURRENT)
@@ -1446,6 +1508,18 @@ class ModuleSettings {
         s.shadeLunar = shadeLunar
         s.shadeWeather = shadeWeather
         s.shadeWeatherStyle = shadeWeatherStyle
+        s.shadeWeatherPosition = shadeWeatherPosition
+        s.shadeWeatherClick = shadeWeatherClick
+        s.effectiveScope = effectiveScope
+        s.capsuleNoScale = capsuleNoScale
+        s.hideHdVolte = hideHdVolte
+        s.hideHdVowifi = hideHdVowifi
+        s.ccSliderLongPress = ccSliderLongPress
+        s.btBatteryMode = btBatteryMode
+        s.shadeHideChargeNotif = shadeHideChargeNotif
+        s.shadeHideHotspotNotif = shadeHideHotspotNotif
+        s.shadeHideAdbNotif = shadeHideAdbNotif
+        s.perfSignal = perfSignal
         s.perfTemp = perfTemp
         s.perfFps = perfFps
         s.perfCurrent = perfCurrent
@@ -1606,6 +1680,18 @@ class ModuleSettings {
             Prefs.KEY_SHADE_LUNAR -> shadeLunar = src.shadeLunar
             Prefs.KEY_SHADE_WEATHER -> shadeWeather = src.shadeWeather
             Prefs.KEY_SHADE_WEATHER_STYLE -> shadeWeatherStyle = src.shadeWeatherStyle
+            Prefs.KEY_SHADE_WEATHER_POSITION -> shadeWeatherPosition = src.shadeWeatherPosition
+            Prefs.KEY_SHADE_WEATHER_CLICK -> shadeWeatherClick = src.shadeWeatherClick
+            Prefs.KEY_EFFECTIVE_SCOPE -> effectiveScope = src.effectiveScope
+            Prefs.KEY_CAPSULE_NO_SCALE -> capsuleNoScale = src.capsuleNoScale
+            Prefs.KEY_HIDE_HD_VOLTE -> hideHdVolte = src.hideHdVolte
+            Prefs.KEY_HIDE_HD_VOWIFI -> hideHdVowifi = src.hideHdVowifi
+            Prefs.KEY_CC_SLIDER_LONG_PRESS -> ccSliderLongPress = src.ccSliderLongPress
+            Prefs.KEY_BT_BATTERY_MODE -> btBatteryMode = src.btBatteryMode
+            Prefs.KEY_SHADE_HIDE_CHARGE_NOTIF -> shadeHideChargeNotif = src.shadeHideChargeNotif
+            Prefs.KEY_SHADE_HIDE_HOTSPOT_NOTIF -> shadeHideHotspotNotif = src.shadeHideHotspotNotif
+            Prefs.KEY_SHADE_HIDE_ADB_NOTIF -> shadeHideAdbNotif = src.shadeHideAdbNotif
+            Prefs.KEY_PERF_SIGNAL -> perfSignal = src.perfSignal
             Prefs.KEY_PERF_TEMP -> perfTemp = src.perfTemp
             Prefs.KEY_PERF_FPS -> perfFps = src.perfFps
             Prefs.KEY_PERF_CURRENT -> perfCurrent = src.perfCurrent
@@ -1740,6 +1826,18 @@ class ModuleSettings {
         putBoolean(Prefs.KEY_SHADE_LUNAR, shadeLunar)
         putBoolean(Prefs.KEY_SHADE_WEATHER, shadeWeather)
         putInt(Prefs.KEY_SHADE_WEATHER_STYLE, shadeWeatherStyle)
+        putInt(Prefs.KEY_SHADE_WEATHER_POSITION, shadeWeatherPosition)
+        putInt(Prefs.KEY_SHADE_WEATHER_CLICK, shadeWeatherClick)
+        putInt(Prefs.KEY_EFFECTIVE_SCOPE, effectiveScope)
+        putBoolean(Prefs.KEY_CAPSULE_NO_SCALE, capsuleNoScale)
+        putBoolean(Prefs.KEY_HIDE_HD_VOLTE, hideHdVolte)
+        putBoolean(Prefs.KEY_HIDE_HD_VOWIFI, hideHdVowifi)
+        putBoolean(Prefs.KEY_CC_SLIDER_LONG_PRESS, ccSliderLongPress)
+        putInt(Prefs.KEY_BT_BATTERY_MODE, btBatteryMode)
+        putBoolean(Prefs.KEY_SHADE_HIDE_CHARGE_NOTIF, shadeHideChargeNotif)
+        putBoolean(Prefs.KEY_SHADE_HIDE_HOTSPOT_NOTIF, shadeHideHotspotNotif)
+        putBoolean(Prefs.KEY_SHADE_HIDE_ADB_NOTIF, shadeHideAdbNotif)
+        putBoolean(Prefs.KEY_PERF_SIGNAL, perfSignal)
         putBoolean(Prefs.KEY_PERF_TEMP, perfTemp)
         putBoolean(Prefs.KEY_PERF_FPS, perfFps)
         putBoolean(Prefs.KEY_PERF_CURRENT, perfCurrent)
@@ -1838,7 +1936,7 @@ class ModuleSettings {
             // Performance readings
             perfPower == other.perfPower && perfRunning == other.perfRunning && perfTemp == other.perfTemp &&
             perfTempChargingOnly == other.perfTempChargingOnly && perfFps == other.perfFps &&
-            perfCurrent == other.perfCurrent && perfVoltage == other.perfVoltage && currentPositive == other.currentPositive &&
+            perfCurrent == other.perfCurrent && perfVoltage == other.perfVoltage && perfSignal == other.perfSignal && currentPositive == other.currentPositive &&
             currentUnit == other.currentUnit && perfScale == other.perfScale && perfWeight == other.perfWeight &&
             perfLineGap == other.perfLineGap && perfRefreshSec == other.perfRefreshSec &&
             // Clock & shade
@@ -1852,6 +1950,15 @@ class ModuleSettings {
             shadeHidePower == other.shadeHidePower && shadeHideBell == other.shadeHideBell &&
             shadeLunar == other.shadeLunar && shadeWeather == other.shadeWeather &&
             shadeWeatherStyle == other.shadeWeatherStyle && replaceWifiIcon == other.replaceWifiIcon &&
+            // New pull-down panel appearance, capsule and signal keys: without these the
+            // snapshot compares equal after a write and Compose skips the recomposition.
+            shadeWeatherPosition == other.shadeWeatherPosition && shadeWeatherClick == other.shadeWeatherClick &&
+            effectiveScope == other.effectiveScope && capsuleNoScale == other.capsuleNoScale &&
+            hideHdVolte == other.hideHdVolte && hideHdVowifi == other.hideHdVowifi &&
+            ccSliderLongPress == other.ccSliderLongPress &&
+            btBatteryMode == other.btBatteryMode &&
+            shadeHideChargeNotif == other.shadeHideChargeNotif && shadeHideHotspotNotif == other.shadeHideHotspotNotif &&
+            shadeHideAdbNotif == other.shadeHideAdbNotif &&
             replaceStatusIcon == other.replaceStatusIcon && hideAlarmIcon == other.hideAlarmIcon &&
             hideBluetoothIcon == other.hideBluetoothIcon &&
             // Colors & thresholds
@@ -1874,8 +1981,20 @@ class ModuleSettings {
         h = h * 31 + (if (perfCurrent) 1 else 0)
         h = h * 31 + (if (perfVoltage) 1 else 0)
         h = h * 31 + (if (perfFps) 1 else 0)
+        h = h * 31 + (if (perfSignal) 1 else 0)
         h = h * 31 + currentUnit
         h = h * 31 + perfScale
+        h = h * 31 + effectiveScope
+        h = h * 31 + btBatteryMode
+        h = h * 31 + shadeWeatherPosition
+        h = h * 31 + shadeWeatherClick
+        h = h * 31 + (if (capsuleNoScale) 1 else 0)
+        h = h * 31 + (if (hideHdVolte) 1 else 0)
+        h = h * 31 + (if (hideHdVowifi) 1 else 0)
+        h = h * 31 + (if (ccSliderLongPress) 1 else 0)
+        h = h * 31 + (if (shadeHideChargeNotif) 1 else 0)
+        h = h * 31 + (if (shadeHideHotspotNotif) 1 else 0)
+        h = h * 31 + (if (shadeHideAdbNotif) 1 else 0)
         h = h * 31 + ringZones.contentDeepHashCode()
         h = h * 31 + perfOrder.contentHashCode()
         return if (h != 0) h else 1

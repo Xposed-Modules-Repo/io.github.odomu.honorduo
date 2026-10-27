@@ -17,22 +17,29 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
+import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
 import android.view.View
 import androidx.core.content.ContextCompat
 import io.github.odomu.honorduo.hook.core.Refl
-import io.github.odomu.honorduo.hook.core.StatusHooks
+import io.github.odomu.honorduo.hook.core.SystemUiHook
 import io.github.odomu.honorduo.hook.statusbar.ClockTicker
+import io.github.odomu.honorduo.hook.tracker.BarVisibility
 import io.github.odomu.honorduo.hook.tracker.BatteryPresence
 import io.github.odomu.honorduo.hook.tracker.FpsTicker
 import io.github.odomu.honorduo.hook.tracker.ScreenStateTracker
 import io.github.odomu.honorduo.hook.tracker.WeatherManager
 import io.github.odomu.honorduo.hook.tracker.WifiPresence
 import io.github.odomu.honorduo.model.StatusState.Companion.SIMS_INTERVAL_MS
+import java.lang.ref.WeakReference
 import java.lang.reflect.Field
+import java.lang.reflect.Method
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -98,6 +105,10 @@ internal class StatusState(val host: View) {
     @JvmField
     var sims = 0
 
+    /** Current Bluetooth headset battery level (0..100), or -1 if unavailable. */
+    @JvmField
+    var bluetoothBattery = -1
+
     /**
      * Re-reads every status value from the host. Cheap enough to call in onDraw.
      */
@@ -124,7 +135,7 @@ internal class StatusState(val host: View) {
 
         // One telephony poll is enough for every host, so it is rate-limited here rather than expressed as a background subscription no host owns.
         if (ModuleConfig.get().dualSim || ModuleConfig.appearance().drawsAnySimRow() ||
-            ModuleConfig.appearance().stackedOut() || sMobileLevel < 0
+            ModuleConfig.appearance().stackedOut() || ModuleConfig.appearance().perfSignal || sMobileLevel < 0
         ) {
             sampleSimsIfDue()
         }
@@ -148,6 +159,7 @@ internal class StatusState(val host: View) {
         if (mobileLevel < 0 && sDataSlot in 0 until SIM_SLOTS && slots[sDataSlot] >= 0) {
             mobileLevel = slots[sDataSlot]
         }
+        bluetoothBattery = if (ModuleConfig.appearance().btBatteryMode > 0) sBluetoothBatteryLevel else -1
 
         ink = resolveInk()
     }
@@ -196,6 +208,11 @@ internal class StatusState(val host: View) {
         @Volatile
         @JvmField
         var sMobileLevel = -1
+
+        /** Latest Bluetooth headset battery level (0..100, or -1 if none). */
+        @Volatile
+        @JvmField
+        var sBluetoothBatteryLevel = -1
 
         /**
          * Whether the status bar is showing a Wi-Fi indicator at all.
@@ -342,7 +359,7 @@ internal class StatusState(val host: View) {
             val milliamps = if (absRaw > 10_000) raw / 1_000f else raw.toFloat()
             val shown = if (positive) kotlin.math.abs(milliamps) else milliamps
             return if (unit == Prefs.CURRENT_UNIT_A) {
-                String.format(java.util.Locale.US, "%.2fA", shown / 1_000f)
+                String.format(Locale.US, "%.2fA", shown / 1_000f)
             } else {
                 "${kotlin.math.round(shown).toInt()}mA"
             }
@@ -359,7 +376,27 @@ internal class StatusState(val host: View) {
         fun voltageText(): String? {
             val mv = sVoltageMv
             if (mv <= 0) return null
-            return String.format(java.util.Locale.US, "%.2fV", mv / 1_000f)
+            return String.format(Locale.US, "%.2fV", mv / 1_000f)
+        }
+
+        /** Cellular signal strength in dBm for the active data card, or [SIGNAL_DBM_UNKNOWN]. */
+        @Volatile
+        @JvmField
+        var sSignalDbm = SIGNAL_DBM_UNKNOWN
+
+        const val SIGNAL_DBM_UNKNOWN = 0
+
+        @JvmStatic
+        fun signalText(): String? {
+            val dbm = sSignalDbm
+            if (dbm in -140..-40) {
+                return "${dbm}dBm"
+            }
+            val level = dataSimSignalLevel()
+            if (level in 0..5) {
+                return "${level}格"
+            }
+            return if (sMobileLevel in 0..5) "${sMobileLevel}格" else null
         }
         /**
          * The platform's thermal status, or [THERMAL_UNKNOWN] before it is read.
@@ -458,15 +495,16 @@ internal class StatusState(val host: View) {
          * so the reference never actually clears in practice.
          */
         @Volatile
-        private var sContextRef: java.lang.ref.WeakReference<Context>? = null
+        private var sContextRef: WeakReference<Context>? = null
 
-        private fun appContext(): Context? = sContextRef?.get()
+        @JvmStatic
+        fun appContext(): Context? = sContextRef?.get()
 
         @Volatile
         private var sSimsDueAt = 0L
 
         // Battery manager (com.android.systemui.battery.HwBatteryManager).
-        private var mgrGetInstance: java.lang.reflect.Method? = null
+        private var mgrGetInstance: Method? = null
         private var mgrLevel: Field? = null
         private var mgrCharging: Field? = null
         private var mgrPowerSave: Field? = null
@@ -496,7 +534,7 @@ internal class StatusState(val host: View) {
             if (context == null || sContextRef != null) return
             try {
                 val app = context.applicationContext ?: context
-                sContextRef = java.lang.ref.WeakReference(app)
+                sContextRef = WeakReference(app)
                 WifiPresence.start(app)
                 // The battery broadcast is not routed through the hooked views, so
                 // it needs a receiver of its own.
@@ -511,7 +549,7 @@ internal class StatusState(val host: View) {
                 // rate repaints.
                 FpsTicker.onSample = { fps ->
                     sFps = fps
-                    StatusHooks.invalidateHosts()
+                    SystemUiHook.invalidateHosts()
                 }
                 FpsTicker.start(app)
                 startDataActivityListener(app)
@@ -680,13 +718,12 @@ internal class StatusState(val host: View) {
          * per-frame call from becoming a per-frame IPC.
          */
         private fun sampleSimsIfDue() {
-            if (!ScreenStateTracker.isScreenOn) return
+            if (!ScreenStateTracker.isScreenOn || !BarVisibility.shown) return
             val now = SystemClock.elapsedRealtime()
             if (now < sSimsDueAt) return
             sSimsDueAt = now + SIMS_INTERVAL_MS
             sampleSims(appContext())
         }
-
         /**
          * Reads one signal level per SIM slot straight from telephony.
          *
@@ -714,33 +751,60 @@ internal class StatusState(val host: View) {
                 val tel = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
                 if (subs == null || tel == null) return
                 val dataSubId = SubscriptionManager.getDefaultDataSubscriptionId()
-                subs.activeSubscriptionInfoList?.forEach { info ->
+                val activeList = subs.activeSubscriptionInfoList
+                activeList?.forEach { info ->
                     val subId = info.subscriptionId
                     val slot = info.simSlotIndex
                     if (subId == dataSubId) dataSlot = slot
                     if (slot in 0 until SIM_SLOTS) {
                         levels[slot] = levelOf(tel, subId)
-                        // The radio decides the family; the icon only refines it, and is replaced when stale.
-                        // The ROM's own per-slot answer first: it already folded in the
-                        // NSA override, and it is the value its icon was chosen from.
                         val radio = romSlotType(slot, subId) ?: typeOf(tel, subId)
                         if (radio != null) {
                             setSlotType(slot, radio, fromIcon = false)
                         }
+                        val subTel = tel.createForSubscriptionId(subId) ?: tel
+                        val ss = subTel.signalStrength
+                        val dbm = runCatching {
+                            ss?.cellSignalStrengths?.firstOrNull()?.dbm
+                        }.getOrNull()
+                        if (dbm != null && dbm in -140..-40) {
+                            if (subId == dataSubId || sSignalDbm == SIGNAL_DBM_UNKNOWN) {
+                                sSignalDbm = dbm
+                            }
+                        }
                     }
                 }
-                // The aggregate reading comes from the data subscription rather than from
-                // the icon that happens to carry it.
+                if (dataSlot !in 0 until SIM_SLOTS && !activeList.isNullOrEmpty()) {
+                    dataSlot = activeList[0].simSlotIndex
+                }
                 if (dataSlot in 0 until SIM_SLOTS && levels[dataSlot] >= 0) {
                     sMobileLevel = levels[dataSlot]
                 }
             } catch (_: Throwable) {
-                // keep whatever the previous poll found.
+                // Retain previous sampled values on transient telephony exceptions
             }
-            // Published only once the whole reading is consistent, so a frame never
-            // pairs SIM 1's level with SIM 2's from a different poll.
+
+            val changed = !sSlotLevels.contentEquals(levels) || sDataSlot != dataSlot
             sSlotLevels = levels
             sDataSlot = dataSlot
+            if (changed && BarVisibility.shown) {
+                SystemUiHook.invalidateHosts()
+            }
+        }
+
+        /**
+         * Resolves the real-time signal strength level for the active mobile data SIM.
+         */
+        @JvmStatic
+        fun dataSimSignalLevel(): Int {
+            val slot = sDataSlot
+            val levels = sSlotLevels
+            if (slot in 0 until SIM_SLOTS && levels[slot] >= 0) {
+                return levels[slot]
+            }
+            if (levels[0] >= 0) return levels[0]
+            if (levels[1] >= 0) return levels[1]
+            return sMobileLevel
         }
 
         /**
@@ -852,7 +916,7 @@ internal class StatusState(val host: View) {
             if (sDataActivitySampler) return
             val tm = context.getSystemService(TelephonyManager::class.java) ?: return
             sDataActivitySampler = true
-            val main = android.os.Handler(android.os.Looper.getMainLooper())
+            val main = Handler(Looper.getMainLooper())
             val tick = object : Runnable {
                 override fun run() {
                     try {
@@ -860,7 +924,7 @@ internal class StatusState(val host: View) {
                         val direction = (method.invoke(tm) as? Number)?.toInt() ?: 0
                         if (sDataActivity != direction) {
                             sDataActivity = direction
-                            StatusHooks.invalidateHosts()
+                            SystemUiHook.invalidateHosts()
                         }
                     } catch (_: Throwable) {
                         // Hidden on some builds; the callback above still covers those.
@@ -881,12 +945,12 @@ internal class StatusState(val host: View) {
                     val executor = context.mainExecutor
                     tm.registerTelephonyCallback(
                         executor,
-                        object : android.telephony.TelephonyCallback(),
-                            android.telephony.TelephonyCallback.DataActivityListener {
+                        object : TelephonyCallback(),
+                            TelephonyCallback.DataActivityListener {
                             override fun onDataActivity(direction: Int) {
                                 if (sDataActivity != direction) {
                                     sDataActivity = direction
-                                    StatusHooks.invalidateHosts()
+                                    SystemUiHook.invalidateHosts()
                                 }
                             }
                         }

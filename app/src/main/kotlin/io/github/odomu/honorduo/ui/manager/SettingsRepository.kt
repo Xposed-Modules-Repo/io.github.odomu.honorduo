@@ -156,24 +156,31 @@ class SettingsRepository(val context: Context) {
      * type slot) removes the piece. The three ints are still the three zones, which is why
      * the mapping is kept - the ring's editor drives the priority lists directly.
      */
-    fun setRingPartPosition(part: IconZones.Part, position: Int) {
+    fun setRingPartZone(part: IconZones.Part, zone: IconZones.Zone?) {
         val current = ModuleSettings.from(preferences(), density)
-        if (position in 1..3) {
+        if (zone != null) {
             applyRingAssignment(
-                IconZones.withPiece(current, position - 1, part)
+                IconZones.withPiece(current, zone.ordinal, part)
             )
         } else {
             val next = current.copy()
             val id = IconZones.encodePart(part)
             next.ringZones = ModuleSettings.copyZones(current.ringZones)
-            for (zone in next.ringZones.indices) {
-                next.ringZones[zone] = next.ringZones[zone].filter { it != id }.toIntArray()
+            for (z in next.ringZones.indices) {
+                next.ringZones[z] = next.ringZones[z].filter { it != id }.toIntArray()
             }
-            if (part == IconZones.Part.TYPE) {
-                next.mobileTypeMode =
-                    if (position == 4) Prefs.MOBILE_TYPE_OUT_RING else Prefs.MOBILE_TYPE_OFF
+            if (part == IconZones.Part.TYPE && current.mobileTypeMode == Prefs.MOBILE_TYPE_IN_RING) {
+                next.mobileTypeMode = Prefs.MOBILE_TYPE_OFF
             }
             applyRingAssignment(next)
+        }
+    }
+
+    fun setRingPartPosition(part: IconZones.Part, position: Int) {
+        if (position in 1..Prefs.ZONE_COUNT) {
+            setRingPartZone(part, IconZones.Zone.entries[position - 1])
+        } else {
+            setRingPartZone(part, null)
         }
     }
     /**
@@ -184,23 +191,29 @@ class SettingsRepository(val context: Context) {
      * "switch off" write and a "remove from layout" write the module would be asked to draw
      * arcs it has no slot for, or hold a slot it will not fill.
      */
-    fun setWifiPosition(position: Int) {
+    fun setWifiZone(zone: IconZones.Zone?) {
         val current = ModuleSettings.from(preferences(), density)
-        if (position in 1..3) {
-            val next = IconZones.withPiece(
-                current, position - 1, IconZones.Part.WIFI)
+        if (zone != null) {
+            val next = IconZones.withPiece(current, zone.ordinal, IconZones.Part.WIFI)
             next.showWifi = true
             applyRingAssignment(next)
         } else {
             val next = current.copy()
             next.showWifi = false
-            val id = IconZones.encodePart(
-                IconZones.Part.WIFI)
+            val id = IconZones.encodePart(IconZones.Part.WIFI)
             next.ringZones = ModuleSettings.copyZones(current.ringZones)
-            for (zone in next.ringZones.indices) {
-                next.ringZones[zone] = next.ringZones[zone].filter { it != id }.toIntArray()
+            for (z in next.ringZones.indices) {
+                next.ringZones[z] = next.ringZones[z].filter { it != id }.toIntArray()
             }
             applyRingAssignment(next)
+        }
+    }
+
+    fun setWifiPosition(position: Int) {
+        if (position in 1..Prefs.ZONE_COUNT) {
+            setWifiZone(IconZones.Zone.entries[position - 1])
+        } else {
+            setWifiZone(null)
         }
     }
 
@@ -293,6 +306,17 @@ class SettingsRepository(val context: Context) {
     fun setShadeLunar(value: Boolean) = writeBoolean(Prefs.KEY_SHADE_LUNAR, value)
     fun setShadeWeather(value: Boolean) = writeBoolean(Prefs.KEY_SHADE_WEATHER, value)
     fun setShadeWeatherStyle(value: Int) = writeInt(Prefs.KEY_SHADE_WEATHER_STYLE, value)
+    fun setEffectiveScope(value: Int) = writeInt(Prefs.KEY_EFFECTIVE_SCOPE, value)
+    fun setCapsuleNoScale(value: Boolean) = writeBoolean(Prefs.KEY_CAPSULE_NO_SCALE, value)
+    fun setHideHdVolte(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_HD_VOLTE, value)
+    fun setHideHdVowifi(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_HD_VOWIFI, value)
+    fun setCcSliderLongPress(value: Boolean) = writeBoolean(Prefs.KEY_CC_SLIDER_LONG_PRESS, value)
+    fun setShadeHideChargeNotif(value: Boolean) = writeBoolean(Prefs.KEY_SHADE_HIDE_CHARGE_NOTIF, value)
+    fun setShadeHideHotspotNotif(value: Boolean) = writeBoolean(Prefs.KEY_SHADE_HIDE_HOTSPOT_NOTIF, value)
+    fun setShadeHideAdbNotif(value: Boolean) = writeBoolean(Prefs.KEY_SHADE_HIDE_ADB_NOTIF, value)
+    fun setBtBatteryMode(value: Int) = writeInt(Prefs.KEY_BT_BATTERY_MODE, value)
+    fun setShadeWeatherPosition(value: Int) = writeInt(Prefs.KEY_SHADE_WEATHER_POSITION, value)
+    fun setShadeWeatherClick(value: Int) = writeInt(Prefs.KEY_SHADE_WEATHER_CLICK, value)
     fun setColorClockWeatherOnDark(value: Int) = writeInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_DARK, value)
     fun setColorClockWeatherOnLight(value: Int) = writeInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_LIGHT, value)
     /** Battery temperature in the out-of-ring strip - see [Prefs.KEY_PERF_TEMP]. */
@@ -372,6 +396,25 @@ class SettingsRepository(val context: Context) {
             notifyModule()
         } else {
             writeBoolean(Prefs.KEY_PERF_VOLTAGE, value)
+        }
+    }
+
+    /** Whether cellular signal strength is drawn among the readouts (item #6). */
+    fun setPerfSignal(value: Boolean) {
+        val current = read()
+        if (value && !current.perfSignal) {
+            val order = touchPerfOrder(current.perfOrder, current, Prefs.PERF_ITEM_SIGNAL)
+            preferences().edit(commit = true) {
+                putBoolean(Prefs.KEY_PERF_SIGNAL, value)
+                putString(Prefs.KEY_PERF_ORDER, Prefs.encodePerfOrder(order))
+            }
+            push {
+                it.putBoolean(Prefs.KEY_PERF_SIGNAL, value)
+                it.putString(Prefs.KEY_PERF_ORDER, Prefs.encodePerfOrder(order))
+            }
+            notifyModule()
+        } else {
+            writeBoolean(Prefs.KEY_PERF_SIGNAL, value)
         }
     }
 
@@ -604,6 +647,18 @@ class SettingsRepository(val context: Context) {
             prefs.putBoolean(Prefs.KEY_SHADE_LUNAR, snapshot.shadeLunar)
             prefs.putBoolean(Prefs.KEY_SHADE_WEATHER, snapshot.shadeWeather)
             prefs.putInt(Prefs.KEY_SHADE_WEATHER_STYLE, snapshot.shadeWeatherStyle)
+            prefs.putInt(Prefs.KEY_SHADE_WEATHER_POSITION, snapshot.shadeWeatherPosition)
+            prefs.putInt(Prefs.KEY_SHADE_WEATHER_CLICK, snapshot.shadeWeatherClick)
+            prefs.putInt(Prefs.KEY_EFFECTIVE_SCOPE, snapshot.effectiveScope)
+            prefs.putBoolean(Prefs.KEY_CAPSULE_NO_SCALE, snapshot.capsuleNoScale)
+            prefs.putBoolean(Prefs.KEY_HIDE_HD_VOLTE, snapshot.hideHdVolte)
+            prefs.putBoolean(Prefs.KEY_HIDE_HD_VOWIFI, snapshot.hideHdVowifi)
+            prefs.putBoolean(Prefs.KEY_CC_SLIDER_LONG_PRESS, snapshot.ccSliderLongPress)
+            prefs.putBoolean(Prefs.KEY_SHADE_HIDE_CHARGE_NOTIF, snapshot.shadeHideChargeNotif)
+            prefs.putBoolean(Prefs.KEY_SHADE_HIDE_HOTSPOT_NOTIF, snapshot.shadeHideHotspotNotif)
+            prefs.putBoolean(Prefs.KEY_SHADE_HIDE_ADB_NOTIF, snapshot.shadeHideAdbNotif)
+            prefs.putInt(Prefs.KEY_BT_BATTERY_MODE, snapshot.btBatteryMode)
+            prefs.putBoolean(Prefs.KEY_PERF_SIGNAL, snapshot.perfSignal)
             prefs.putInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_DARK, snapshot.clockWeatherColorOnDark)
             prefs.putInt(Prefs.KEY_COLOR_CLOCK_WEATHER_ON_LIGHT, snapshot.clockWeatherColorOnLight)
             prefs.putString(Prefs.KEY_CLOCK_DIGIT_COLORS, Prefs.encodeClockDigitColors(snapshot.clockDigitColorsOnDark))
@@ -731,6 +786,7 @@ class SettingsRepository(val context: Context) {
             Prefs.PERF_ITEM_CURRENT -> if (id == enabledItem) true else currentSettings.perfCurrent
             Prefs.PERF_ITEM_VOLTAGE -> if (id == enabledItem) true else currentSettings.perfVoltage
             Prefs.PERF_ITEM_FPS -> if (id == enabledItem) true else currentSettings.perfFps
+            Prefs.PERF_ITEM_SIGNAL -> if (id == enabledItem) true else currentSettings.perfSignal
             else -> false
         }
         val activeOthers = currentOrder.filter { it != enabledItem && isItemActive(it) }

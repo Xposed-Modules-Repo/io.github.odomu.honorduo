@@ -18,7 +18,9 @@ import io.github.odomu.honorduo.model.ModuleSettings
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.StatusAppearance
 import io.github.odomu.honorduo.ui.component.GlassDropdownPreference
+import io.github.odomu.honorduo.ui.component.GlassMultiDropdownPreference
 import io.github.odomu.honorduo.ui.component.SettingsItemMargin
+import io.github.odomu.honorduo.ui.dialog.zoneLabelRes
 import io.github.odomu.honorduo.ui.manager.SettingsRepository
 import io.github.odomu.honorduo.ui.render.IconZones
 import top.yukonga.miuix.kmp.basic.DropdownEntry
@@ -130,6 +132,8 @@ internal enum class ContentControl(val owner: SettingsPart) {
     CurrentUnit(SettingsPart.Readouts),
     CurrentPositive(SettingsPart.Readouts),
     Voltage(SettingsPart.Readouts),
+    PerfSignal(SettingsPart.Readouts),
+    BtBatteryMode(SettingsPart.Readouts),
     Clock(SettingsPart.Clock),
     HideStatusClock(SettingsPart.Clock),
     ClockLunar(SettingsPart.Clock),
@@ -144,17 +148,24 @@ internal enum class ContentControl(val owner: SettingsPart) {
     HideAlarmIcon(SettingsPart.Appearance),
     HideBluetoothIcon(SettingsPart.Appearance),
     ShadeHidePower(SettingsPart.Shade),
+    CcSliderLongPress(SettingsPart.Shade),
     ShadeHideBell(SettingsPart.Shade),
+    ShadeHideChargeNotif(SettingsPart.Shade),
+    ShadeHideHotspotNotif(SettingsPart.Shade),
+    ShadeHideAdbNotif(SettingsPart.Shade),
+    HideHdVolte(SettingsPart.Shade),
+    HideHdVowifi(SettingsPart.Shade),
     ShadeLunar(SettingsPart.Shade),
     ShadeWeather(SettingsPart.Shade),
     ShadeWeatherStyle(SettingsPart.Shade),
+    EffectiveScope(SettingsPart.Appearance),
 }
 
 internal fun contentControlsFor(part: SettingsPart): List<ContentControl> =
     ContentControl.entries.filter {
         val matchesOwner = it.owner == part || (part == SettingsPart.Battery && it == ContentControl.Bolt)
         matchesOwner && !(part == SettingsPart.Appearance &&
-            (it == ContentControl.Enabled || it == ContentControl.MergeIcons || it == ContentControl.Style || it == ContentControl.AntiBurnIn))
+            (it == ContentControl.Enabled || it == ContentControl.MergeIcons || it == ContentControl.Style || it == ContentControl.AntiBurnIn || it == ContentControl.EffectiveScope))
     }
 
 @Composable
@@ -176,15 +187,29 @@ internal fun ContentControlRow(
         ContentControl.Power -> IconZones.Part.POWER
         ContentControl.RunningPower -> IconZones.Part.RUNNING
         ContentControl.Temperature -> IconZones.Part.TEMP
+        ContentControl.Current -> IconZones.Part.CURRENT
+        ContentControl.Voltage -> IconZones.Part.VOLTAGE
+        ContentControl.PerfSignal -> IconZones.Part.SIGNAL
+        ContentControl.BtBatteryMode -> IconZones.Part.BT
         else -> null
     }
     if (control == ContentControl.Type) {
         TypePositionControl(settings, update, zonesAllowed = a.slotted)
         return
     }
-    if ((a.ring || a.capsule) && positioned != null && !a.rect) {
-        RingPositionControl(positioned, ringSettings, update)
-        if (control == ContentControl.Clock) return
+    val isPartActive = when (control) {
+        ContentControl.Power -> settings.perfPower
+        ContentControl.RunningPower -> settings.perfRunning
+        ContentControl.Temperature -> settings.perfTemp
+        ContentControl.Fps -> settings.perfFps
+        ContentControl.Current -> settings.perfCurrent
+        ContentControl.Voltage -> settings.perfVoltage
+        ContentControl.PerfSignal -> settings.perfSignal
+        ContentControl.BtBatteryMode -> settings.btBatteryMode > 0
+        ContentControl.Value -> settings.showValue
+        ContentControl.Bolt -> settings.showBolt
+        ContentControl.Clock -> true
+        else -> true
     }
     if (control == ContentControl.Mobile) {
         SignalPositionControl(settings, update)
@@ -214,16 +239,16 @@ internal fun ContentControlRow(
             summaryRes = R.string.anti_burn_in_summary,
             dependencies = emptyList(),
         ) { value -> update { it.setAntiBurnIn(value) } }
-        ContentControl.SignalColumns -> if (a.stackedOut()) {
+        ContentControl.SignalColumns -> {
             val columns = listOf(4, 5)
             ContentChoice(
                 selected = columns.indexOf(settings.signalColumns).coerceAtLeast(0),
                 title = R.string.signal_columns_title,
                 summaryRes = R.string.signal_columns_summary,
                 options = listOf(R.string.signal_columns_4, R.string.signal_columns_5),
-                dependencies = listOf(a.mobile to R.string.show_mobile_title),
+                dependencies = emptyList(),
             ) { index -> update { it.setSignalColumns(columns[index]) } }
-        } else Unit
+        }
         ContentControl.Wifi -> WifiPositionControl(settings, ringSettings, update)
         ContentControl.ReplaceWifiIcon -> ContentToggle(
             checked = settings.replaceWifiIcon,
@@ -380,6 +405,24 @@ internal fun ContentControlRow(
             summaryRes = R.string.shade_hide_bell_summary,
             dependencies = listOf(settings.enabled to R.string.master_module_title),
         ) { value -> update { it.setShadeHideBell(value) } }
+        ContentControl.ShadeHideChargeNotif -> ContentToggle(
+            checked = settings.shadeHideChargeNotif,
+            title = R.string.shade_hide_charge_notif_title,
+            summaryRes = R.string.shade_hide_charge_notif_summary,
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { value -> update { it.setShadeHideChargeNotif(value) } }
+        ContentControl.ShadeHideHotspotNotif -> ContentToggle(
+            checked = settings.shadeHideHotspotNotif,
+            title = R.string.shade_hide_hotspot_notif_title,
+            summaryRes = R.string.shade_hide_hotspot_notif_summary,
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { value -> update { it.setShadeHideHotspotNotif(value) } }
+        ContentControl.ShadeHideAdbNotif -> ContentToggle(
+            checked = settings.shadeHideAdbNotif,
+            title = R.string.shade_hide_adb_notif_title,
+            summaryRes = R.string.shade_hide_adb_notif_summary,
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { value -> update { it.setShadeHideAdbNotif(value) } }
         ContentControl.ShadeLunar -> ContentToggle(
             checked = settings.shadeLunar,
             title = R.string.shade_lunar_title,
@@ -394,20 +437,22 @@ internal fun ContentControlRow(
         ) { value -> update { it.setShadeWeather(value) } }
         ContentControl.ShadeWeatherStyle -> if (settings.shadeWeather) {
             ContentChoice(
-                selected = settings.shadeWeatherStyle.coerceIn(0, 2),
-                title = R.string.weather_style_title,
+                selected = settings.shadeWeatherStyle.coerceIn(0, Prefs.WEATHER_STYLE_COUNT - 1),
+                title = R.string.clock_weather_style_title,
                 summaryRes = null,
                 options = listOf(
                     R.string.weather_style_text,
                     R.string.weather_style_icon,
                     R.string.weather_style_icon_text,
+                    R.string.weather_style_symbol,
+                    R.string.weather_style_symbol_text,
                 ),
                 dependencies = listOf(settings.shadeWeather to R.string.shade_weather_title),
             ) { value -> update { it.setShadeWeatherStyle(value) } }
         } else Unit
-        ContentControl.Power -> ContentToggle(settings.perfPower, R.string.perf_power_title, null, emptyList()) { value -> update { it.setPerfPower(value) } }
-        ContentControl.RunningPower -> ContentToggle(checked = settings.perfRunning, title = R.string.perf_running_title, summaryRes = null,
-            dependencies = listOf(settings.perfPower to R.string.perf_power_title)) { value -> update { it.setPerfRunning(value) } }
+        ContentControl.Power -> ContentToggle(settings.perfPower, R.string.perf_power_title, R.string.perf_reading_common_summary, emptyList()) { value -> update { it.setPerfPower(value) } }
+        ContentControl.RunningPower -> ContentToggle(checked = settings.perfRunning, title = R.string.perf_running_title, summaryRes = R.string.perf_reading_common_summary,
+            dependencies = emptyList()) { value -> update { it.setPerfRunning(value) } }
         // Absent (not greyed) when the caption has nowhere to sit: type inside the
         // glyph, or the stacked reading off.
         ContentControl.StackLabel ->
@@ -433,13 +478,13 @@ internal fun ContentControlRow(
             summaryRes = R.string.perf_temp_charging_only_summary,
             dependencies = listOf(settings.perfTemp to R.string.perf_temp_title),
         ) { value -> update { it.setPerfTempChargingOnly(value) } }
-        ContentControl.Temperature -> ContentToggle(settings.perfTemp, R.string.perf_temp_title, null, emptyList()) { value -> update { it.setPerfTemp(value) } }
-        ContentControl.Fps -> ContentToggle(checked = settings.perfFps, title = R.string.perf_fps_title, summaryRes = R.string.perf_fps_summary,
+        ContentControl.Temperature -> ContentToggle(settings.perfTemp, R.string.perf_temp_title, R.string.perf_reading_common_summary, emptyList()) { value -> update { it.setPerfTemp(value) } }
+        ContentControl.Fps -> ContentToggle(checked = settings.perfFps, title = R.string.perf_fps_title, summaryRes = R.string.perf_reading_common_summary,
             dependencies = emptyList()) { value -> update { it.setPerfFps(value) } }
         ContentControl.Current -> ContentToggle(
             checked = settings.perfCurrent,
             title = R.string.perf_current_title,
-            summaryRes = R.string.perf_current_summary,
+            summaryRes = R.string.perf_reading_common_summary,
             dependencies = emptyList(),
         ) { value -> update { it.setPerfCurrent(value) } }
         ContentControl.CurrentUnit -> ContentChoice(
@@ -456,7 +501,7 @@ internal fun ContentControlRow(
         ContentControl.Voltage -> ContentToggle(
             checked = settings.perfVoltage,
             title = R.string.perf_voltage_title,
-            summaryRes = R.string.perf_voltage_summary,
+            summaryRes = R.string.perf_reading_common_summary,
             dependencies = emptyList(),
         ) { value -> update { it.setPerfVoltage(value) } }
         ContentControl.Clock -> Unit
@@ -519,6 +564,55 @@ internal fun ContentControlRow(
                 onChange = { value -> update { it.setClockWeekdayFormat(value) } },
             )
         } else Unit
+        ContentControl.PerfSignal -> ContentToggle(
+            checked = settings.perfSignal,
+            title = R.string.perf_signal_title,
+            summaryRes = R.string.perf_reading_common_summary,
+            dependencies = emptyList(),
+        ) { value -> update { it.setPerfSignal(value) } }
+        ContentControl.BtBatteryMode -> ContentToggle(
+            checked = settings.btBatteryMode > 0,
+            title = R.string.bt_battery_title,
+            summaryRes = R.string.perf_reading_common_summary,
+            dependencies = emptyList(),
+        ) { on ->
+            update {
+                it.setBtBatteryMode(if (on) Prefs.BT_BATTERY_ARC else Prefs.BT_BATTERY_OFF)
+            }
+        }
+        ContentControl.HideHdVolte -> ContentToggle(
+            checked = settings.hideHdVolte,
+            title = R.string.hide_hd_volte_title,
+            summaryRes = R.string.hide_hd_volte_summary,
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { value -> update { it.setHideHdVolte(value) } }
+        ContentControl.HideHdVowifi -> ContentToggle(
+            checked = settings.hideHdVowifi,
+            title = R.string.hide_hd_vowifi_title,
+            summaryRes = R.string.hide_hd_vowifi_summary,
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { value -> update { it.setHideHdVowifi(value) } }
+        ContentControl.CcSliderLongPress -> ContentToggle(
+            checked = settings.ccSliderLongPress,
+            title = R.string.cc_slider_long_press_title,
+            summaryRes = R.string.cc_slider_long_press_summary,
+            dependencies = listOf(settings.enabled to R.string.master_title),
+        ) { value -> update { it.setCcSliderLongPress(value) } }
+        ContentControl.EffectiveScope -> ContentMultiChoice(
+            selected = scopeActiveSet(settings.effectiveScope),
+            title = R.string.effective_scope_title,
+            options = listOf(
+                R.string.scope_option_cc,
+                R.string.scope_option_shade,
+                R.string.scope_option_keyguard,
+            ),
+            dependencies = listOf(settings.enabled to R.string.master_title),
+        ) { next -> update { it.setEffectiveScope(scopeMaskOf(next)) } }
+
+    }
+    // 开关渲染完毕后，若该组件处于开启状态，紧接着渲染其对应的环内/胶囊位置选择下拉
+    if ((a.ring || a.capsule) && positioned != null && !a.rect && isPartActive) {
+        RingPositionControl(positioned, ringSettings, update)
     }
 }
 
@@ -578,33 +672,52 @@ private fun SignalCardPositionControl(
     update: ((SettingsRepository) -> Unit) -> Unit,
     visible: Boolean,
 ) {
-    // Hidden rather than greyed, like every other gated row: a signal card has no slot
-    // to pick while the signal is drawn outside the glyph.
-    if (!visible) {
-        return
-    }
+    if (!visible) return
     val id = IconZones.encodePart(part)
     val twin = if (part == IconZones.Part.SIM_1) IconZones.Part.SIM_2 else IconZones.Part.SIM_1
     val twinId = IconZones.encodePart(twin)
     val zones = settings.ringZones
-    val placedAt = zones.indexOfFirst { it.contains(id) } + 1
+    val placedAt = zones.indexOfFirst { it.contains(id) }
     val takenByTwin = zones.indexOfFirst { it.contains(twinId) }
-    // Option 0 is "not placed" and is always allowed; 1..3 mirror the zones. The middle is
-    // refused for the row itself, and the one the twin holds is refused because it is taken.
+
+    val targetZones = listOf(
+        IconZones.Zone.LEFT,
+        IconZones.Zone.TOP,
+        IconZones.Zone.CENTRE,
+        IconZones.Zone.BOTTOM,
+        IconZones.Zone.RIGHT,
+    )
+    val selected = if (placedAt >= 0) {
+        val currentZone = IconZones.Zone.entries[placedAt]
+        targetZones.indexOf(currentZone).let { if (it >= 0) it + 1 else 0 }
+    } else 0
+
     val blocked = buildSet {
-        add(IconZones.Zone.CENTRE.ordinal + 1)
-        if (takenByTwin >= 0) add(takenByTwin + 1)
+        add(targetZones.indexOf(IconZones.Zone.CENTRE) + 1)
+        if (takenByTwin >= 0) {
+            val twinZone = IconZones.Zone.entries[takenByTwin]
+            val twinOption = targetZones.indexOf(twinZone)
+            if (twinOption >= 0) add(twinOption + 1)
+        }
     }
     ContentChoice(
-        selected = placedAt,
-        title = if (part == IconZones.Part.SIM_1) R.string.ring_position_sim_1
-        else R.string.ring_position_sim_2,
+        selected = selected,
+        title = if (part == IconZones.Part.SIM_1) R.string.ring_position_sim_1 else R.string.ring_position_sim_2,
         summaryRes = null,
-        options = listOf(R.string.ring_position_native, R.string.drawing_hint_top,
-            R.string.drawing_hint_centre, R.string.drawing_hint_bottom),
+        options = listOf(
+            R.string.ring_position_native,
+            R.string.drawing_hint_left,
+            R.string.drawing_hint_top,
+            R.string.drawing_hint_centre,
+            R.string.drawing_hint_bottom,
+            R.string.drawing_hint_right,
+        ),
         dependencies = listOf(settings.enabled to R.string.master_title),
         blockedIndices = blocked,
-        onChange = { value -> update { it.setRingPartPosition(part, value) } },
+        onChange = { value ->
+            val targetZone = if (value in 1..targetZones.size) targetZones[value - 1] else null
+            update { it.setRingPartZone(part, targetZone) }
+        },
     )
 }
 
@@ -627,16 +740,36 @@ private fun WifiPositionControl(
     update: ((SettingsRepository) -> Unit) -> Unit,
 ) {
     val id = IconZones.encodePart(IconZones.Part.WIFI)
-    val placedAt = ringSettings.ringZones.indexOfFirst { it.contains(id) } + 1
-    // Off wins over "placed somewhere": a switch that is off draws no arcs whatever the
-    // layout says, so reporting a slot here would name a place that produces nothing.
-    val selected = if (!settings.showWifi) 0 else placedAt
-    ContentChoice(selected, R.string.ring_position_wifi, null,
-        listOf(R.string.ring_position_native, R.string.drawing_hint_top,
-            R.string.drawing_hint_centre, R.string.drawing_hint_bottom),
-        listOf(settings.enabled to R.string.master_title)) { value ->
-        update { it.setWifiPosition(value) }
+    val placedAt = ringSettings.ringZones.indexOfFirst { it.contains(id) }
+    val targetZones = listOf(
+        IconZones.Zone.LEFT,
+        IconZones.Zone.TOP,
+        IconZones.Zone.CENTRE,
+        IconZones.Zone.BOTTOM,
+        IconZones.Zone.RIGHT,
+    )
+    val selected = if (!settings.showWifi || placedAt < 0) 0 else {
+        val currentZone = IconZones.Zone.entries[placedAt]
+        targetZones.indexOf(currentZone).let { if (it >= 0) it + 1 else 0 }
     }
+    ContentChoice(
+        selected = selected,
+        title = R.string.ring_position_wifi,
+        summaryRes = null,
+        options = listOf(
+            R.string.ring_position_native,
+            R.string.drawing_hint_left,
+            R.string.drawing_hint_top,
+            R.string.drawing_hint_centre,
+            R.string.drawing_hint_bottom,
+            R.string.drawing_hint_right,
+        ),
+        dependencies = listOf(settings.enabled to R.string.master_title),
+        onChange = { value ->
+            val targetZone = if (value in 1..targetZones.size) targetZones[value - 1] else null
+            update { it.setWifiZone(targetZone) }
+        },
+    )
 }
 
 /**
@@ -710,12 +843,44 @@ private fun RingPositionControl(
     update: ((SettingsRepository) -> Unit) -> Unit,
 ) {
     val id = IconZones.encodePart(part)
-    // Which zone's list currently holds this piece, or 0 for "not placed". The dropdown is a shortcut into the priority lists, not a second source of truth.
     val zones = settings.ringZones
-    val placedAt = zones.indexOfFirst { it.contains(id) } + 1
-    val selected = if (part == IconZones.Part.TYPE
-        && settings.mobileTypeMode == Prefs.MOBILE_TYPE_OUT_RING) 4 else placedAt
-    // The row's title is the SLOT it picks, never the component's own switch name.
+    val placedAt = zones.indexOfFirst { it.contains(id) }
+    val supportsFlanks = part == IconZones.Part.WIFI || IconZones.isSignalRow(part)
+
+    val targetZones = if (supportsFlanks) {
+        listOf(
+            IconZones.Zone.LEFT,
+            IconZones.Zone.TOP,
+            IconZones.Zone.CENTRE,
+            IconZones.Zone.BOTTOM,
+            IconZones.Zone.RIGHT,
+        )
+    } else {
+        listOf(
+            IconZones.Zone.TOP,
+            IconZones.Zone.CENTRE,
+            IconZones.Zone.BOTTOM,
+        )
+    }
+
+    val selected = if (part == IconZones.Part.TYPE && settings.mobileTypeMode == Prefs.MOBILE_TYPE_OUT_RING) {
+        targetZones.size + 1
+    } else if (placedAt >= 0) {
+        val currentZone = IconZones.Zone.entries[placedAt]
+        targetZones.indexOf(currentZone).let { if (it >= 0) it + 1 else 0 }
+    } else 0
+
+    val options = listOf(R.string.ring_position_native) +
+        targetZones.map { zone -> zoneLabelRes(zone) } +
+        if (part == IconZones.Part.TYPE) listOf(R.string.mobile_type_outside) else emptyList()
+
+    val blocked = buildSet {
+        if (IconZones.isSignalRow(part)) {
+            val centreIdx = targetZones.indexOf(IconZones.Zone.CENTRE)
+            if (centreIdx >= 0) add(centreIdx + 1)
+        }
+    }
+
     val title = when (part) {
         IconZones.Part.WIFI -> R.string.ring_position_wifi
         IconZones.Part.MOBILE -> R.string.ring_position_mobile
@@ -730,17 +895,27 @@ private fun RingPositionControl(
         IconZones.Part.RUNNING -> R.string.ring_position_running
         IconZones.Part.FPS -> R.string.ring_position_fps
         IconZones.Part.CURRENT -> R.string.ring_position_current
+        IconZones.Part.VOLTAGE -> R.string.ring_position_voltage
+        IconZones.Part.SIGNAL -> R.string.ring_position_signal
+        IconZones.Part.BT -> R.string.ring_position_bt
     }
-    ContentChoice(selected, title,
-        null,
-        listOf(R.string.ring_position_native, R.string.drawing_hint_top,
-            R.string.drawing_hint_centre, R.string.drawing_hint_bottom) +
-            if (part == IconZones.Part.TYPE) listOf(R.string.mobile_type_outside) else emptyList(),
-        listOf(settings.enabled to R.string.master_title),
-        // A signal row cannot be put in the middle band - see [middleBlocked].
-        blockedIndices = middleBlocked(part),
+    ContentChoice(
+        selected = selected,
+        title = title,
+        summaryRes = null,
+        options = options,
+        dependencies = listOf(settings.enabled to R.string.master_title),
+        blockedIndices = blocked,
     ) { value ->
-        update { it.setRingPartPosition(part, value) }
+        if (part == IconZones.Part.TYPE && value == targetZones.size + 1) {
+            update {
+                it.setRingPartZone(IconZones.Part.TYPE, null)
+                it.setMobileTypeMode(Prefs.MOBILE_TYPE_OUT_RING)
+            }
+        } else {
+            val targetZone = if (value in 1..targetZones.size) targetZones[value - 1] else null
+            update { it.setRingPartZone(part, targetZone) }
+        }
     }
 }
 
@@ -825,6 +1000,62 @@ private fun ContentChoice(
                 enabled = enabled && dependencies.all { it.first },
             )
         }
+    }
+}
+
+@Composable
+/**
+ * The scopes the module is active in, as option indices.
+ */
+private fun scopeActiveSet(mask: Int): Set<Int> = buildSet {
+    if ((mask and Prefs.SCOPE_BIT_CC) == 0) add(0)
+    if ((mask and Prefs.SCOPE_BIT_SHADE) == 0) add(1)
+    if ((mask and Prefs.SCOPE_BIT_KEYGUARD) == 0) add(2)
+}
+
+private fun scopeMaskOf(active: Set<Int>): Int {
+    var mask = 0
+    if (0 !in active) mask = mask or Prefs.SCOPE_BIT_CC
+    if (1 !in active) mask = mask or Prefs.SCOPE_BIT_SHADE
+    if (2 !in active) mask = mask or Prefs.SCOPE_BIT_KEYGUARD
+    return mask
+}
+
+/**
+ * Miuix-style multi-select dropdown using GlassMultiDropdownPreference with Checkbox on the left.
+ */
+@Composable
+private fun ContentMultiChoice(
+    selected: Set<Int>,
+    title: Int,
+    options: List<Int>,
+    dependencies: List<Pair<Boolean, Int>>,
+    onChange: (Set<Int>) -> Unit,
+) {
+    ContentGate(dependencies) {
+        val labels = options.map { stringResource(it) }
+        val summary = if (selected.isEmpty()) {
+            stringResource(R.string.scope_none)
+        } else if (selected.size == options.size) {
+            stringResource(R.string.scope_all)
+        } else {
+            options.indices.filter { it in selected }.joinToString(stringResource(R.string.scope_list_separator)) {
+                labels[it]
+            }
+        }
+        GlassMultiDropdownPreference(
+            title = stringResource(title),
+            options = labels,
+            selectedIndices = selected,
+            onToggleIndex = { index ->
+                val next = selected.toMutableSet()
+                if (!next.remove(index)) next.add(index)
+                onChange(next)
+            },
+            summary = summary,
+            insideMargin = SettingsItemMargin,
+            enabled = dependencies.all { it.first },
+        )
     }
 }
 

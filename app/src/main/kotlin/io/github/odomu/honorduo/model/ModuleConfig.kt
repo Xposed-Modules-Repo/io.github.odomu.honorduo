@@ -21,7 +21,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.core.content.ContextCompat
 import io.github.libxposed.api.XposedInterface
-import io.github.odomu.honorduo.hook.core.StatusHooks
+import io.github.odomu.honorduo.hook.core.SystemUiHook
 import io.github.odomu.honorduo.model.ModuleConfig.prefs
 import io.github.odomu.honorduo.model.ModuleConfig.publish
 import io.github.odomu.honorduo.model.ModuleConfig.snapshot
@@ -99,7 +99,7 @@ object ModuleConfig {
             xposed.getRemotePreferences(Prefs.NAME)
         } catch (t: Throwable) {
             // Embedded framework (or a very old one): run on defaults.
-            StatusHooks.log(StatusHooks.LOG_WARN, "remote preferences unavailable: $t")
+            SystemUiHook.log(SystemUiHook.LOG_WARN, "remote preferences unavailable: $t")
             return
         }
 
@@ -108,7 +108,7 @@ object ModuleConfig {
         try {
             remote.registerOnSharedPreferenceChangeListener(listener)
         } catch (t: Throwable) {
-            StatusHooks.log(StatusHooks.LOG_WARN, "cannot watch preferences: $t")
+            SystemUiHook.log(SystemUiHook.LOG_WARN, "cannot watch preferences: $t")
         }
 
         // Re-read once the framework has had time to serve the user's values.
@@ -191,7 +191,7 @@ object ModuleConfig {
             )
         } catch (t: Throwable) {
             receiverInstalled = false
-            StatusHooks.log(StatusHooks.LOG_WARN, "cannot register reload receiver: $t")
+            SystemUiHook.log(SystemUiHook.LOG_WARN, "cannot register reload receiver: $t")
         }
     }
 
@@ -207,13 +207,13 @@ object ModuleConfig {
         if (intent == null) return
         try {
             val extras: Bundle = intent.extras ?: run {
-                StatusHooks.log(StatusHooks.LOG_WARN, "reload broadcast without extras, ignored")
+                SystemUiHook.log(SystemUiHook.LOG_WARN, "reload broadcast without extras, ignored")
                 return
             }
             if (!extras.containsKey(Prefs.KEY_ENABLED)) {
                 // A bundle without the master switch is not one this module sent and would
                 // move state on a stranger's behalf.
-                StatusHooks.log(StatusHooks.LOG_WARN, "reload broadcast without extras, ignored")
+                SystemUiHook.log(SystemUiHook.LOG_WARN, "reload broadcast without extras, ignored")
                 return
             }
             // Seeded from the current snapshot: a key the sender omitted keeps the value it
@@ -224,8 +224,8 @@ object ModuleConfig {
             debugLog = incoming.debugLog
             publish(incoming)
             if (debugLog) {
-                StatusHooks.log(
-                    StatusHooks.LOG_INFO,
+                SystemUiHook.log(
+                    SystemUiHook.LOG_INFO,
                     "reload broadcast: enabled=${incoming.enabled} ring=${incoming.ringStroke}" +
                         " arc=${incoming.arcStroke} size=${incoming.valueSize}" +
                         " (was enabled=${previous.enabled})",
@@ -233,7 +233,7 @@ object ModuleConfig {
             }
             notifyChanged()
         } catch (t: Throwable) {
-            StatusHooks.log(StatusHooks.LOG_WARN, "bad reload broadcast: $t")
+            SystemUiHook.log(SystemUiHook.LOG_WARN, "bad reload broadcast: $t")
         }
     }
 
@@ -245,8 +245,8 @@ object ModuleConfig {
     private val listener = SharedPreferences.OnSharedPreferenceChangeListener { changed, key ->
         if (!applyKey(changed, key)) return@OnSharedPreferenceChangeListener
         if (debugLog) {
-            StatusHooks.log(
-                StatusHooks.LOG_INFO,
+            SystemUiHook.log(
+                SystemUiHook.LOG_INFO,
                 "remote pref changed: $key -> enabled=${snapshot.enabled}" +
                     " ring=${snapshot.ringStroke} arc=${snapshot.arcStroke}" +
                     " size=${snapshot.valueSize}",
@@ -267,7 +267,7 @@ object ModuleConfig {
             true
         } catch (t: Throwable) {
             // A type mismatch in the framework's cast must never break drawing.
-            StatusHooks.log(StatusHooks.LOG_WARN, "cannot read preferences: $t")
+            SystemUiHook.log(SystemUiHook.LOG_WARN, "cannot read preferences: $t")
             false
         }
     }
@@ -283,7 +283,7 @@ object ModuleConfig {
             publish(ModuleSettings.from(changed))
             debugLog = changed.getBoolean(Prefs.KEY_DEBUG_LOG, Prefs.DEF_DEBUG_LOG)
         } catch (t: Throwable) {
-            StatusHooks.log(StatusHooks.LOG_WARN, "cannot read preferences: $t")
+            SystemUiHook.log(SystemUiHook.LOG_WARN, "cannot read preferences: $t")
         }
     }
 
@@ -295,7 +295,7 @@ object ModuleConfig {
                 l.onConfigChanged()
             } catch (t: Throwable) {
                 // One bad listener must not stop the others.
-                StatusHooks.log(StatusHooks.LOG_WARN, "config listener failed: $t")
+                SystemUiHook.log(SystemUiHook.LOG_WARN, "config listener failed: $t")
             }
         }
     }
