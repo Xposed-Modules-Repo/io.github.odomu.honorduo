@@ -15,14 +15,15 @@ import android.content.res.Resources
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewParent
+import android.widget.TextView
 import androidx.core.view.isGone
 import io.github.odomu.honorduo.hook.core.Refl
 import io.github.odomu.honorduo.hook.tracker.WifiPresence
 import io.github.odomu.honorduo.model.ModuleConfig
-import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.StatusAppearance
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
+
 /**
  * Manages resource id resolution, ownership arbitration, suppression (hide),
  * and restoration (release) of native status bar icons (battery, wifi, mobile, clock).
@@ -64,8 +65,15 @@ internal object StatusBarIconManager {
     val contentsViewGroup: ViewGroup?
         get() = contents?.get()
 
-    /** Views hidden by this module, so a detached row cannot leave one behind. */
-    private val HIDDEN = ArrayList<WeakReference<View>>()
+    /**
+     * Views hidden by this module, with the visibility the host had given each of
+     * them. Restoring that instead of forcing VISIBLE is what keeps a lock-screen
+     * rebuild from blinking: the host hides its own icons there, and a blind VISIBLE
+     * fought every one of those writes.
+     */
+    private val HIDDEN = ArrayList<Hidden>()
+
+    private class Hidden(val view: WeakReference<View>, val previous: Int)
 
     /** Views hidden because of their slot, with the visibility they had before. */
     private val slotHidden = ArrayList<SlotHide>()
@@ -82,6 +90,11 @@ internal object StatusBarIconManager {
 
     /** The stylus icon the bar also draws from the Bluetooth slot family. */
     private const val BLUETOOTH_PENCIL_SLOT = "bluetooth_pencil"
+
+    /** The two carrier badges that draw the same "HD" mark, one per network path. */
+    private const val VOLTE_SLOT = "volte_call"
+    private const val UNICOM_SLOT = "unicom_call"
+    private const val VOWIFI_SLOT = "vowifi_call"
 
     /** Caches the resource ids the suppression compares against. */
     fun resolveIds(res: Resources?) {
@@ -112,7 +125,7 @@ internal object StatusBarIconManager {
      * nothing else, so hiding an icon and handing it back cannot disagree.
      */
     fun isOwned(id: Int, a: StatusAppearance): Boolean = when {
-        !a.enabled -> false
+        !a.enabled || StatusBarRowManager.suppressed -> false
         id == wifiId -> a.glyph && a.ownsWifi()
         id == mobileId -> (a.glyph && (a.signalDots() || a.drawsAnySimRow())) || a.stackedOut()
         id == batteryId -> a.glyph
@@ -150,21 +163,40 @@ internal object StatusBarIconManager {
      * view - and only on views this module hid, or turning the switch off would make an
      * icon the host itself had hidden reappear.
      */
-    private fun settleSlotIcon(view: View, a: StatusAppearance) {
-        if (!a.hideAlarmIcon && !a.hideBluetoothIcon) {
+    /**
+     * Whether the settings ask for the slot [view] carries to be hidden.
+     *
+     * Shared by the settle pass and the visibility hook, so the bar the keyguard rebuilds
+     * - which is walked by neither the row list nor `HwStatusbarContents` - is answered
+     * by the same rule instead of being handed back as visible.
+     */
+    fun hidesSlot(view: View, a: StatusAppearance): Boolean {
+        if (isOperatorHdIcon(view)) {
+            return a.hideHdVolte || a.hideHdVowifi
+        }
+        val slot = slotOf(view) ?: return false
+        if (a.hideAlarmIcon && (slot == "alarm_clock" || (alarmSlot.isNotEmpty() && slot == alarmSlot))) return true
+        if (a.hideBluetoothIcon && (slot == bluetoothSlot || slot == BLUETOOTH_PENCIL_SLOT)) return true
+        if (a.hideHdVolte && (slot == VOLTE_SLOT || slot == UNICOM_SLOT)) return true
+        if (a.hideHdVowifi && slot == VOWIFI_SLOT) return true
+        return false
+    }
+
+    fun isOperatorHdIcon(view: View): Boolean =
+        view.javaClass.name.endsWith("HwOperatorIconParentView")
+
+    fun settleSlotIcon(view: View, a: StatusAppearance) {
+        if (!a.hideAlarmIcon && !a.hideBluetoothIcon && !a.hideHdVolte && !a.hideHdVowifi) {
             restoreSlotIcon(view)
             return
         }
-        val slot = slotOf(view) ?: return
-        val hide = (a.hideAlarmIcon && alarmSlot.isNotEmpty() && slot == alarmSlot) ||
-            (a.hideBluetoothIcon && (slot == bluetoothSlot || slot == BLUETOOTH_PENCIL_SLOT))
-        if (hide) {
-            if (!isSlotTracked(view)) rememberSlotHidden(view, view.visibility)
-            rememberHidden(view)
-            hide(view)
-        } else {
+        if (!hidesSlot(view, a)) {
             restoreSlotIcon(view)
+            return
         }
+        if (!isSlotTracked(view)) rememberSlotHidden(view, view.visibility)
+        rememberHidden(view)
+        hide(view)
     }
 
     /**
@@ -216,7 +248,15 @@ internal object StatusBarIconManager {
 
     fun enforceSuppression(view: View) {
         val a = ModuleConfig.appearance()
-        if (!a.enabled || view.isGone) return
+        if (!a.enabled || StatusBarRowManager.suppressed || view.isGone) return
+        // Alarm, Bluetooth and the HD badges are not reachable by id: they arrive as a
+        // fresh StatusBarIconView whenever the bar is rebuilt, the keyguard included.
+        if (hidesSlot(view, a)) {
+            if (!isSlotTracked(view)) rememberSlotHidden(view, view.visibility)
+            rememberHidden(view)
+            hide(view)
+            return
+        }
         if (!idsResolved) {
             resolveIds(view.resources)
         }
@@ -230,7 +270,7 @@ internal object StatusBarIconManager {
         // match yet. The class check keeps the calling and projection clocks - which
         // share the id but are a plain TextView - out of it.
         if (id == clockId &&
-            (view is android.widget.TextView || view.javaClass.name.endsWith(STATUS_BAR_CLOCK_SUFFIX)) &&
+            (view is TextView || view.javaClass.name.endsWith(STATUS_BAR_CLOCK_SUFFIX)) &&
             isOwned(id, a)
         ) {
             rememberHidden(view)
@@ -253,6 +293,13 @@ internal object StatusBarIconManager {
      * mounting a row.
      */
     fun applyIconVisibility(a: StatusAppearance = ModuleConfig.appearance()) {
+        // Nothing the module owns may be drawn while it has stood down: no clock
+        // text, no re-hiding. Only the hand-back below runs.
+        if (StatusBarRowManager.suppressed) {
+            BarClockManager.sync(a)
+            handBackAll()
+            return
+        }
         if (a.hidesStatusClock()) {
             ClockTicker.refresh()
         }
@@ -267,10 +314,11 @@ internal object StatusBarIconManager {
             settle(row.container, a)
         }
         contentsViewGroup?.let { settle(it, a) }
+        settleAllTrackedSlots(a)
 
         synchronized(HIDDEN) {
             for (i in HIDDEN.indices.reversed()) {
-                val view = HIDDEN[i].get()
+                val view = HIDDEN[i].view.get()
                 if (view == null) {
                     HIDDEN.removeAt(i)
                 } else if (!insideOwnedContainer(view)) {
@@ -281,7 +329,11 @@ internal object StatusBarIconManager {
                     // keyguard rebuild, a multi-user switch) would otherwise come back
                     // in the corner while the glyph still draws the time.
                     when {
-                        isSlotTracked(view) -> restoreSlotIcon(view)
+                        // Handed back only when the settings no longer ask for it. A
+                        // view the keyguard re-created sits outside every container this
+                        // pass walks, and restoring it blindly is what put the alarm
+                        // icon back on the lockscreen.
+                        isSlotTracked(view) -> if (!hidesSlot(view, a)) restoreSlotIcon(view)
                         view.id == clockId && isOwned(clockId, a) -> hide(view)
                         else -> release(view, a)
                     }
@@ -295,14 +347,57 @@ internal object StatusBarIconManager {
     fun rememberHidden(view: View) {
         synchronized(HIDDEN) {
             for (i in HIDDEN.indices.reversed()) {
-                val known = HIDDEN[i].get()
+                val known = HIDDEN[i].view.get()
                 if (known == null) {
                     HIDDEN.removeAt(i)
                 } else if (known === view) {
                     return
                 }
             }
-            HIDDEN.add(WeakReference(view))
+            HIDDEN.add(Hidden(WeakReference(view), view.visibility))
+        }
+    }
+
+    private fun previousOf(view: View): Int? {
+        synchronized(HIDDEN) {
+            for (i in HIDDEN.indices.reversed()) {
+                val entry = HIDDEN[i]
+                val known = entry.view.get()
+                if (known == null) {
+                    HIDDEN.removeAt(i)
+                } else if (known === view) {
+                    return entry.previous
+                }
+            }
+        }
+        return null
+    }
+
+    /** Hands every view this module hid back with the visibility the host gave it. */
+    /**
+     * Re-settles all tracked slot icon views.
+     * Ensures icons like alarm or HD badges update immediately even if unparented or on the lockscreen.
+     */
+    fun settleAllTrackedSlots(a: StatusAppearance = ModuleConfig.appearance()) {
+        synchronized(slotHidden) {
+            for (i in slotHidden.indices.reversed()) {
+                val v = slotHidden[i].view.get()
+                if (v == null) {
+                    slotHidden.removeAt(i)
+                } else {
+                    settleSlotIcon(v, a)
+                }
+            }
+        }
+    }
+
+    fun handBackAll() {
+        synchronized(HIDDEN) {
+            for (entry in HIDDEN) {
+                val view = entry.view.get() ?: continue
+                if (view.visibility != entry.previous) view.visibility = entry.previous
+            }
+            HIDDEN.clear()
         }
     }
 
@@ -313,16 +408,16 @@ internal object StatusBarIconManager {
     }
 
     fun release(view: View, a: StatusAppearance = ModuleConfig.appearance()) {
-        val target = when (view.id) {
-            wifiId -> if (WifiPresence.isConnected) View.VISIBLE else View.GONE
-            // Ownership, not just the explicit hide switch: while the arrangement
-            // draws the time itself the bar's copy has to stay away, or the two race.
-            clockId -> if (a.barClockHidden || (a.glyph && a.hidesStatusClock())) View.GONE else View.VISIBLE
-            else -> View.VISIBLE
+        if (view.id == clockId && a.barClockHidden) {
+            if (view.visibility != View.GONE) view.visibility = View.GONE
+            return
         }
-        if (view.visibility != target) {
-            view.visibility = target
-        }
+        // Only ever restore what this module hid. A blind VISIBLE re-showed icons the
+        // host hides by itself on the lockscreen, and fighting those writes is what
+        // made the bar blink there.
+        val previous = previousOf(view) ?: return
+        val target = if (view.id == wifiId && !WifiPresence.isConnected) View.GONE else previous
+        if (view.visibility != target) view.visibility = target
     }
 
     /**

@@ -1,17 +1,22 @@
 package io.github.odomu.honorduo.hook.core
 
+import android.os.Build
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.annotation.RequiresApi
 import io.github.libxposed.api.XposedModule
 import io.github.odomu.honorduo.hook.statusbar.BarClockManager
 import io.github.odomu.honorduo.hook.statusbar.StatusBarIconManager
 import io.github.odomu.honorduo.hook.statusbar.StatusBarRowManager
 import io.github.odomu.honorduo.hook.tracker.BarVisibility
+import io.github.odomu.honorduo.hook.tracker.ScopeTracker
 import io.github.odomu.honorduo.model.ModuleConfig
+import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.StatusState
 import io.github.odomu.honorduo.ui.render.IconRenderer
 import java.lang.ref.WeakReference
+
 /**
  * Manages low-level hooks on MagicOS SystemUI status-bar host views and containers.
  *
@@ -31,6 +36,7 @@ internal object SystemBarHook {
      * @param cl SystemUI ClassLoader containing target view classes.
      * @return Total count of successfully installed hooks.
      */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     fun install(module: XposedModule, cl: ClassLoader): Int {
         var hooked = 0
         hooked += hookRow(module, cl)
@@ -39,18 +45,21 @@ internal object SystemBarHook {
         hooked += hookContents(module, cl)
         hooked += hookClockFace(module, cl)
         hooked += hookTint(module, cl)
+        hooked += hookPanel(module, cl)
+        hooked += hookBluetooth(module, cl)
+        hooked += hookOperatorIcons(module, cl)
         return hooked
     }
-
     /**
      * Hooks `HwSystemIcons` container methods to manage module view lifecycle and capsule collision.
      */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     private fun hookRow(module: XposedModule, cl: ClassLoader): Int {
         val rowClass = Refl.cls("com.android.systemui.statusbar.HwSystemIcons", cl) ?: return 0
         var n = 0
 
         // Intercept container inflation to register the row with StatusBarRowManager.
-        n += StatusHooks.hook(module, Refl.method(rowClass, "onFinishInflate"), "honorduo-row-inflate") { chain ->
+        n += SystemUiHook.hook(module, Refl.method(rowClass, "onFinishInflate"), "honorduo-row-inflate") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is ViewGroup) {
@@ -60,7 +69,7 @@ internal object SystemBarHook {
         }
 
         // Intercept layout passes to synchronize custom components and check capsule encroachment.
-        n += StatusHooks.hook(
+        n += SystemUiHook.hook(
             module, Refl.method(
                 rowClass, "onLayout",
                 Boolean::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!,
@@ -82,7 +91,7 @@ internal object SystemBarHook {
         }
 
         // Intercept icon alpha updates triggered by SystemUI animation controllers.
-        n += StatusHooks.hook(module, Refl.methodNamed(rowClass, "updateIconsAlpha", 0), "honorduo-update-icons-alpha") { chain ->
+        n += SystemUiHook.hook(module, Refl.methodNamed(rowClass, "updateIconsAlpha", 0), "honorduo-update-icons-alpha") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is ViewGroup) {
@@ -95,7 +104,7 @@ internal object SystemBarHook {
         val capsuleMethod = Refl.methodNamed(rowClass, "setCapsuleArea", 6)
             ?: Refl.methodNamed(rowClass, "setCapsuleArea", 5)
         if (capsuleMethod != null) {
-            n += StatusHooks.hook(module, capsuleMethod, "honorduo-capsule-area") { chain ->
+            n += SystemUiHook.hook(module, capsuleMethod, "honorduo-capsule-area") { chain ->
                 val result = chain.proceed()
                 val self = chain.thisObject
                 if (self is ViewGroup) {
@@ -106,9 +115,22 @@ internal object SystemBarHook {
                 result
             }
         }
+        val coloredCapsuleMethod = Refl.methodNamed(rowClass, "setColoredCapsuleArea", 3)
+        if (coloredCapsuleMethod != null) {
+            n += SystemUiHook.hook(module, coloredCapsuleMethod, "honorduo-colored-capsule-area") { chain ->
+                val result = chain.proceed()
+                val self = chain.thisObject
+                if (self is ViewGroup) {
+                    val right = (chain.getArg(1) as? Number)?.toInt() ?: 0
+                    val isShown = chain.getArg(2) as? Boolean ?: false
+                    StatusBarRowManager.handleCapsuleAvoidance(self, isShown, right)
+                }
+                result
+            }
+        }
 
         // Intercept window attachment to track live container instances.
-        n += StatusHooks.hook(module, Refl.method(rowClass, "onAttachedToWindow"), "honorduo-row-attach") { chain ->
+        n += SystemUiHook.hook(module, Refl.method(rowClass, "onAttachedToWindow"), "honorduo-row-attach") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is ViewGroup) {
@@ -118,7 +140,7 @@ internal object SystemBarHook {
         }
 
         // Intercept window detachment to clean up registered rows and prevent leaks.
-        n += StatusHooks.hook(module, Refl.method(rowClass, "onDetachedFromWindow"), "honorduo-row-detach") { chain ->
+        n += SystemUiHook.hook(module, Refl.method(rowClass, "onDetachedFromWindow"), "honorduo-row-detach") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is ViewGroup) {
@@ -138,7 +160,7 @@ internal object SystemBarHook {
         var n = 0
 
         // Intercept stock battery update events to sync glyph state and hide stock icon.
-        n += StatusHooks.hook(module, Refl.method(battery, "onBatteryUpdate"), "honorduo-battery-update") { chain ->
+        n += SystemUiHook.hook(module, Refl.method(battery, "onBatteryUpdate"), "honorduo-battery-update") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is View) {
@@ -151,19 +173,20 @@ internal object SystemBarHook {
                 if (row != null && BarVisibility.shown) {
                     StatusBarRowManager.syncRow(row, false)
                 }
-                StatusHooks.invalidateHosts()
+                SystemUiHook.invalidateHosts()
             }
             result
         }
 
         // Intercept battery view inflation to obtain a valid Context and start screen state tracking.
-        n += StatusHooks.hook(module, Refl.method(battery, "onFinishInflate"), "honorduo-battery-inflate") { chain ->
+        n += SystemUiHook.hook(module, Refl.method(battery, "onFinishInflate"), "honorduo-battery-inflate") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is View) {
                 StatusState.attachContext(self.context)
                 ModuleConfig.installReceiver(self.context)
-                StatusHooks.ensureScreenStateTracker(self.context)
+                SystemUiHook.ensureScreenStateTracker(self.context)
+                ScopeTracker.start(self.context)
             }
             result
         }
@@ -179,7 +202,7 @@ internal object SystemBarHook {
             View::class.java, "setFlags",
             Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!,
         ) ?: return 0
-        return StatusHooks.hook(module, method, "honorduo-visibility") { chain ->
+        return SystemUiHook.hook(module, method, "honorduo-visibility") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is View) {
@@ -194,7 +217,7 @@ internal object SystemBarHook {
      */
     private fun hookContents(module: XposedModule, cl: ClassLoader): Int {
         val contents = Refl.cls("com.android.systemui.statusbar.HwStatusbarContents", cl) ?: return 0
-        return StatusHooks.hook(module, Refl.method(contents, "onAttachedToWindow"), "honorduo-contents-attach") { chain ->
+        return SystemUiHook.hook(module, Refl.method(contents, "onAttachedToWindow"), "honorduo-contents-attach") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is ViewGroup) {
@@ -225,7 +248,7 @@ internal object SystemBarHook {
             "com.android.systemui.statusbar.policy.Clock",
         )
         val clock = candidates.firstNotNullOfOrNull { Refl.cls(it, cl) } ?: return 0
-        return StatusHooks.hook(
+        return SystemUiHook.hook(
             module, Refl.method(clock, "onAttachedToWindow"), "honorduo-clock-face",
         ) { chain ->
             val result = chain.proceed()
@@ -233,7 +256,7 @@ internal object SystemBarHook {
             if (self is TextView) {
                 if (self.typeface != null) {
                     IconRenderer.adoptSystemTypeface(self.typeface)
-                    StatusHooks.invalidateHosts()
+                    SystemUiHook.invalidateHosts()
                 }
                 BarClockManager.noteNativeClock(self)
                 BarClockManager.dropNow()
@@ -252,9 +275,9 @@ internal object SystemBarHook {
         if (contents != null) {
             val refreshMethod = Refl.method(contents, "refreshTint")
             if (refreshMethod != null) {
-                hooked += StatusHooks.hook(module, refreshMethod, "honorduo-contents-tint") { chain ->
+                hooked += SystemUiHook.hook(module, refreshMethod, "honorduo-contents-tint") { chain ->
                     val result = chain.proceed()
-                    StatusHooks.invalidateHosts()
+                    SystemUiHook.invalidateHosts()
                     result
                 }
             }
@@ -266,13 +289,129 @@ internal object SystemBarHook {
                 ArrayList::class.java, Float::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!,
             )
             if (method != null) {
-                hooked += StatusHooks.hook(module, method, "honorduo-tint") { chain ->
+                hooked += SystemUiHook.hook(module, method, "honorduo-tint") { chain ->
                     val result = chain.proceed()
-                    StatusHooks.invalidateHosts()
+                    SystemUiHook.invalidateHosts()
                     result
                 }
             }
         }
         return hooked
+    }
+
+    /**
+     * Feeds the pull-down panel's showing type to [ScopeTracker].
+     *
+     * `setPanelShowingType` runs on transitions only - 1 shade, 2 control center,
+     * 0 collapsed, 3/4 the same two over the lockscreen - so this replaces the old
+     * `setExpandedHeightInternal` hook, which did a reflective field read on every
+     * frame of every drag. The parameter is a `byte`, which boxes to `Byte`; reading
+     * it as `Int` always yielded 0 and reset the state on every call.
+     */
+    private fun hookPanel(module: XposedModule, cl: ClassLoader): Int {
+        val controllerClass = Refl.cls("com.android.systemui.statusbar.phone.HnPanelViewControllerImpl", cl)
+            ?: return 0
+        val setTypeMethod = Refl.methodNamed(controllerClass, "setPanelShowingType", 1) ?: return 0
+        return SystemUiHook.hook(module, setTypeMethod, "honorduo-panel-showing-type") { chain ->
+            chain.proceed()
+            ScopeTracker.onPanelType((chain.args.firstOrNull() as? Number)?.toInt() ?: 0)
+            null
+        }
+    }
+
+    /**
+     * Works out whether the module has to stand down right now and says so.
+     *
+     * One predicate for the three exclusions, so a panel closing and the lockscreen
+     * going away cannot each clear the other's state.
+     */
+    fun updateEffectiveScopeState() {
+        val a = ModuleConfig.appearance()
+        val scope = a.effectiveScope
+        val excluded = a.enabled && scope != Prefs.SCOPE_ALL && (
+            ((scope and Prefs.SCOPE_BIT_CC) != 0 && ScopeTracker.controlCenterActive) ||
+                ((scope and Prefs.SCOPE_BIT_SHADE) != 0 && ScopeTracker.shadeActive) ||
+                ((scope and Prefs.SCOPE_BIT_KEYGUARD) != 0 && ScopeTracker.lockscreenActive)
+            )
+        StatusBarRowManager.setSuppressed(excluded)
+        if (SystemUiHook.debugLog()) {
+            SystemUiHook.log(
+                SystemUiHook.LOG_INFO,
+                "scope ${ScopeTracker.describe()} mask=$scope -> $excluded",
+            )
+        }
+    }
+
+    /**
+     * Hooks Bluetooth status updates to cache headset battery level and invalidate status bar glyphs.
+     */
+    private fun hookBluetooth(module: XposedModule, cl: ClassLoader): Int {
+        val policyClass = Refl.cls("com.android.systemui.statusbar.phone.HwPhoneStatusBarPolicy", cl) ?: return 0
+        val updateMethod = Refl.methodNamed(policyClass, "updateBluetooth", 0) ?: return 0
+        return SystemUiHook.hook(module, updateMethod, "honorduo-bluetooth-battery") { chain ->
+            chain.proceed()
+            val policy = chain.thisObject
+            if (policy != null) {
+                runCatching {
+                    val bluetoothField = Refl.field(policy.javaClass, "mBluetooth")
+                    val controller = Refl.get(bluetoothField, policy)
+                    if (controller != null) {
+                        val levelField = Refl.field(controller.javaClass, "mBluetoothBatteryLevel")
+                        val level = Refl.getInt(levelField, controller, -1)
+                        if (level != StatusState.sBluetoothBatteryLevel) {
+                            StatusState.sBluetoothBatteryLevel = level
+                            StatusBarRowManager.invalidateAll()
+                        }
+                    }
+                }
+            }
+            null
+        }
+    }
+
+    /**
+     * Hooks `HwOperatorIconParentView` (MagicOS dual-card HD / VoLTE / VoWiFi badges).
+     */
+    private fun hookOperatorIcons(module: XposedModule, cl: ClassLoader): Int {
+        val operatorClass = Refl.cls("com.android.systemui.operatorname.HwOperatorIconParentView", cl) ?: return 0
+        var n = 0
+
+        val attach = Refl.method(operatorClass, "onAttachedToWindow")
+        if (attach != null) {
+            n += SystemUiHook.hook(module, attach, "honorduo-operator-hd-attach") { chain ->
+                val result = chain.proceed()
+                val self = chain.thisObject as? View
+                if (self != null) {
+                    StatusBarIconManager.settleSlotIcon(self, ModuleConfig.appearance())
+                }
+                result
+            }
+        }
+
+        val updateMethod = Refl.methodNamed(operatorClass, "updateOperatorIcon", 0)
+        if (updateMethod != null) {
+            n += SystemUiHook.hook(module, updateMethod, "honorduo-operator-hd-update") { chain ->
+                val result = chain.proceed()
+                val self = chain.thisObject as? View
+                if (self != null) {
+                    StatusBarIconManager.settleSlotIcon(self, ModuleConfig.appearance())
+                }
+                result
+            }
+        }
+
+        val setCardMethod = Refl.methodNamed(operatorClass, "setCardIcon", 3)
+        if (setCardMethod != null) {
+            n += SystemUiHook.hook(module, setCardMethod, "honorduo-operator-hd-card") { chain ->
+                val result = chain.proceed()
+                val self = chain.thisObject as? View
+                if (self != null) {
+                    StatusBarIconManager.settleSlotIcon(self, ModuleConfig.appearance())
+                }
+                result
+            }
+        }
+
+        return n
     }
 }
