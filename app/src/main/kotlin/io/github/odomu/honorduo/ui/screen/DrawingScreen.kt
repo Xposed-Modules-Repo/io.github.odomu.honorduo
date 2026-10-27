@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -61,7 +63,6 @@ import io.github.odomu.honorduo.R
 import io.github.odomu.honorduo.model.ModuleSettings
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.StatusAppearance
-import io.github.odomu.honorduo.ui.component.BackgroundChip
 import io.github.odomu.honorduo.ui.control.ContentControl
 import io.github.odomu.honorduo.ui.control.ContentControlRow
 import io.github.odomu.honorduo.ui.control.SettingsPart
@@ -72,8 +73,8 @@ import io.github.odomu.honorduo.ui.dialog.occupantLabelRes
 import io.github.odomu.honorduo.ui.dialog.zoneLabelRes
 import io.github.odomu.honorduo.ui.drawing.DrawingOutsideParts
 import io.github.odomu.honorduo.ui.drawing.PriorityPreferenceRow
-import io.github.odomu.honorduo.ui.drawing.SceneSelector
 import io.github.odomu.honorduo.ui.drawing.SceneChip
+import io.github.odomu.honorduo.ui.drawing.SceneSelector
 import io.github.odomu.honorduo.ui.drawing.SignalOutOfRingNotice
 import io.github.odomu.honorduo.ui.manager.SettingsRepository
 import io.github.odomu.honorduo.ui.render.IconZones
@@ -81,7 +82,6 @@ import io.github.odomu.honorduo.ui.view.StatusPreviewView
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TabRowWithContour
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -248,7 +248,7 @@ private fun DrawingEditorCard(
     var lastSelection by remember { mutableStateOf<ZoneSelection?>(null) }
 
     val appearance = StatusAppearance.of(settings)
-    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val systemDark = isSystemInDarkTheme()
     val dark = when (previewTheme) { 1 -> false; 2 -> true; else -> systemDark }
 
     // This page previews synthetic readings, independently of the switch being
@@ -291,6 +291,7 @@ private fun DrawingEditorCard(
             ContentControlRow(ContentControl.Enabled, settings, update)
             ContentControlRow(ContentControl.MergeIcons, settings, update)
             ContentControlRow(ContentControl.AntiBurnIn, settings, update)
+            ContentControlRow(ContentControl.EffectiveScope, settings, update)
         }
 
         DrawingSection(R.string.section_merge_style) {
@@ -368,18 +369,43 @@ private fun DrawingEditorCard(
         DrawingSection(R.string.drawing_order_title) {
             // The strip lists the zones this arrangement actually has.
             val zones = zonesFor(appearance)
-            // Miuix's own outlined tab row, with nothing overridden.
-            TabRowWithContour(
-                tabs = zones.map { zone -> stringResource(zoneLabelRes(zone)) },
-                selectedTabIndex = zones.indexOf(openZone).coerceAtLeast(0),
-                onTabSelected = { index ->
-                    openZone = zones[index]
-                    pressed = null
-                },
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 12.dp),
-            )
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MiuixTheme.colorScheme.surfaceContainerHigh)
+                    .padding(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                zones.forEach { zone ->
+                    val selected = zone == openZone
+                    val text = stringResource(zoneLabelRes(zone))
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(34.dp)
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(
+                                if (selected) MiuixTheme.colorScheme.surface
+                                else Color.Transparent
+                            )
+                            .clickable {
+                                openZone = zone
+                                pressed = null
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = text,
+                            style = MiuixTheme.textStyles.footnote1,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
 
             val chain = appearance.ringZones[openZone.ordinal]
             // Shown whenever the signal is out of ring, not only when a signal row happens to be in this zone's list.
@@ -955,4 +981,11 @@ private fun DrawingGlyph(
     }
 }
 
-private fun zonesFor(a: StatusAppearance): List<IconZones.Zone> = IconZones.Zone.entries.toList()
+// Natural in-ring tab order: Left, Top, Centre, Bottom, Right
+private fun zonesFor(a: StatusAppearance): List<IconZones.Zone> = listOf(
+    IconZones.Zone.LEFT,
+    IconZones.Zone.TOP,
+    IconZones.Zone.CENTRE,
+    IconZones.Zone.BOTTOM,
+    IconZones.Zone.RIGHT,
+)

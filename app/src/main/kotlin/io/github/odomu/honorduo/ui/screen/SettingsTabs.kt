@@ -1,5 +1,6 @@
 package io.github.odomu.honorduo.ui.screen
 
+import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -264,7 +266,7 @@ internal fun LazyListScope.aboutTab(
                 insideMargin = SettingsItemMargin,
             ) { index ->
                 repository.setAppLanguage(index)
-                (repository.context as? android.app.Activity)?.recreate()
+                (repository.context as? Activity)?.recreate()
             }
             GlassDropdownPreference(
                 title = stringResource(R.string.nav_style_title),
@@ -378,8 +380,8 @@ fun ActivatedRow(settings: ModuleSettings, service: XposedService?) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             StatCard(
-                label = stringResource(R.string.about_scope_count),
-                value = scopeCount(service).toString(),
+                label = stringResource(R.string.about_hook_count),
+                value = hookCount(service).toString(),
                 modifier = Modifier.weight(1f),
             )
             StatCard(
@@ -482,14 +484,14 @@ fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
 fun InfoRow(label: String, value: String, bottomPadding: Dp = 24.dp) {
     Text(
         text = label,
-        style = MiuixTheme.textStyles.footnote2,
-        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+        style = MiuixTheme.textStyles.body1,
+        color = MiuixTheme.colorScheme.onSurface,
         modifier = Modifier.padding(bottom = 2.dp),
     )
     Text(
         text = value,
-        style = MiuixTheme.textStyles.body1,
-        color = MiuixTheme.colorScheme.onSurface,
+        style = MiuixTheme.textStyles.body2,
+        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
         modifier = Modifier.padding(bottom = bottomPadding),
     )
 }
@@ -625,9 +627,9 @@ fun readDeviceName(context: Context): String {
     return name?.takeIf { it.isNotBlank() } ?: Build.MODEL.orEmpty()
 }
 
-fun scopeCount(service: XposedService?): Int {
+fun hookCount(service: XposedService?): Int {
     if (service == null) return 0
-    return runCatching { service.scope.size }.getOrDefault(0)
+    return 32
 }
 
 fun enabledCount(settings: ModuleSettings): Int {
@@ -720,7 +722,7 @@ internal fun UpdateCard(
                     Box(
                         modifier = Modifier
                             .size(7.dp)
-                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .clip(CircleShape)
                             .background(Color(0xFFE53935)),
                     )
                     Spacer(Modifier.width(6.dp))
