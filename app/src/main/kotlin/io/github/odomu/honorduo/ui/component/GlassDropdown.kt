@@ -18,6 +18,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -144,8 +145,166 @@ internal fun GlassDropdownPreference(
     }
 }
 
+/**
+ * Miuix-style multi-select dropdown preference with Checkbox on the left side of each item.
+ */
 @Composable
-private fun GlassDropdownPopup(
+internal fun GlassMultiDropdownPreference(
+    title: String,
+    options: List<String>,
+    selectedIndices: Set<Int>,
+    onToggleIndex: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    summary: String? = null,
+    insideMargin: PaddingValues = PaddingValues(16.dp),
+    enabled: Boolean = true,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val available = enabled && options.isNotEmpty()
+    val backdrop = LocalDropdownBackdrop.current
+
+    Box(modifier) {
+        BasicComponent(
+            modifier = Modifier.fillMaxWidth(),
+            interactionSource = remember { MutableInteractionSource() },
+            title = title,
+            summary = summary,
+            endActions = {
+                DropdownArrowEndAction(MiuixTheme.colorScheme.onSurfaceVariantActions)
+            },
+            onClick = { if (available) expanded = true },
+            role = Role.DropdownList,
+            holdDownState = false,
+            enabled = available,
+            insideMargin = insideMargin,
+        )
+        GlassMultiDropdownPopup(
+            options = options,
+            selectedIndices = selectedIndices,
+            onToggleIndex = onToggleIndex,
+            show = expanded,
+            backdrop = backdrop,
+            onDismiss = { expanded = false },
+        )
+    }
+}
+
+@Composable
+internal fun GlassMultiDropdownPopup(
+    options: List<String>,
+    selectedIndices: Set<Int>,
+    onToggleIndex: (Int) -> Unit,
+    show: Boolean,
+    backdrop: LayerBackdrop?,
+    onDismiss: () -> Unit,
+) {
+    val progress = remember { Animatable(0f) }
+    val alpha = remember { Animatable(0f) }
+    var mounted by remember { mutableStateOf(false) }
+    val dismiss by rememberUpdatedState(onDismiss)
+    var anchor by remember { mutableStateOf(IntRect.Zero) }
+    var hostPosition by remember { mutableStateOf(Offset.Zero) }
+    var surfaceSize by remember { mutableStateOf(IntSize.Zero) }
+    val density = LocalDensity.current
+    val shadowPadding = with(density) { 28.dp.roundToPx() }
+
+    LaunchedEffect(show) {
+        if (show) {
+            mounted = true
+            launch { progress.animateTo(1f, spring(dampingRatio = .78f, stiffness = 232f)) }
+            launch { alpha.animateTo(1f, tween(120)) }
+        } else if (mounted) {
+            launch { progress.animateTo(0f, spring(dampingRatio = .78f, stiffness = 400f)) }
+            alpha.animateTo(0f, tween(180))
+            mounted = false
+        }
+    }
+    if (!show && !mounted) return
+
+    Spacer(Modifier.onGloballyPositioned { coordinates ->
+        coordinates.parentLayoutCoordinates?.let { parent ->
+            val position = parent.positionInWindow()
+            anchor = IntRect(position.x.toInt(), position.y.toInt(),
+                position.x.toInt() + parent.size.width, position.y.toInt() + parent.size.height)
+        }
+    })
+    if (anchor == IntRect.Zero) return
+
+    val layoutInfo = rememberListPopupLayoutInfo(
+        alignment = PopupPositionProvider.Align.End,
+        popupPositionProvider = ListPopupDefaults.DropdownPositionProvider,
+        parentBounds = anchor,
+        popupContentSize = surfaceSize,
+    )
+    val popupState = remember { mutableStateOf(mounted) }
+    popupState.value = mounted
+    MiuixPopupUtils.PopupLayout(
+        visible = popupState,
+        enableWindowDim = false,
+        enableBackHandler = false,
+        enterTransition = EnterTransition.None,
+        exitTransition = ExitTransition.None,
+        renderInRootScaffold = true,
+    ) {
+        BackHandler(enabled = show, onBack = dismiss)
+        Layout(
+            content = {
+                GlassDropdownSurface(progress.value, alpha.value, backdrop,
+                    onSizeChanged = { surfaceSize = it }) {
+                    ListPopupColumn {
+                        options.forEachIndexed { index, text ->
+                            val checked = index in selectedIndices
+                            androidx.compose.foundation.layout.Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { onToggleIndex(index) }
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+                            ) {
+                                top.yukonga.miuix.kmp.basic.Checkbox(
+                                    state = if (checked) androidx.compose.ui.state.ToggleableState.On else androidx.compose.ui.state.ToggleableState.Off,
+                                    onClick = null,
+                                )
+                                Text(
+                                    text = text,
+                                    style = MiuixTheme.textStyles.body1,
+                                    color = if (checked) MiuixTheme.colorScheme.onSurface else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+                .onGloballyPositioned { hostPosition = it.positionInWindow() }
+                .pointerInput(Unit) { detectTapGestures(onTap = { dismiss() }) },
+        ) { measurables, constraints ->
+            val maxHeight = layoutInfo.windowBounds.height - layoutInfo.popupMargin.top - layoutInfo.popupMargin.bottom
+            val placeable = measurables.single().measure(constraints.copy(
+                minWidth = 0, minHeight = 0, maxHeight = maxHeight.coerceAtLeast(1),
+            ))
+            val position = ListPopupDefaults.DropdownPositionProvider.calculatePosition(
+                anchor, layoutInfo.windowBounds, layoutDirection,
+                IntSize(placeable.width, placeable.height), layoutInfo.popupMargin,
+                PopupPositionProvider.Align.End,
+            )
+            val safeTop = (anchor.height * .10f).roundToInt()
+            val minY = layoutInfo.windowBounds.top + layoutInfo.popupMargin.top
+            val maxY = (layoutInfo.windowBounds.bottom - placeable.height - layoutInfo.popupMargin.bottom)
+                .coerceAtLeast(minY)
+            val y = (anchor.top + safeTop - shadowPadding).coerceIn(minY, maxY)
+            layout(constraints.maxWidth, constraints.maxHeight) {
+                placeable.place(position.x + with(density) { 18.dp.roundToPx() } - hostPosition.x.toInt(),
+                    y - hostPosition.y.toInt())
+            }
+        }
+    }
+}
+
+@Composable
+internal fun GlassDropdownPopup(
     entry: DropdownEntry,
     show: Boolean,
     backdrop: LayerBackdrop?,

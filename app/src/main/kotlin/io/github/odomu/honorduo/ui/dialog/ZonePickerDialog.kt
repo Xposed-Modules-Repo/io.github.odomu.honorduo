@@ -302,6 +302,9 @@ fun occupantLabelRes(part: IconZones.Part?): Int = when (part) {
     IconZones.Part.RUNNING -> R.string.drawing_occupant_running
     IconZones.Part.FPS -> R.string.drawing_occupant_fps
     IconZones.Part.CURRENT -> R.string.perf_current_title
+    IconZones.Part.VOLTAGE -> R.string.perf_voltage_title
+    IconZones.Part.SIGNAL -> R.string.perf_signal_title
+    IconZones.Part.BT -> R.string.bt_battery_title
     null -> R.string.drawing_occupant_none
 }
 
@@ -309,6 +312,8 @@ fun zoneLabelRes(zone: IconZones.Zone): Int = when (zone) {
     IconZones.Zone.TOP -> R.string.drawing_hint_top
     IconZones.Zone.CENTRE -> R.string.drawing_hint_centre
     IconZones.Zone.BOTTOM -> R.string.drawing_hint_bottom
+    IconZones.Zone.LEFT -> R.string.drawing_hint_left
+    IconZones.Zone.RIGHT -> R.string.drawing_hint_right
 }
 
 fun partSummaryRes(part: IconZones.Part): Int = when (part) {
@@ -324,5 +329,8 @@ fun partSummaryRes(part: IconZones.Part): Int = when (part) {
     IconZones.Part.TEMP -> R.string.perf_temp_summary
     IconZones.Part.RUNNING -> R.string.perf_running_summary
     IconZones.Part.FPS -> R.string.perf_fps_summary
-    IconZones.Part.CURRENT -> R.string.perf_current_summary
+    IconZones.Part.CURRENT -> R.string.perf_reading_common_summary
+    IconZones.Part.VOLTAGE -> R.string.perf_reading_common_summary
+    IconZones.Part.SIGNAL -> R.string.perf_reading_common_summary
+    IconZones.Part.BT -> R.string.bt_battery_summary
 }
