@@ -461,7 +461,6 @@ fun SettingsScreen(repository: SettingsRepository) {
                                 )
 
                                 SettingsTab.Settings -> settingsTab(
-                                    settings = settingsState.value,
                                     onOpenPart = { part -> activeSettingPart = part },
                                 )
 

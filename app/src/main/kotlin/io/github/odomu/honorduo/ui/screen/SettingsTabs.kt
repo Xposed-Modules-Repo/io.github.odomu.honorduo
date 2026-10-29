@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -57,7 +59,7 @@ import io.github.odomu.honorduo.ui.component.ActivatedContainer
 import io.github.odomu.honorduo.ui.component.ActivatedContainerDark
 import io.github.odomu.honorduo.ui.component.ActivatedContent
 import io.github.odomu.honorduo.ui.component.GlassDropdownPreference
-import io.github.odomu.honorduo.ui.component.SettingPreviewCard
+import io.github.odomu.honorduo.ui.component.SettingTile
 import io.github.odomu.honorduo.ui.component.SettingsItemMargin
 import io.github.odomu.honorduo.ui.component.isDarkTheme
 import io.github.odomu.honorduo.ui.control.SettingsPart
@@ -82,89 +84,77 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import java.io.File
 
-/** Settings tab displaying concise preview cards that open dedicated sheets on click. */
-internal fun LazyListScope.settingsTab(
-    settings: ModuleSettings,
-    onOpenPart: (SettingsPart) -> Unit,
-) {
-    // Card 0: Appearance
-    item {
-        SettingPreviewCard(
-            title = stringResource(R.string.section_appearance),
-            summary = stringResource(R.string.card_appearance_summary),
-            icon = ImageVector.vectorResource(R.drawable.ic_card_appearance),
-            onClick = { onOpenPart(SettingsPart.Appearance) },
-        )
-    }
+/**
+ * The settings grid: one tile per sheet, two to a row.
+ *
+ * The order is the reading order of the grid, so a pair is always (left, right).
+ */
+private class SettingEntry(
+    @StringRes val title: Int,
+    @StringRes val summary: Int,
+    @DrawableRes val icon: Int,
+    val part: SettingsPart,
+)
 
-    // Card 1: Notification shade & control center
-    item {
-        SettingPreviewCard(
-            title = stringResource(R.string.drawing_part_shade),
-            summary = stringResource(R.string.card_shade_summary),
-            icon = ImageVector.vectorResource(R.drawable.ic_lucide_sliders_horizontal),
-            onClick = { onOpenPart(SettingsPart.Shade) },
-        )
-    }
+private val SETTING_ENTRIES = listOf(
+    SettingEntry(
+        R.string.section_appearance, R.string.card_appearance_summary,
+        R.drawable.ic_card_appearance, SettingsPart.Appearance,
+    ),
+    SettingEntry(
+        R.string.drawing_part_shade, R.string.card_shade_summary,
+        R.drawable.ic_lucide_sliders_horizontal, SettingsPart.Shade,
+    ),
+    SettingEntry(
+        R.string.card_battery_title, R.string.card_battery_summary,
+        R.drawable.ic_card_battery, SettingsPart.Battery,
+    ),
+    SettingEntry(
+        R.string.card_wifi_title, R.string.card_wifi_summary,
+        R.drawable.ic_card_wifi, SettingsPart.Wifi,
+    ),
+    SettingEntry(
+        R.string.card_mobile_title, R.string.card_mobile_summary,
+        R.drawable.ic_card_signal, SettingsPart.Mobile,
+    ),
+    SettingEntry(
+        R.string.card_type_title, R.string.card_type_summary,
+        R.drawable.ic_card_type, SettingsPart.Type,
+    ),
+    SettingEntry(
+        R.string.card_readouts_title, R.string.card_readouts_summary,
+        R.drawable.ic_card_readouts, SettingsPart.Readouts,
+    ),
+    SettingEntry(
+        R.string.card_clock_title, R.string.card_clock_summary,
+        R.drawable.ic_card_clock, SettingsPart.Clock,
+    ),
+)
 
-    // Card 2: Battery & Value (Unified)
-    item {
-        SettingPreviewCard(
-            title = stringResource(R.string.card_battery_title),
-            summary = stringResource(R.string.card_battery_summary),
-            icon = ImageVector.vectorResource(R.drawable.ic_card_battery),
-            onClick = { onOpenPart(SettingsPart.Battery) },
-        )
-    }
-
-    // Card 3: Wi-Fi Arcs
-    item {
-        SettingPreviewCard(
-            title = stringResource(R.string.card_wifi_title),
-            summary = stringResource(R.string.card_wifi_summary),
-            icon = ImageVector.vectorResource(R.drawable.ic_card_wifi),
-            onClick = { onOpenPart(SettingsPart.Wifi) },
-        )
-    }
-
-    // Card 4: Mobile Network & Signal
-    item {
-        SettingPreviewCard(
-            title = stringResource(R.string.card_mobile_title),
-            summary = stringResource(R.string.card_mobile_summary),
-            icon = ImageVector.vectorResource(R.drawable.ic_card_signal),
-            onClick = { onOpenPart(SettingsPart.Mobile) },
-        )
-    }
-
-    // Card 5: Network Type
-    item {
-        SettingPreviewCard(
-            title = stringResource(R.string.card_type_title),
-            summary = stringResource(R.string.card_type_summary),
-            icon = ImageVector.vectorResource(R.drawable.ic_card_type),
-            onClick = { onOpenPart(SettingsPart.Type) },
-        )
-    }
-
-    // Card 6: Readouts & Performance
-    item {
-        SettingPreviewCard(
-            title = stringResource(R.string.card_readouts_title),
-            summary = stringResource(R.string.card_readouts_summary),
-            icon = ImageVector.vectorResource(R.drawable.ic_card_readouts),
-            onClick = { onOpenPart(SettingsPart.Readouts) },
-        )
-    }
-
-    // Card 7: Clock & Date
-    item {
-        SettingPreviewCard(
-            title = stringResource(R.string.card_clock_title),
-            summary = stringResource(R.string.card_clock_summary),
-            icon = ImageVector.vectorResource(R.drawable.ic_card_clock),
-            onClick = { onOpenPart(SettingsPart.Clock) },
-        )
+/** Settings tab: a two-column grid of tiles, each opening its own sheet. */
+internal fun LazyListScope.settingsTab(onOpenPart: (SettingsPart) -> Unit) {
+    SETTING_ENTRIES.chunked(2).forEach { pair ->
+        item(key = "tile-${pair[0].title}") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 3.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                pair.forEach { entry ->
+                    SettingTile(
+                        title = stringResource(entry.title),
+                        summary = stringResource(entry.summary),
+                        icon = ImageVector.vectorResource(entry.icon),
+                        onClick = { onOpenPart(entry.part) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                // An odd count would leave the last tile stretched across the row; a spacer
+                // keeps it half-width and in its column.
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
     }
 }
 
