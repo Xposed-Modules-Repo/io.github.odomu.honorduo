@@ -177,7 +177,9 @@ internal object StatusBarRowManager {
             row.row.requestLayout()
             row.row.invalidate()
         }
-        StatusBarIconManager.applyIconVisibility()
+        // `syncRow` already settled each row's container, so this pass is only for the
+        // bar's contents (the clock copy that lives outside the rows) and the hand-back.
+        StatusBarIconManager.applyIconVisibility(rowsSettled = !suppressed)
     }
 
     private fun hideAll(row: Row) {

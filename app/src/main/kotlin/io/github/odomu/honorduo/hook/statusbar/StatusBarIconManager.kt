@@ -185,8 +185,23 @@ internal object StatusBarIconManager {
     fun isOperatorHdIcon(view: View): Boolean =
         view.javaClass.name.endsWith("HwOperatorIconParentView")
 
+    /** Whether any slot-based suppression is switched on at all. */
+    private fun wantsSlotSuppression(a: StatusAppearance): Boolean =
+        a.hideAlarmIcon || a.hideBluetoothIcon || a.hideHdVolte || a.hideHdVowifi
+
+    /**
+     * Whether [view] could carry a slot this module suppresses, judged without reflection.
+     *
+     * A name check per call is all the cost this leaves on the `setFlags` path; reading the
+     * slot itself is a cached-but-reflective field access under a lock.
+     */
+    private fun isSlotKind(view: View): Boolean {
+        val name = view.javaClass.name
+        return name.endsWith(STATUS_ICON_VIEW_SUFFIX) || name.endsWith("HwOperatorIconParentView")
+    }
+
     fun settleSlotIcon(view: View, a: StatusAppearance) {
-        if (!a.hideAlarmIcon && !a.hideBluetoothIcon && !a.hideHdVolte && !a.hideHdVowifi) {
+        if (!wantsSlotSuppression(a)) {
             restoreSlotIcon(view)
             return
         }
@@ -249,19 +264,23 @@ internal object StatusBarIconManager {
     fun enforceSuppression(view: View) {
         val a = ModuleConfig.appearance()
         if (!a.enabled || StatusBarRowManager.suppressed || view.isGone) return
-        // Alarm, Bluetooth and the HD badges are not reachable by id: they arrive as a
-        // fresh StatusBarIconView whenever the bar is rebuilt, the keyguard included.
-        if (hidesSlot(view, a)) {
+        if (!idsResolved) {
+            resolveIds(view.resources)
+        }
+        val id = view.id
+        val knownId = id == wifiId || id == mobileId || id == batteryId || id == clockId
+        // Alarm, Bluetooth and the HD badges are not reachable by id: they arrive as a fresh
+        // StatusBarIconView whenever the bar is rebuilt, the keyguard included. Their slot
+        // read is reflective, and this runs for every `View.setFlags` in SystemUI - so it is
+        // asked only when a slot setting is on and only of a view that could be one. The
+        // common case stays integer comparisons.
+        if (!knownId && wantsSlotSuppression(a) && isSlotKind(view) && hidesSlot(view, a)) {
             if (!isSlotTracked(view)) rememberSlotHidden(view, view.visibility)
             rememberHidden(view)
             hide(view)
             return
         }
-        if (!idsResolved) {
-            resolveIds(view.resources)
-        }
-        val id = view.id
-        if (id == 0 || (id != wifiId && id != mobileId && id != batteryId && id != clockId)) {
+        if (id == 0 || !knownId) {
             return
         }
         // The clock is the one icon whose ownership does not depend on the container:
@@ -292,7 +311,7 @@ internal object StatusBarIconManager {
      * nor `GONE` to one already visible. Called from the settings change and from
      * mounting a row.
      */
-    fun applyIconVisibility(a: StatusAppearance = ModuleConfig.appearance()) {
+    fun applyIconVisibility(a: StatusAppearance = ModuleConfig.appearance(), rowsSettled: Boolean = false) {
         // Nothing the module owns may be drawn while it has stood down: no clock
         // text, no re-hiding. Only the hand-back below runs.
         if (StatusBarRowManager.suppressed) {
@@ -310,8 +329,10 @@ internal object StatusBarIconManager {
         }
         if (!idsResolved) return
 
-        for (row in StatusBarRowManager.snapshot()) {
-            settle(row.container, a)
+        if (!rowsSettled) {
+            for (row in StatusBarRowManager.snapshot()) {
+                settle(row.container, a)
+            }
         }
         contentsViewGroup?.let { settle(it, a) }
         settleAllTrackedSlots(a)

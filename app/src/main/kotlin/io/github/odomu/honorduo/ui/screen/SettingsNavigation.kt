@@ -1,5 +1,6 @@
 package io.github.odomu.honorduo.ui.screen
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -20,7 +21,10 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,6 +64,8 @@ import io.github.odomu.honorduo.R
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.ui.component.navigationDragInput
 import io.github.odomu.honorduo.ui.component.rememberNavigationDragState
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.NavigationBar
@@ -241,17 +247,32 @@ fun NavigationPill(
         animationSpec = spring(dampingRatio = 0.7f, stiffness = 500f),
         label = "navigationPress",
     )
-    val stretch by animateFloatAsState(
-        targetValue = abs(interaction.velocity),
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = 350f),
-        label = "navigationStretch",
-    )
-    val panelShift by animateFloatAsState(
-        targetValue = if (liquid) with(density) { 4.dp.toPx() } *
-                interaction.travel.coerceIn(-1f, 1f) else 0f,
-        animationSpec = spring(dampingRatio = 0.75f, stiffness = 300f),
-        label = "navigationPanelShift",
-    )
+    // The drag writes `velocity` and `travel` on every pointer move. Feeding
+    // animateFloatAsState from those reads them in composition, so the whole pill - both
+    // backdrop chains and all five tabs - recomposed once per move. These two springs are
+    // driven from a snapshotFlow instead and their values are only read inside the draw
+    // and layout lambdas below, so a drag invalidates layers rather than the composition.
+    val stretchAnim = remember { Animatable(0f) }
+    val shiftAnim = remember { Animatable(0f) }
+    val shiftTarget = if (liquid) with(density) { 4.dp.toPx() } else 0f
+    LaunchedEffect(interaction, shiftTarget) {
+        launch {
+            snapshotFlow { abs(interaction.velocity) }
+                .distinctUntilChanged()
+                .collect {
+                    stretchAnim.animateTo(it, spring(dampingRatio = 0.8f, stiffness = 350f))
+                }
+        }
+        launch {
+            snapshotFlow { interaction.travel.coerceIn(-1f, 1f) * shiftTarget }
+                .distinctUntilChanged()
+                .collect {
+                    shiftAnim.animateTo(it, spring(dampingRatio = 0.75f, stiffness = 300f))
+                }
+        }
+    }
+    val stretch = { stretchAnim.value }
+    val panelShift = { shiftAnim.value }
     val tabsBackdrop = rememberLayerBackdrop()
     val selectionBackdrop = if (liquid && backdrop != null) {
         rememberCombinedBackdrop(backdrop, tabsBackdrop)
@@ -321,7 +342,7 @@ fun NavigationPill(
             Box(
                 Modifier
                     .matchParentSize()
-                    .absoluteOffset { IntOffset(panelShift.roundToInt(), 0) }
+                    .absoluteOffset { IntOffset(panelShift().roundToInt(), 0) }
                     .shadow(6.dp, shape, clip = false)
                     .then(material))
 
@@ -347,7 +368,7 @@ fun NavigationPill(
                 labels, openIndex, ink,
                 Modifier
                     .matchParentSize()
-                    .absoluteOffset { IntOffset(panelShift.roundToInt(), 0) }
+                    .absoluteOffset { IntOffset(panelShift().roundToInt(), 0) }
                     .padding(horizontal = 4.dp),
                 onSelect = onSelect,
             )
@@ -359,7 +380,7 @@ fun NavigationPill(
                     Box(
                         Modifier
                             .matchParentSize()
-                            .absoluteOffset { IntOffset(panelShift.roundToInt(), 0) }
+                            .absoluteOffset { IntOffset(panelShift().roundToInt(), 0) }
                             .clearAndSetSemantics { }
                             .graphicsLayer { alpha = 0f }
                             .layerBackdrop(tabsBackdrop)
@@ -373,8 +394,8 @@ fun NavigationPill(
                         )
                     }
                 }
-                val lensScaleX = { (1f + 0.35f * press) * (1f + 0.16f * stretch) }
-                val lensScaleY = { (1f + 0.35f * press) * (1f - 0.08f * stretch) }
+                val lensScaleX = { (1f + 0.35f * press) * (1f + 0.16f * stretch()) }
+                val lensScaleY = { (1f + 0.35f * press) * (1f - 0.08f * stretch()) }
                 val lensMaterial = if (selectionBackdrop != null) {
                     Modifier.drawBackdrop(
                         backdrop = selectionBackdrop,
@@ -411,7 +432,7 @@ fun NavigationPill(
                         .align(Alignment.Center)
                         .absoluteOffset {
                             IntOffset(
-                                (direction * (interaction.position - (count - 1) / 2f) * slotPx + panelShift).roundToInt(),
+                                (direction * (interaction.position - (count - 1) / 2f) * slotPx + panelShift()).roundToInt(),
                                 0
                             )
                         }

@@ -150,11 +150,14 @@ object IconZones {
             // reach the margin too, or tapping the arcs the user placed lands on nothing.
             val extra = if (a.ring) IconGeometry.ringFlankWifiExtra(a) else 0f
             if (extra <= 0f) return base
-            return when (zone) {
-                Zone.LEFT -> base.map { floatArrayOf(it[0] - extra, it[1], it[2], it[3]) }.toTypedArray()
-                Zone.RIGHT -> base.map { floatArrayOf(it[0], it[1], it[2] + extra, it[3]) }.toTypedArray()
-                else -> base
+            // Mutated in place rather than copied: `base` was built for this call only, and
+            // the settings preview asks for these boxes on every frame of a highlighted flank.
+            when (zone) {
+                Zone.LEFT -> for (box in base) box[0] -= extra
+                Zone.RIGHT -> for (box in base) box[2] += extra
+                else -> Unit
             }
+            return base
         }
         val stroke = a.ringStroke * IconGeometry.CAP_STROKE_RATIO
         val top = IconGeometry.capInteriorTop(stroke)

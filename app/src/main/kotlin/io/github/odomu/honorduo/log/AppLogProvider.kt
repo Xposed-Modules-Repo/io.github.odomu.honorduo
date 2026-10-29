@@ -36,6 +36,12 @@ class AppLogProvider : ContentProvider() {
         const val MAX_RETENTION_DAYS = 3
         private const val RETENTION_MS = MAX_RETENTION_DAYS * 24 * 60 * 60 * 1000L
         private const val MAX_FILE_SIZE = 2 * 1024 * 1024L // 2 MB per file
+
+        /** One calendar day, as the divisor that turns a timestamp into a day number. */
+        private const val DAY_MS = 24L * 60 * 60 * 1000
+
+        /** How often the retention sweep runs; it is a directory scan, not a per-line job. */
+        private const val RETENTION_INTERVAL_MS = 60L * 60 * 1000
         private const val FILE_PREFIX = "honorduo_"
         private const val FILE_SUFFIX = ".log"
         private const val TAG = "HonorDuo-LogProvider"
@@ -44,12 +50,6 @@ class AppLogProvider : ContentProvider() {
             val dir = File(context.filesDir, "logs")
             if (!dir.exists()) dir.mkdirs()
             return dir
-        }
-
-        fun getTodayLogFile(context: Context): File {
-            val dir = getLogDir(context)
-            val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-            return File(dir, "$FILE_PREFIX$dateStr$FILE_SUFFIX")
         }
 
         /**
@@ -110,6 +110,31 @@ class AppLogProvider : ContentProvider() {
 
     private val lock = Any()
 
+    /** The file the day's lines are appended to, resolved once per calendar day. */
+    private var dayFile: File? = null
+    private var dayStamp = -1
+
+    /** When the last retention sweep ran; the sweep is a directory scan, not a per-line job. */
+    private var retainedAt = 0L
+
+    /**
+     * The day's file name format, rebuilt when the system locale changes.
+     *
+     * Cached so a write does not construct a formatter; re-derived from
+     * [Locale.getDefault] so a locale switch mid-process still names the file correctly.
+     */
+    private var dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    private var dayLocale: Locale = Locale.getDefault()
+
+    private fun dayName(now: Long): String {
+        val locale = Locale.getDefault()
+        if (locale != dayLocale) {
+            dayLocale = locale
+            dayFormat = SimpleDateFormat("yyyy-MM-dd", locale)
+        }
+        return synchronized(dayFormat) { dayFormat.format(Date(now)) }
+    }
+
     override fun onCreate(): Boolean = true
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
@@ -128,17 +153,34 @@ class AppLogProvider : ContentProvider() {
         return Bundle.EMPTY
     }
 
-    private fun writeLine(ctx: Context, line: String) {
+    /**
+     * Appends one already-formatted batch to today's file.
+     *
+     * Retention is a directory scan and the day's file name is a date format; both used to
+     * run for every single line. They now run once a day, on the first write after the date
+     * changed, and the append itself is one open-write-close per batch.
+     */
+    private fun writeLine(ctx: Context, batch: String) {
+        if (batch.isEmpty()) return
         synchronized(lock) {
             runCatching {
-                cleanExpiredLogs(ctx)
-                val file = getTodayLogFile(ctx)
+                val now = System.currentTimeMillis()
+                val stamp = (now / DAY_MS).toInt()
+                if (stamp != dayStamp) {
+                    dayStamp = stamp
+                    dayFile = File(getLogDir(ctx), "$FILE_PREFIX${dayName(now)}$FILE_SUFFIX")
+                }
+                if (now - retainedAt > RETENTION_INTERVAL_MS) {
+                    retainedAt = now
+                    cleanExpiredLogs(ctx)
+                }
+                val file = dayFile ?: return
                 if (file.exists() && file.length() > MAX_FILE_SIZE) {
                     truncateFile(file)
                 }
                 FileWriter(file, true).use { writer ->
-                    writer.write(line)
-                    writer.write("\n")
+                    writer.write(batch)
+                    if (!batch.endsWith('\n')) writer.write("\n")
                 }
             }.onFailure {
                 Log.w(TAG, "Failed to write log line: ${it.message}")

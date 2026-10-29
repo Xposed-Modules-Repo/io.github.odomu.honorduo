@@ -35,6 +35,11 @@ import kotlin.math.roundToInt
 internal object WeatherManager {
 
     private const val TAG = "HonorDuo-Weather"
+
+    /** Info-level tracing, behind the module's own debug switch; warnings stay unconditional. */
+    private fun logDebug(msg: String) {
+        if (ModuleConfig.debugLog()) Log.i(TAG, msg)
+    }
     private val WEATHER_URI = Prefs.WEATHER_URI.toUri()
     private val executor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "HonorDuo-Weather").apply { isDaemon = true }
@@ -71,13 +76,13 @@ internal object WeatherManager {
             started = true
         }
         val app = context.applicationContext ?: context
-        Log.i(TAG, "WeatherManager starting with context: ${app.packageName}")
+        logDebug("WeatherManager starting with context: ${app.packageName}")
 
         try {
             app.contentResolver.registerContentObserver(WEATHER_URI, true, object : ContentObserver(main) {
                 override fun onChange(selfChange: Boolean) {
-                    Log.i(TAG, "ContentObserver onChange triggered, screenOn=${ScreenStateTracker.isScreenOn}")
-                    if (ScreenStateTracker.isScreenOn) {
+                    logDebug("ContentObserver onChange triggered, screenOn=${ScreenStateTracker.isScreenOn}")
+                    if (ScreenStateTracker.isScreenOn && BarVisibility.shown) {
                         fetchAsync(app, force = true)
                     }
                 }
@@ -96,9 +101,11 @@ internal object WeatherManager {
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(c: Context?, intent: Intent?) {
                     val act = intent?.action
-                    Log.i(TAG, "Weather broadcast received: $act, status=${intent?.getIntExtra("status", 0)}")
+                    logDebug("Weather broadcast received: $act, status=${intent?.getIntExtra("status", 0)}")
                     if (act == Prefs.ACTION_WEATHER_CHANGE && intent.getIntExtra("status", 0) != 1) return
-                    if (ScreenStateTracker.isScreenOn) {
+                    // A query is a provider round trip plus a JSON parse; with the bar hidden
+                    // nothing draws it, and the bar's return asks again through onScreenOn.
+                    if (ScreenStateTracker.isScreenOn && BarVisibility.shown) {
                         fetchAsync(app, force = true)
                     }
                 }
@@ -110,66 +117,74 @@ internal object WeatherManager {
 
         ScreenStateTracker.addListener { on ->
             if (on) {
-                Log.i(TAG, "Screen turned ON, checking weather staleness")
+                logDebug("Screen turned ON, checking weather staleness")
                 onScreenOn(app)
             }
         }
+        // The bar's return is the other moment a reading becomes drawable: a cold start and
+        // a fullscreen app both leave it hidden, and fetches are suspended until it is back.
+        BarVisibility.addListener { shown ->
+            if (shown) onScreenOn(app)
+        }
 
-        fetchAsync(app, force = true)
+        fetchAsync(app)
     }
 
     fun onScreenOn(context: Context) {
-        val now = System.currentTimeMillis()
-        if (now - lastFetchTime > CACHE_EXPIRY_MS || data == null) {
-            fetchAsync(context, force = data == null)
-        }
+        // Not forced: the stamp also covers the no-data case, so an unlock loop on a ROM
+        // whose provider refuses does not become a query loop.
+        fetchAsync(context)
     }
 
     fun onConfigChanged(context: Context) {
         val a = ModuleConfig.appearance()
-        Log.i(TAG, "onConfigChanged: enabled=${a.enabled}, clockWeather=${a.clockWeather}, shadeWeather=${a.shadeWeather}, currentData=$data")
+        logDebug("onConfigChanged: enabled=${a.enabled}, clockWeather=${a.clockWeather}, shadeWeather=${a.shadeWeather}, currentData=$data")
         if (a.enabled && (a.clockWeather || a.shadeWeather)) {
-            fetchAsync(context, force = data == null)
+            fetchAsync(context)
         }
     }
 
     fun fetchAsync(context: Context, force: Boolean = false) {
-        if (!ScreenStateTracker.isScreenOn) {
-            Log.i(TAG, "fetchAsync skipped: screen is OFF")
+        if (!ScreenStateTracker.isScreenOn || !BarVisibility.shown) {
+            logDebug("fetchAsync skipped: screen off or bar hidden")
             return
         }
         val a = ModuleConfig.appearance()
         if (!a.enabled || (!a.clockWeather && !a.shadeWeather)) {
-            Log.i(TAG, "fetchAsync skipped: weather features disabled")
+            logDebug("fetchAsync skipped: weather features disabled")
             return
         }
         val now = System.currentTimeMillis()
-        if (!force && now - lastFetchTime < CACHE_EXPIRY_MS && data != null) {
-            Log.i(TAG, "fetchAsync skipped: cached data fresh (${now - lastFetchTime}ms old)")
+        // The stamp alone answers "did we try recently", so a failed or still-empty read is
+        // not re-attempted on every caller. It used to require `data != null`, which meant
+        // the cache never applied to the one case that needed it: no data yet.
+        if (!force && now - lastFetchTime < CACHE_EXPIRY_MS) {
+            logDebug("fetchAsync skipped: cached (${now - lastFetchTime}ms old)")
             return
         }
-        Log.i(TAG, "fetchAsync scheduled, force=$force")
+        lastFetchTime = now
+        logDebug("fetchAsync scheduled, force=$force")
         executor.execute {
             if (!ScreenStateTracker.isScreenOn) {
-                Log.i(TAG, "fetchAsync background skipped: screen turned OFF")
+                logDebug("fetchAsync background skipped: screen turned OFF")
                 return@execute
             }
             try {
                 val queried = queryWeather(context)
-                Log.i(TAG, "queryWeather result: $queried")
-                if (queried != null) {
-                    lastFetchTime = System.currentTimeMillis()
-                    val hasChanged = queried != data
+                logDebug("queryWeather result: $queried")
+                if (queried != null && queried != data) {
                     data = queried
                     currentWeather = queried.text()
                     StatusState.sWeather = queried.text()
+                    // Repaint only on a real change: an unchanged answer still cost the
+                    // clock a requestLayout plus two reflective TimeManager invokes.
                     main.post {
                         BarClockManager.sync(ModuleConfig.appearance())
                         NotifCenterHook.onWeatherChanged()
                     }
-                    if (hasChanged) {
-                        Log.i(TAG, "Weather updated: ${queried.text()}")
-                    }
+                    logDebug("Weather updated: ${queried.text()}")
+                } else {
+                    logDebug("no weather answer; the stamp backs the next attempt off")
                 }
             } catch (t: Throwable) {
                 Log.w(TAG, "fetchAsync failed with error", t)
@@ -190,12 +205,12 @@ internal object WeatherManager {
         }
         val bundle = cr.call(WEATHER_URI, "query_home_city_weather", null, extras)
         if (bundle == null) {
-            Log.i(TAG, "queryFromCall: call returned null bundle")
+            logDebug("queryFromCall: call returned null bundle")
             return null
         }
         val json = bundle.getString("key_home_city_weather")?.takeIf { it.isNotEmpty() }
         if (json == null) {
-            Log.i(TAG, "queryFromCall: key_home_city_weather is null or empty")
+            logDebug("queryFromCall: key_home_city_weather is null or empty")
             return null
         }
         val root = org.json.JSONObject(json)
@@ -217,7 +232,7 @@ internal object WeatherManager {
             ?: mapIconToCondition(today.optInt("${prefix}weather_icon", -1))
 
         val tempC = if (fahrenheit) ((temp - 32.0) * 5.0 / 9.0).roundToInt() else temp.roundToInt()
-        Log.i(TAG, "queryFromCall parsed: $condition $tempC°C (raw temp=$temp, fahr=$fahrenheit)")
+        logDebug("queryFromCall parsed: $condition $tempC°C (raw temp=$temp, fahr=$fahrenheit)")
         WeatherData(condition, tempC)
     }.onFailure {
         Log.w(TAG, "queryFromCall threw exception", it)
@@ -262,7 +277,7 @@ internal object WeatherManager {
                     condition = mapIconToCondition(cursor.getInt(iconIdx))
                 }
 
-                Log.i(TAG, "queryFromCursor parsed: ${condition ?: "晴"} $tempC°C")
+                logDebug("queryFromCursor parsed: ${condition ?: "晴"} $tempC°C")
                 WeatherData(condition ?: "晴", tempC)
             }
         }.onFailure {

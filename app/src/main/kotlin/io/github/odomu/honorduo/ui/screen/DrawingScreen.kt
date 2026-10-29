@@ -574,7 +574,14 @@ private fun DrawingStyleSelector(
         styles.forEachIndexed { index, style ->
             val chosen = settings.trioStyle == style
             val sample = remember(style, settings) {
-                settings.withComponentsFrom(snapshotForStyle(style), style)
+                // The live snapshot IS this style's snapshot while it is the chosen one;
+                // reading it back out of the preferences costs a full store read on every
+                // settings write for no change.
+                if (style == settings.trioStyle) {
+                    settings
+                } else {
+                    settings.withComponentsFrom(snapshotForStyle(style), style)
+                }
             }
             Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
                 .background(if (chosen) MiuixTheme.colorScheme.primaryContainer else MiuixTheme.colorScheme.surfaceContainerHigh)

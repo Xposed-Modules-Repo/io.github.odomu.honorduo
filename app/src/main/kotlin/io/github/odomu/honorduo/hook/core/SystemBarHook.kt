@@ -230,6 +230,10 @@ internal object SystemBarHook {
                         StatusBarIconManager.settleClock(native)
                     }
                 }
+                // A second, independent place to learn the lockscreen exists: the battery
+                // hook is the first, but a ROM that inflates the bar differently may never
+                // run it, and then the scope's lockscreen row would do nothing.
+                ScopeTracker.start(self.context)
                 StatusBarIconManager.applyIconVisibility(ModuleConfig.appearance())
             }
             result
@@ -331,6 +335,9 @@ internal object SystemBarHook {
      * cancelled by the lockscreen row.
      */
     fun updateEffectiveScopeState() {
+        // Pulled, not pushed: a ROM that refuses the keyguard listener leaves the flag
+        // stale, and the whole scope row then looks ineffective.
+        ScopeTracker.refreshKeyguard()
         val a = ModuleConfig.appearance()
         val scope = a.effectiveScope
         val excluded = a.enabled && scope != Prefs.SCOPE_ALL && (

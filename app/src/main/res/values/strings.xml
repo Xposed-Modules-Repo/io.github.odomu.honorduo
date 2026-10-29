@@ -554,10 +554,7 @@
     <string name="scope_all">所有位置</string>
     <string name="scope_option_cc">控制中心</string>
     <string name="scope_option_shade">通知面板</string>
-    <string name="scope_option_keyguard">锁屏</string>
-    <string name="scope_short_cc">控制中心</string>
-    <string name="scope_short_shade">通知面板</string>
-    <string name="scope_short_keyguard">锁屏界面</string>
+    <string name="scope_option_keyguard">锁屏界面</string>
     <string name="scope_list_separator">、</string>
 
     <string name="capsule_no_scale_title">胶囊缩放</string>

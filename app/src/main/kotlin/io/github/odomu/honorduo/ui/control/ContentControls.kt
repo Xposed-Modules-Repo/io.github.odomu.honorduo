@@ -606,13 +606,6 @@ internal fun ContentControlRow(
                 R.string.scope_option_shade,
                 R.string.scope_option_keyguard,
             ),
-            // The row's own value line uses the short labels: three full names plus the
-            // separators wrap, and the list in the popup is where the full ones belong.
-            shortOptions = listOf(
-                R.string.scope_short_cc,
-                R.string.scope_short_shade,
-                R.string.scope_short_keyguard,
-            ),
             dependencies = listOf(settings.enabled to R.string.master_title),
             minimumSelected = 1,
         ) { next -> update { it.setEffectiveScope(scopeMaskOf(next)) } }
@@ -1042,19 +1035,17 @@ private fun ContentMultiChoice(
     selected: Set<Int>,
     title: Int,
     options: List<Int>,
-    shortOptions: List<Int>,
     dependencies: List<Pair<Boolean, Int>>,
     minimumSelected: Int = 0,
     onChange: (Set<Int>) -> Unit,
 ) {
     ContentGate(dependencies) {
         val labels = options.map { stringResource(it) }
-        val shortLabels = shortOptions.map { stringResource(it) }
         val summary = if (selected.size >= options.size) {
             stringResource(R.string.scope_all)
         } else {
             options.indices.filter { it in selected }.joinToString(stringResource(R.string.scope_list_separator)) {
-                shortLabels.getOrElse(it) { labels[it] }
+                labels[it]
             }
         }
         GlassMultiDropdownPreference(

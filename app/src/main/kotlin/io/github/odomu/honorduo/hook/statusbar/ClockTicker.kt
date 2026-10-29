@@ -61,10 +61,29 @@ internal object ClockTicker {
     private var is24Hour = true
 
     private val ZH_DAYS = arrayOf("日", "一", "二", "三", "四", "五", "六")
-    private val FMT_SLASH_YMD = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
-    private val FMT_ZH_MD = SimpleDateFormat("M月d日", Locale.getDefault())
-    private val FMT_ZH_YMD = SimpleDateFormat("yyyy年M月d日", Locale.getDefault())
-    private val FMT_DEF_MD = SimpleDateFormat("MM/dd", Locale.getDefault())
+
+    // The date formats take their numerals and separators from the system locale, so they are
+    // rebuilt when that locale changes rather than captured once: a static SimpleDateFormat
+    // built from `Locale.getDefault()` keeps formatting in the locale the process started in.
+    private var dateLocale: Locale = Locale.getDefault()
+    private var FMT_SLASH_YMD = SimpleDateFormat("yyyy/MM/dd", dateLocale)
+    private var FMT_ZH_MD = SimpleDateFormat("M月d日", dateLocale)
+    private var FMT_ZH_YMD = SimpleDateFormat("yyyy年M月d日", dateLocale)
+    private var FMT_DEF_MD = SimpleDateFormat("MM/dd", dateLocale)
+
+    /** Rebuilds the locale-dependent date formats if the system locale moved under us. */
+    @Synchronized
+    private fun refreshDateFormats() {
+        val locale = Locale.getDefault()
+        if (locale == dateLocale) return
+        dateLocale = locale
+        FMT_SLASH_YMD = SimpleDateFormat("yyyy/MM/dd", locale)
+        FMT_ZH_MD = SimpleDateFormat("M月d日", locale)
+        FMT_ZH_YMD = SimpleDateFormat("yyyy年M月d日", locale)
+        FMT_DEF_MD = SimpleDateFormat("MM/dd", locale)
+    }
+
+    // Weekdays spelled in English are locale constants, not the system locale's words.
     private val FMT_EN_SHORT = SimpleDateFormat("EEE", Locale.ENGLISH)
     private val FMT_EN_FULL = SimpleDateFormat("EEEE", Locale.ENGLISH)
     @Synchronized
@@ -98,12 +117,14 @@ internal object ClockTicker {
     }
 
     fun formatDate(now: Date, format: Int): String {
-        return when (format) {
-            Prefs.CLOCK_DATE_SLASH_YMD -> synchronized(FMT_SLASH_YMD) { FMT_SLASH_YMD.format(now) }
-            Prefs.CLOCK_DATE_ZH_MD -> synchronized(FMT_ZH_MD) { FMT_ZH_MD.format(now) }
-            Prefs.CLOCK_DATE_ZH_YMD -> synchronized(FMT_ZH_YMD) { FMT_ZH_YMD.format(now) }
-            else -> synchronized(FMT_DEF_MD) { FMT_DEF_MD.format(now) }
+        refreshDateFormats()
+        val fmt = when (format) {
+            Prefs.CLOCK_DATE_SLASH_YMD -> FMT_SLASH_YMD
+            Prefs.CLOCK_DATE_ZH_MD -> FMT_ZH_MD
+            Prefs.CLOCK_DATE_ZH_YMD -> FMT_ZH_YMD
+            else -> FMT_DEF_MD
         }
+        return synchronized(fmt) { fmt.format(now) }
     }
 
     fun formatWeekday(now: Date, format: Int): String {

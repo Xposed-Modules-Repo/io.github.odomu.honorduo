@@ -1022,22 +1022,24 @@ object IconGeometry {
     fun flankWifiStroke(ringStroke: Float): Float = ringStroke * FLANK_WIFI_STROKE_RATIO
 
     /**
-     * Radii of the flank's two Wi-Fi arcs, measured from the ring's centre.
+     * Radius of the flank's near Wi-Fi arc, measured from the ring's centre.
      *
-     * Derived from the ring's stroke, [FLANK_WIFI_GAP] and [FLANK_WIFI_ARC_GAP] rather than
-     * fixed: the arcs sit outside the ring, so a thicker ring has to push them outward or
-     * the inner one is drawn onto the ring's edge - the fault that made the small arc look
-     * like a thick spot on the ring itself.
-     *
-     * @return `{inner, outer}`
+     * Derived from the ring's stroke and [FLANK_WIFI_GAP] rather than fixed: the arcs sit
+     * outside the ring, so a thicker ring has to push them outward or the inner one is drawn
+     * onto the ring's edge - the fault that made the small arc look like a thick spot on the
+     * ring itself. Two scalars rather than an array, because this is read per frame by the
+     * draw path and per measure pass by [hostAspect].
      */
     @JvmStatic
-    fun flankWifiRadii(ringStroke: Float, baseR: Float): FloatArray {
+    fun flankWifiInnerR(ringStroke: Float, baseR: Float): Float {
         val wifiStroke = flankWifiStroke(ringStroke)
-        val inner = baseR + ringStroke * 0.5f + FLANK_WIFI_GAP + wifiStroke * 0.5f
-        val outer = inner + wifiStroke + FLANK_WIFI_ARC_GAP
-        return floatArrayOf(inner, outer)
+        return baseR + ringStroke * 0.5f + FLANK_WIFI_GAP + wifiStroke * 0.5f
     }
+
+    /** Radius of the flank's far Wi-Fi arc: the near one plus a stroke and the arc gap. */
+    @JvmStatic
+    fun flankWifiOuterR(ringStroke: Float, baseR: Float): Float =
+        flankWifiInnerR(ringStroke, baseR) + flankWifiStroke(ringStroke) + FLANK_WIFI_ARC_GAP
 
     /**
      * How far one flank's Wi-Fi arcs reach past the ring's own ink box, in design units.
@@ -1053,8 +1055,7 @@ object IconGeometry {
         val right = a.ringZones.getOrNull(Prefs.ZONE_RIGHT)?.contains(Prefs.PART_WIFI) == true
         if (!left && !right) return 0f
         val stroke = a.ringStroke * RING_STROKE_RATIO
-        val radii = flankWifiRadii(stroke, B_R)
-        val reach = radii[1] + flankWifiStroke(stroke) * 0.5f
+        val reach = flankWifiOuterR(stroke, B_R) + flankWifiStroke(stroke) * 0.5f
         // One unit of slack for the antialiased edge, or the outermost arc's fringe is cut
         // by the view it asked for.
         return maxOf(0f, reach + 1f - INK_W * 0.5f)

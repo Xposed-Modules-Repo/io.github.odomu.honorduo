@@ -556,9 +556,6 @@
     <string name="scope_option_cc">Control Center</string>
     <string name="scope_option_shade">Shade</string>
     <string name="scope_option_keyguard">Lockscreen</string>
-    <string name="scope_short_cc">Control Center</string>
-    <string name="scope_short_shade">Shade</string>
-    <string name="scope_short_keyguard">Lockscreen</string>
     <string name="scope_list_separator">, </string>
 
     <string name="capsule_no_scale_title">No scaling on notification capsule</string>

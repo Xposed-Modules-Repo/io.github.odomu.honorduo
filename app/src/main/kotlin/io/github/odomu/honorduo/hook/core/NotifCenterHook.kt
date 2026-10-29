@@ -38,6 +38,9 @@ import java.util.Date
 internal object NotifCenterHook {
 
     private const val TAG = "HonorDuo-Shade"
+    private fun logDebug(msg: String) {
+        if (ModuleConfig.debugLog()) Log.i(TAG, msg)
+    }
     private const val CLS_NOTIF_BELL = "com.android.systemui.statusbar.notification.panelheader.NotifMgeBtn"
     private const val CLS_NOTIF_INTERACTOR = "com.android.systemui.statusbar.notification.panelheader.NotifCenterHeaderInteractorImpl"
     private const val CLS_HEADER_VM = "com.android.systemui.statusbar.notification.panelheader.viewmodel.NotifCenterHeaderViewModelImpl"
@@ -53,7 +56,7 @@ internal object NotifCenterHook {
         n += hookDate(module, cl)
         n += hookDateClick(module, cl)
         n += hookNotificationFilter(module, cl)
-        Log.i(TAG, "NotifCenterHook installed, total hooks=$n")
+        logDebug("NotifCenterHook installed, total hooks=$n")
         return n
     }
 
@@ -132,7 +135,7 @@ internal object NotifCenterHook {
                     val sbn = chain.args.getOrNull(0)
                     val a = ModuleConfig.appearance()
                     if (sbn != null && matchesHiddenNotif(sbn, a)) {
-                        Log.i(TAG, "isDisableShownInShade suppressed notification")
+                        logDebug("isDisableShownInShade suppressed notification")
                         true
                     } else {
                         chain.proceed()
@@ -152,7 +155,7 @@ internal object NotifCenterHook {
                     val sbn = entry?.let { Refl.get(Refl.field(it.javaClass, "mSbn"), it) }
                     val a = ModuleConfig.appearance()
                     if (sbn != null && matchesHiddenNotif(sbn, a)) {
-                        Log.i(TAG, "shouldFilterOut suppressed notification")
+                        logDebug("shouldFilterOut suppressed notification")
                         true
                     } else {
                         chain.proceed()
@@ -165,31 +168,53 @@ internal object NotifCenterHook {
 
     private fun matchesHiddenNotif(sbn: Any, a: StatusAppearance): Boolean {
         if (!a.enabled) return false
+        // Every check below is a reflective invoke on the StatusBarNotification, and the
+        // host calls this once per notification per ranking pass. With all three switches
+        // off (the shipped default) the answer is known before the first one.
+        if (!a.shadeHideChargeNotif && !a.shadeHideHotspotNotif && !a.shadeHideAdbNotif) return false
         val pkg = Refl.methodNamed(sbn.javaClass, "getPackageName", 0)?.invoke(sbn) as? String ?: return false
         val notifId = (Refl.methodNamed(sbn.javaClass, "getId", 0)?.invoke(sbn) as? Number)?.toInt()
-        val notification = Refl.methodNamed(sbn.javaClass, "getNotification", 0)?.invoke(sbn)
-        val channel = if (notification != null) Refl.methodNamed(notification.javaClass, "getChannelId", 0)?.invoke(notification) as? String else null
-        val group = Refl.methodNamed(sbn.javaClass, "getGroup", 0)?.invoke(sbn) as? String
+        // Only a package and a switch that can actually match are asked for the channel or
+        // the group: those are further reflective invokes, one of them on the Notification
+        // object. The channel is needed by two different rules on two different packages,
+        // so the package each rule names has to be part of the condition.
+        val needChannel = (a.shadeHideChargeNotif && pkg == "com.android.settings") ||
+            (a.shadeHideAdbNotif && pkg == "android")
+        val channel = if (needChannel) {
+            val notification = Refl.methodNamed(sbn.javaClass, "getNotification", 0)?.invoke(sbn)
+            if (notification != null) {
+                Refl.methodNamed(notification.javaClass, "getChannelId", 0)?.invoke(notification) as? String
+            } else {
+                null
+            }
+        } else {
+            null
+        }
+        val group = if (a.shadeHideHotspotNotif && pkg == "android") {
+            Refl.methodNamed(sbn.javaClass, "getGroup", 0)?.invoke(sbn) as? String
+        } else {
+            null
+        }
 
         // 1. Hide Charging Notification
         if (a.shadeHideChargeNotif && notifId != null) {
             if (pkg == "com.hihonor.systemmanager" && notifId == 200001) {
-                Log.i(TAG, "matchesHiddenNotif: charging notification suppressed (pkg=$pkg, id=$notifId)")
+                logDebug("matchesHiddenNotif: charging notification suppressed (pkg=$pkg, id=$notifId)")
                 return true
             }
             if (pkg == "com.android.settings" && notifId == 1000002 && channel == "SETTINGS_USB") {
-                Log.i(TAG, "matchesHiddenNotif: USB charging notification suppressed (pkg=$pkg, id=$notifId)")
+                logDebug("matchesHiddenNotif: USB charging notification suppressed (pkg=$pkg, id=$notifId)")
                 return true
             }
         }
         // 2. Hide Hotspot Notification
         if (a.shadeHideHotspotNotif && pkg == "android" && group == "TetheredNotification") {
-            Log.i(TAG, "matchesHiddenNotif: hotspot notification suppressed (pkg=$pkg, group=$group)")
+            logDebug("matchesHiddenNotif: hotspot notification suppressed (pkg=$pkg, group=$group)")
             return true
         }
         // 3. Hide USB Debugging Notification
         if (a.shadeHideAdbNotif && pkg == "android" && channel == "DEVELOPER_IMPORTANT") {
-            Log.i(TAG, "matchesHiddenNotif: USB debugging notification suppressed (pkg=$pkg, channel=$channel)")
+            logDebug("matchesHiddenNotif: USB debugging notification suppressed (pkg=$pkg, channel=$channel)")
             return true
         }
         return false
@@ -225,7 +250,9 @@ internal object NotifCenterHook {
     private fun weatherText(): String {
         val data = WeatherManager.data
         if (data == null) {
-            Log.i(TAG, "weatherText: WeatherManager.data is null, requesting fetchAsync")
+            // Not forced: the manager's stamp backs off after a failed query too, so this
+            // costs at most one attempt per cache window however often the date line is
+            // rebuilt (every time tick).
             StatusState.appContext()?.let { WeatherManager.fetchAsync(it) }
             return ""
         }
@@ -237,19 +264,19 @@ internal object NotifCenterHook {
             Prefs.WEATHER_STYLE_ICON_TEXT, Prefs.WEATHER_STYLE_SYMBOL_TEXT -> "$glyph ${data.text()}"
             else -> data.text()
         }
-        Log.i(TAG, "weatherText resolved: '$text' (condition=${data.condition}, temp=${data.tempC}, style=$style)")
+        logDebug("weatherText resolved: '$text' (condition=${data.condition}, temp=${data.tempC}, style=$style)")
         return text
     }
 
     fun onConfigChanged(a: StatusAppearance) {
-        Log.i(TAG, "onConfigChanged: shadeWeather=${a.shadeWeather}, shadeLunar=${a.shadeLunar}")
+        logDebug("onConfigChanged: shadeWeather=${a.shadeWeather}, shadeLunar=${a.shadeLunar}")
         HiddenViews.applyAll(a)
         refreshDateLine()
     }
 
     /** A new weather reading landed; updates the date line immediately. */
     fun onWeatherChanged() {
-        Log.i(TAG, "onWeatherChanged received, refreshing date line")
+        logDebug("onWeatherChanged received, refreshing date line")
         refreshDateLine()
     }
 

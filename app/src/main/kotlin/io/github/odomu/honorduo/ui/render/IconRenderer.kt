@@ -144,8 +144,35 @@ object IconRenderer {
 
     /** One point on the battery arc, rewritten per frame; never kept. */
     private val RING_POINT = FloatArray(2)
+
+    /**
+     * The ring's drawable segments, as `(startDeg, sweepDeg)` pairs; rewritten per call.
+     *
+     * Four segments is the most any opening combination can produce (two flanks, the top
+     * mouth and the bottom opening), and [buildRingSegments] refuses to write past the end.
+     */
+    private val SEGMENTS = FloatArray(8)
+
     /** One travelling segment of the capsule's outline; rewritten per segment. */
     private val FLOW_PATH = Path()
+
+    /**
+     * The Bluetooth level the cached digit text was built for, and that text.
+     *
+     * The readout is drawn every frame and [Canvas.drawText] needs a String, so the level's
+     * text used to be rebuilt 60 times a second for a value that only changes on a Bluetooth
+     * broadcast.
+     */
+    private var btTextLevel = Int.MIN_VALUE
+    private var btText = ""
+
+    private fun btLevelText(level: Int): String {
+        if (level != btTextLevel) {
+            btTextLevel = level
+            btText = level.toString()
+        }
+        return btText
+    }
 
     /**
      * Whether the frame being drawn sits on a fast charger.
@@ -506,7 +533,7 @@ object IconRenderer {
                             TEXT.typeface = Typeface.DEFAULT_BOLD
                             TEXT.textAlign = Paint.Align.CENTER
                             TEXT.color = fg
-                            c.drawText(btLevel.toString(), 0f, 6f, TEXT)
+                            c.drawText(btLevelText(btLevel), 0f, 6f, TEXT)
                         } else {
                             val rho = IconGeometry.B_R
                             ARC.set(-rho, -rho, rho, rho)
@@ -1329,7 +1356,7 @@ object IconRenderer {
                 TEXT.typeface = Typeface.DEFAULT_BOLD
                 TEXT.textAlign = Paint.Align.CENTER
                 TEXT.color = fg
-                c.drawText(btLevel.toString(), cx, topY + 6f, TEXT)
+                c.drawText(btLevelText(btLevel), cx, topY + 6f, TEXT)
             } else {
                 val halfBar = 16f
                 STROKE.style = Paint.Style.STROKE
@@ -1590,34 +1617,26 @@ object IconRenderer {
         val inactive = withAlpha(fg, a.trackAlpha)
         val ringStroke = a.ringStroke * IconGeometry.RING_STROKE_RATIO
         val strokeWidth = IconGeometry.flankWifiStroke(ringStroke)
-        val radii = IconGeometry.flankWifiRadii(ringStroke, IconGeometry.B_R)
+        val innerR = IconGeometry.flankWifiInnerR(ringStroke, IconGeometry.B_R)
+        val outerR = IconGeometry.flankWifiOuterR(ringStroke, IconGeometry.B_R)
         STROKE.strokeWidth = strokeWidth
         STROKE.strokeCap = Paint.Cap.ROUND
         STROKE.style = Paint.Style.STROKE
 
         // The fan keeps its own sweeps; only their radii come from the ring, so the small arc
-        // stays clear of the ring's stroke instead of being drawn onto its edge.
+        // stays clear of the ring's stroke instead of being drawn onto its edge. Scalars, not
+        // a list of triples: this runs for every frame the glyph draws.
         val innerSweep = IconGeometry.FLANK_WIFI_SWEEP_INNER
         val outerSweep = IconGeometry.FLANK_WIFI_SWEEP_OUTER
-        val arcParams = if (isLeft) {
-            arrayOf(
-                Triple(180f - innerSweep * 0.5f, innerSweep, radii[0]),
-                Triple(180f - outerSweep * 0.5f, outerSweep, radii[1]),
-            )
-        } else {
-            arrayOf(
-                Triple(-innerSweep * 0.5f, innerSweep, radii[0]),
-                Triple(-outerSweep * 0.5f, outerSweep, radii[1]),
-            )
-        }
+        val centreDeg = if (isLeft) 180f else 0f
 
-        for (idx in arcParams.indices) {
-            val (startAngle, sweepAngle, r) = arcParams[idx]
-            ARC.set(cx - r, cy - r, cx + r, cy + r)
-            val active = if (idx == 0) wifiLevel >= 1 else wifiLevel >= 3
-            STROKE.color = if (active) fg else inactive
-            c.drawArc(ARC, startAngle, sweepAngle, false, STROKE)
-        }
+        ARC.set(cx - innerR, cy - innerR, cx + innerR, cy + innerR)
+        STROKE.color = if (wifiLevel >= 1) fg else inactive
+        c.drawArc(ARC, centreDeg - innerSweep * 0.5f, innerSweep, false, STROKE)
+
+        ARC.set(cx - outerR, cy - outerR, cx + outerR, cy + outerR)
+        STROKE.color = if (wifiLevel >= 3) fg else inactive
+        c.drawArc(ARC, centreDeg - outerSweep * 0.5f, outerSweep, false, STROKE)
     }
 
     /**
@@ -2138,22 +2157,24 @@ object IconRenderer {
             return
         }
 
-        val segs = buildRingSegments(
-            gapStart != gapEnd, sweep < 360f, openLeft, openRight,
+        // `SEGMENTS` is a scratch buffer reused by every call: this runs twice per drawn
+        // frame, and the segment list used to be a List<Pair<Float,Float>> (plus its
+        // filter copy) thrown away immediately.
+        val segCount = buildRingSegments(
+            SEGMENTS, gapStart != gapEnd, sweep < 360f, openLeft, openRight,
             flankHalfDeg, Math.toDegrees((STROKE.strokeWidth / IconGeometry.B_R).toDouble()).toFloat(),
         )
         var totalDrawn = 0f
-        for (i in segs.indices) totalDrawn += segs[i].second
+        for (i in 0 until segCount) totalDrawn += SEGMENTS[i * 2 + 1]
         if (totalDrawn <= 0f) return
 
         val startDrawn = from * totalDrawn
         val endDrawn = to * totalDrawn
         var curDist = 0f
 
-        for (i in segs.indices) {
-            val seg = segs[i]
-            val segStartDeg = seg.first
-            val segSweepDeg = seg.second
+        for (i in 0 until segCount) {
+            val segStartDeg = SEGMENTS[i * 2]
+            val segSweepDeg = SEGMENTS[i * 2 + 1]
             val segEndDist = curDist + segSweepDeg
 
             val drawStart = max(startDrawn, curDist)
@@ -2168,13 +2189,21 @@ object IconRenderer {
         }
     }
 
+    /**
+     * Fills [out] with the ring's drawable segments as `(startDeg, sweepDeg)` pairs and
+     * answers how many were written.
+     *
+     * A caller-owned buffer rather than a returned list: the segments are recomputed for the
+     * track and for the fill of every frame, and the old `List<Pair<Float,Float>>` plus the
+     * `filter` copy it was cleaned with allocated ~15 objects per call.
+     */
     private fun buildRingSegments(
-        topGap: Boolean, bottomOpen: Boolean, openLeft: Boolean, openRight: Boolean,
-        flankHalfDeg: Float = 0f, minSegDeg: Float = 0f,
-    ): List<Pair<Float, Float>> {
+        out: FloatArray, topGap: Boolean, bottomOpen: Boolean, openLeft: Boolean,
+        openRight: Boolean, flankHalfDeg: Float = 0f, minSegDeg: Float = 0f,
+    ): Int {
         val start = if (bottomOpen) 130.2f else 90f
         val end = if (bottomOpen) 409.8f else 450f
-        val segs = ArrayList<Pair<Float, Float>>(4)
+        var count = 0
         var curr = start
 
         // A flank that holds a bead row cuts the ring wider than the row's own span, so the
@@ -2183,9 +2212,7 @@ object IconRenderer {
         // invert the segment it sits in.
         if (openLeft) {
             val cutFrom = maxOf(curr, 180f - flankHalfDeg)
-            if (cutFrom > curr) {
-                segs.add(Pair(curr, cutFrom - curr))
-            }
+            if (cutFrom > curr) count = addSegment(out, count, curr, cutFrom - curr, minSegDeg)
             curr = maxOf(curr, 180f + flankHalfDeg)
         }
 
@@ -2193,26 +2220,37 @@ object IconRenderer {
         val topEnd = if (topGap) 310.2f else 270f
 
         if (topGap && curr < topStart) {
-            segs.add(Pair(curr, topStart - curr))
+            count = addSegment(out, count, curr, topStart - curr, minSegDeg)
             curr = topEnd
         }
 
         if (openRight) {
             val cutFrom = maxOf(curr, 360f - flankHalfDeg)
-            if (cutFrom > curr) {
-                segs.add(Pair(curr, cutFrom - curr))
-            }
+            if (cutFrom > curr) count = addSegment(out, count, curr, cutFrom - curr, minSegDeg)
             curr = maxOf(curr, 360f + flankHalfDeg)
         }
 
         if (curr < end) {
-            segs.add(Pair(curr, end - curr))
+            count = addSegment(out, count, curr, end - curr, minSegDeg)
         }
-        // A wide flank cut can leave a sliver of arc between itself and the next opening.
-        // Shorter than its own two round caps it draws as a blob rather than as a piece of
-        // the ring, so the two openings are allowed to merge instead of leaving a nub.
-        if (minSegDeg <= 0f) return segs
-        return segs.filter { it.second >= minSegDeg }
+        return count
+    }
+
+    /**
+     * Appends one segment unless it is too short to draw as a piece of the ring.
+     *
+     * A wide flank cut can leave a sliver between itself and the next opening. Shorter than
+     * its own two round caps it draws as a blob rather than as arc, so the two openings are
+     * allowed to merge instead of leaving a nub.
+     */
+    private fun addSegment(
+        out: FloatArray, count: Int, startDeg: Float, sweepDeg: Float, minSegDeg: Float,
+    ): Int {
+        if (sweepDeg <= 0f || sweepDeg < minSegDeg) return count
+        if (count * 2 + 1 >= out.size) return count
+        out[count * 2] = startDeg
+        out[count * 2 + 1] = sweepDeg
+        return count + 1
     }
 
     private fun arcByProgress(

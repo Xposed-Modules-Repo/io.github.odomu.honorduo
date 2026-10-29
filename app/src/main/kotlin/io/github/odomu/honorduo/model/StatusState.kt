@@ -503,6 +503,9 @@ internal class StatusState(val host: View) {
         @Volatile
         private var sSimsDueAt = 0L
 
+        /** One main-thread handler for repaints queued from a draw pass. */
+        private val sMainHandler = Handler(Looper.getMainLooper())
+
         // Battery manager (com.android.systemui.battery.HwBatteryManager).
         private var mgrGetInstance: Method? = null
         private var mgrLevel: Field? = null
@@ -757,13 +760,15 @@ internal class StatusState(val host: View) {
                     val slot = info.simSlotIndex
                     if (subId == dataSubId) dataSlot = slot
                     if (slot in 0 until SIM_SLOTS) {
-                        levels[slot] = levelOf(tel, subId)
+                        // One read per card per poll: getSignalStrength() is a binder call
+                        // into the phone process, and the level and the dBm both come out
+                        // of the same answer.
+                        val ss = runCatching { tel.createForSubscriptionId(subId)?.signalStrength }.getOrNull()
+                        levels[slot] = ss?.level?.takeIf { it in 0..4 } ?: -1
                         val radio = romSlotType(slot, subId) ?: typeOf(tel, subId)
                         if (radio != null) {
                             setSlotType(slot, radio, fromIcon = false)
                         }
-                        val subTel = tel.createForSubscriptionId(subId) ?: tel
-                        val ss = subTel.signalStrength
                         val dbm = runCatching {
                             ss?.cellSignalStrengths?.firstOrNull()?.dbm
                         }.getOrNull()
@@ -788,7 +793,10 @@ internal class StatusState(val host: View) {
             sSlotLevels = levels
             sDataSlot = dataSlot
             if (changed && BarVisibility.shown) {
-                SystemUiHook.invalidateHosts()
+                // This sampler is reached from GlyphView.onDraw. Repainting the hosts from
+                // here would re-enter their refresh pass in the middle of the frame, so the
+                // repaint is queued and the current frame finishes first.
+                sMainHandler.post { SystemUiHook.invalidateHosts() }
             }
         }
 
@@ -892,12 +900,6 @@ internal class StatusState(val host: View) {
             null
         } catch (_: Throwable) {
             null
-        }
-
-        private fun levelOf(tel: TelephonyManager, subId: Int): Int = try {
-            tel.createForSubscriptionId(subId)?.signalStrength?.level?.takeIf { it in 0..4 } ?: -1
-        } catch (_: Throwable) {
-            -1
         }
 
         private var sDataActivityStarted = false

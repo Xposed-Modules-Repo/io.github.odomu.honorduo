@@ -52,22 +52,45 @@ internal object ScopeTracker {
         get() = panelType == PANEL_CONTROL_CENTER || panelType == PANEL_CONTROL_CENTER_OVER_KEYGUARD
 
     /**
-     * The lockscreen scope, which counts only while no panel is expanded over it.
+     * The lockscreen scope.
      *
-     * The two scopes can be true at once - the panel can be pulled down on the lockscreen -
-     * and whichever answer the module gives, the setting would read ambiguously: "show in
-     * the notification panel" would do nothing there while "hide on the lockscreen" was
-     * unticked. So the panel wins, because an expanded panel is what the user is looking at;
-     * the lockscreen row describes its own status bar only.
+     * Deliberately independent of the panel: the panel type can stay non-zero for a frame
+     * after the shade closes (or indefinitely, on a ROM whose transition hook stops firing),
+     * and tying the lockscreen to it would then silently keep the module drawn on the
+     * lockscreen - which is exactly what "excluded the lockscreen but it still shows" looks
+     * like. A lockscreen is a lockscreen whether or not a panel is over it.
      */
     val lockscreenActive: Boolean
-        get() = keyguardActive && !panelExpanded
+        get() = keyguardActive
+
+    /** The platform's keyguard service, kept so [refreshKeyguard] can fall back to it. */
+    @Volatile
+    private var keyguard: KeyguardManager? = null
+
+    /**
+     * Re-reads the lockscreen state when the platform callback is not available.
+     *
+     * Some builds refuse `addKeyguardLockedStateListener`, and then nothing ever sets the
+     * flag: the scope row would look broken rather than the listener missing. The query is a
+     * binder call, so it only runs on a scope evaluation (a panel transition or a settings
+     * change), never per frame.
+     */
+    fun refreshKeyguard() {
+        val manager = keyguard ?: return
+        val locked = try {
+            manager.isKeyguardLocked
+        } catch (_: Throwable) {
+            return
+        }
+        if (locked != keyguardActive) keyguardActive = locked
+    }
 
     @android.annotation.SuppressLint("NewApi", "MissingPermission")
     fun start(context: Context?) {
         val app = context?.applicationContext ?: context ?: return
         if (keyguardWatched) return
         val manager = app.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager ?: return
+        keyguard = manager
         keyguardWatched = true
         // Platform callback: no hook and no polling. `isKeyguardLocked` already folds
         // in the occluded case, where an activity is drawn over the lockscreen.

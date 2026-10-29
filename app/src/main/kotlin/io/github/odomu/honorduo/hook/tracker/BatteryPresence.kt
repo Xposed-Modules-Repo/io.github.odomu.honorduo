@@ -147,7 +147,11 @@ internal object BatteryPresence {
 
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(ignored: Context?, intent: Intent?) {
-                if (!ScreenStateTracker.isScreenOn) return
+                // Delivery is cheap to filter, and the read behind it is not: a sticky
+                // re-read plus BatteryManager and thermal queries. Nothing here has a
+                // reading on screen when the bar is hidden or no readout is enabled, and
+                // the bar's return re-reads through the listener above.
+                if (!BarVisibility.shown || !isWatchdogNeeded()) return
                 refresh(context, intent)
             }
         }
@@ -178,7 +182,10 @@ internal object BatteryPresence {
      * bar returns, which is also when it first needs to be right.
      */
     private fun refresh(context: Context, directIntent: Intent? = null) {
-        if (!ScreenStateTracker.isScreenOn) return
+        // Both gates belong here rather than only in the callers: the screen and the bar
+        // can each go away between a delivery and this read, and every line below is a
+        // binder call.
+        if (!ScreenStateTracker.isScreenOn || !BarVisibility.shown || !isWatchdogNeeded()) return
         try {
             val battery = directIntent ?: context.registerReceiver(
                 null,
