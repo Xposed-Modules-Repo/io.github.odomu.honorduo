@@ -681,6 +681,9 @@ class StatusAppearance(c: ModuleSettings) {
         mobileType: String?,
         sims: Int,
     ) {
+        /** The frame's rules, kept for the accessors that need a size or a stroke. */
+        private val appearance = a
+
         /** Actual occupants this frame. */
         @JvmField val parts: IntArray = IntArray(Prefs.ZONE_COUNT)
 
@@ -705,9 +708,6 @@ class StatusAppearance(c: ModuleSettings) {
 
         /** Something occupies the notch, so the ring has to open for it. */
         @JvmField val gapUsed: Boolean
-
-        /** The level dots are drawn as two rows, one per SIM. */
-        @JvmField val dual: Boolean
 
         init {
             // The zone draws the FIRST candidate that has something to show this frame.
@@ -740,29 +740,43 @@ class StatusAppearance(c: ModuleSettings) {
             typeInCentre = parts[1] == Prefs.PART_TYPE
             typeInGap = parts[0] == Prefs.PART_TYPE
             gapUsed = parts[0] != Prefs.PART_NONE
-            // The dual switch does not change how a zone is drawn: a zone draws one piece, so a second row has nowhere to go.
-            dual = false
         }
 
-        fun gapStart(): Float = when {
-            !gapUsed -> IconGeometry.GAP_NONE
-            dual -> IconGeometry.GAP_START_DUAL
-            bolt -> IconGeometry.GAP_START_CHARGE
-            else -> IconGeometry.GAP_START_IDLE
-        }
+        /**
+         * Half the 12 o'clock mouth, in degrees; `0` when the mouth holds nothing.
+         *
+         * Fitted to the piece it holds rather than fixed: a Wi-Fi fan needs about 56 degrees,
+         * and the old 96 left a visibly empty ring beside it.
+         */
+        @JvmField
+        val topHalfDeg: Float = IconGeometry.notchHalfDeg(0, parts[0], appearance)
 
-        fun gapEnd(): Float = when {
-            !gapUsed -> IconGeometry.GAP_NONE
-            dual -> IconGeometry.GAP_END_DUAL
-            bolt -> IconGeometry.GAP_END_CHARGE
-            else -> IconGeometry.GAP_END_IDLE
-        }
+        /** The same for the 6 o'clock mouth. */
+        @JvmField
+        val bottomHalfDeg: Float = IconGeometry.notchHalfDeg(2, parts[2], appearance)
 
-        fun bottomOpen(): Boolean = parts[2] != Prefs.PART_NONE
+        fun gapStart(): Float =
+            if (topHalfDeg <= 0f) IconGeometry.GAP_NONE
+            else (270f - topHalfDeg - arcStart()) / sweep()
 
-        fun sweep(): Float = if (bottomOpen()) IconGeometry.B_SWEEP else 360f
+        fun gapEnd(): Float =
+            if (topHalfDeg <= 0f) IconGeometry.GAP_NONE
+            else (270f + topHalfDeg - arcStart()) / sweep()
 
-        fun arcStart(): Float = 270f - sweep() / 2f
+        /** The arc's own sweep: the circle minus both mouths. */
+        fun sweep(): Float = (360f - 2f * (topHalfDeg + bottomHalfDeg)).coerceAtLeast(120f)
+
+        /** Where the arc starts, clockwise: just past the 6 o'clock mouth. */
+        fun arcStart(): Float = 90f + bottomHalfDeg
+
+        /**
+         * Half the ring's cut at a flank for the piece that side holds, in degrees.
+         *
+         * Every piece may sit on a flank now, so the cut is not "the bead row's span" any
+         * more: it follows the piece (see [IconGeometry.flankHalfDeg]).
+         */
+        fun flankHalfDeg(zone: Int): Float =
+            IconGeometry.flankHalfDeg(parts[zone], appearance)
 
         val hasLeftDots: Boolean
             get() = Prefs.isSignalRow(parts[Prefs.ZONE_LEFT])

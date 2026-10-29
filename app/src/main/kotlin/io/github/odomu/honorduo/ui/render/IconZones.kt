@@ -149,12 +149,16 @@ object IconZones {
             // carries that width as margin - and the tap that selects that flank has to
             // reach the margin too, or tapping the arcs the user placed lands on nothing.
             val extra = if (a.ring) IconGeometry.ringFlankWifiExtra(a) else 0f
-            if (extra <= 0f) return base
+            val pad = if (a.ring) IconGeometry.ringInkPad(a) else 0f
             // Mutated in place rather than copied: `base` was built for this call only, and
             // the settings preview asks for these boxes on every frame of a highlighted flank.
             when (zone) {
                 Zone.LEFT -> for (box in base) box[0] -= extra
                 Zone.RIGHT -> for (box in base) box[2] += extra
+                // A mouth's icon is lifted past the reference box, so the band that holds it
+                // has to reach the margin the box grew into.
+                Zone.TOP -> for (box in base) box[1] -= pad
+                Zone.BOTTOM -> for (box in base) box[3] += pad
                 else -> Unit
             }
             return base
@@ -401,7 +405,15 @@ object IconZones {
     @JvmStatic
     fun accepts(zone: Zone, part: Part?, current: ModuleSettings?): Boolean {
         if (current == null || part == null) return true
-        if (zone == Zone.LEFT || zone == Zone.RIGHT) return isSignalRow(part) || part == Part.WIFI
+        // The capsule's flanks are its two round ends, which only know how to draw a dot row
+        // or the arcs; the ring cuts a mouth for anything. Refusing here keeps the picker
+        // from offering a placement that would draw nothing.
+        if (current.trioStyle == Prefs.STYLE_CAPSULE &&
+            (zone == Zone.LEFT || zone == Zone.RIGHT) &&
+            !isSignalRow(part) && part != Part.WIFI
+        ) {
+            return false
+        }
         return current.trioStyle != Prefs.STYLE_RING || ringAccepts(zone, part)
     }
 

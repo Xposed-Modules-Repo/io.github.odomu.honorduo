@@ -30,16 +30,16 @@ object IconGeometry {
     const val B_R = 51.5f
 
     /**
-     * The width of the ring's 12 o'clock opening, in degrees.
+     * The *reference* width of the ring's 12 o'clock opening, in degrees.
      *
-     * This is the *reference* opening: the arc's own bottom gap is set to
-     * match it (see [#B_SWEEP]), so a ring with content at both ends reads as
-     * two mirrored halves rather than as a long bottom and a short top.
+     * The mouths are no longer cut at a fixed angle: [notchHalfDeg] fits each one to the
+     * piece it holds, and a Wi-Fi fan needs about 56 degrees where this left 96. What
+     * survives here is the ceiling for that fit, and the width used by the pieces whose ink
+     * cannot be measured up front - a text reading, and a row of level beads (whose span is
+     * [#BEAD_SPAN_DEG] plus clearance, inside this mouth).
      *
-     * Stated in degrees rather than as a fraction of the sweep, so that changing the
-     * sweep cannot silently change how wide the notch is - it used to be
-     * `0.35 * B_SWEEP`, which meant widening the arc by 32 degrees also widened
-     * the notch by 11.
+     * It also still sets [#B_SWEEP], which is the closed-ring reference the beam and ink-box
+     * checks are written against.
      */
     const val GAP_WIDTH_DEG = 96f
 
@@ -229,6 +229,41 @@ object IconGeometry {
      * four-bead flank look like two beads with a blunt ring.
      */
     const val FLANK_ROW_CLEARANCE = 3f
+
+    /**
+     * Clear space between a piece in the ring's 12/6 o'clock notch and the arc's round ends.
+     *
+     * The mouth is sized to the piece now instead of being a fixed 96 degrees, so this is
+     * what keeps the piece's ink from touching the stroke's end caps.
+     */
+    const val NOTCH_PIECE_CLEARANCE = 3f
+
+    /**
+     * Extra height the notch gives the Wi-Fi arcs and the bolt.
+     *
+     * The notch's bands were sized for a row of level dots (28 and 20 design units) and the
+     * Wi-Fi arcs are 37 units tall: fitted into the dot band they came out at about
+     * two-thirds of what the ring allows, which is what "the pieces look small" was.
+     */
+    const val NOTCH_PIECE_EXTRA = 9f
+
+    /**
+     * How far the icon in a 12/6 o'clock mouth moves toward that mouth, in design units.
+     *
+     * The band's centre sat nine units inside the arc's own line, so a fan drawn there was
+     * half buried: the mouth was open but the piece filled it from the inside, which reads as
+     * "there is no opening". Moving the piece out is what makes it straddle the gap the way
+     * the capsule's openings already do. The box grows by the same amount on both sides, so
+     * the piece still fits whatever the mouth.
+     */
+    const val NOTCH_PIECE_LIFT = 6f
+
+    /** Inset the ring keeps between a slot's ink and the slot's own box, in design units. */
+    const val RING_SLOT_INSET = 2.5f
+
+    /** Wi-Fi scale boost in the 12 o'clock mouth; the middle band gets its own, larger one. */
+    const val RING_WIFI_BOOST_TOP = 0.88f
+    const val RING_WIFI_BOOST_CENTRE = 1.25f
 
     /**
      * Clear space between the ring's own stroke and the flank's inner Wi-Fi arc.
@@ -625,7 +660,7 @@ object IconGeometry {
      * match that inward half and stop being the limit. Anything less and the label is fitted to
      * the band instead of to the row it is in, which is what makes it look shrunken.
      */
-    const val CAP_BAND_H = 9f
+    const val CAP_BAND_H = 13f
 
     /**
      * Clearance kept between the outline and a reading sitting across its opening.
@@ -1060,6 +1095,168 @@ object IconGeometry {
         // by the view it asked for.
         return maxOf(0f, reach + 1f - INK_W * 0.5f)
     }
+
+    /**
+     * A piece's drawn scale inside a bounded slot: the room it is given, times the user's
+     * size, capped by that same room.
+     *
+     * The cap is what keeps the ink inside the slot. Multiplying the fitted scale by a size
+     * setting above 100% draws the piece past the band and past the ink box, and the host
+     * clips it - which is what "the Wi-Fi is cut off" was on the capsule's openings.
+     */
+    @JvmStatic
+    fun fittedScale(room: Float, userFactor: Float): Float =
+        minOf(room * maxOf(0.01f, userFactor), room)
+
+    /** The room a notch piece has in its band, before the user's size is applied. */
+    @JvmStatic
+    fun notchRoom(z: Int, part: Int, a: StatusAppearance): Float {
+        val slotW = notchSlotW(a.ringStroke)
+        val slotH = notchSlotH(z, part)
+        return when (part) {
+            Prefs.PART_WIFI -> {
+                val extra = maxOf(0f, a.arcStroke - W_STROKE)
+                minOf(slotW / (W_INK_W + extra), slotH / (W_INK_H + extra))
+            }
+            Prefs.PART_BOLT -> minOf(slotW / 15f, slotH / BOLT_INK_H)
+            else -> 1f
+        }
+    }
+
+    /** The scale the notch draws a Wi-Fi fan at, in ink units per design unit. */
+    @JvmStatic
+    fun notchWifiScale(z: Int, a: StatusAppearance): Float {
+        val boost = if (z == 1) RING_WIFI_BOOST_CENTRE else RING_WIFI_BOOST_TOP
+        val room = notchRoom(z, Prefs.PART_WIFI, a) * boost
+        return fittedScale(room, a.wifiScaleFactor())
+    }
+
+    /** The scale the notch draws the bolt at. */
+    @JvmStatic
+    fun notchBoltScale(z: Int, a: StatusAppearance): Float =
+        fittedScale(notchRoom(z, Prefs.PART_BOLT, a), a.boltScaleFactor())
+
+    /** The width of the box a notch piece is fitted to, from the ring's stored stroke. */
+    @JvmStatic
+    fun notchSlotW(ringStroke: Int): Float = 78f - ringStroke - 2f * RING_SLOT_INSET
+
+    /** The height of the box a notch piece is fitted to; Wi-Fi and the bolt get extra. */
+    @JvmStatic
+    fun notchSlotH(z: Int, part: Int): Float {
+        val base = if (z == 0) DOT_BOX_TOP else DOT_BOX_BOTTOM
+        return if (part == Prefs.PART_WIFI || part == Prefs.PART_BOLT) {
+            base + NOTCH_PIECE_EXTRA
+        } else {
+            base
+        }
+    }
+
+    /**
+     * The extra ink box the ring needs when a mouth holds an icon, on **each** side.
+     *
+     * Zero unless one of the two mouths holds a Wi-Fi fan or the bolt: a text reading keeps the
+     * band's own centre, so nothing has to move for it.
+     */
+    @JvmStatic
+    fun ringInkPad(a: StatusAppearance?): Float {
+        if (a == null || !a.ring) return 0f
+        val top = a.ringZones.getOrNull(Prefs.ZONE_TOP)?.any { isNotchIcon(it) } == true
+        val bottom = a.ringZones.getOrNull(Prefs.ZONE_BOTTOM)?.any { isNotchIcon(it) } == true
+        return if (top || bottom) NOTCH_PIECE_LIFT else 0f
+    }
+
+    private fun isNotchIcon(id: Int): Boolean = id == Prefs.PART_WIFI || id == Prefs.PART_BOLT
+
+    /** The ring's ink height for this frame: the reference box plus [ringInkPad] on both sides. */
+    @JvmStatic
+    fun ringInkH(a: StatusAppearance?): Float = INK_H + 2f * ringInkPad(a)
+
+    /** The top of the ring's ink box, in design units (negative when it grew). */
+    @JvmStatic
+    fun ringInkTop(a: StatusAppearance?): Float = -ringInkPad(a)
+
+    /**
+     * The slot centre the ring draws band `z` at.
+     *
+     * A mouth's icon is pulled toward its mouth by [NOTCH_PIECE_LIFT]; everything else stays on
+     * the band's own centre.
+     */
+    @JvmStatic
+    fun notchCy(z: Int, a: StatusAppearance): Float =
+        if (z == 0) ZONE_CY[0] - a.ringSpacingY - ringInkPad(a)
+        else ZONE_CY[2] + a.ringSpacingY + ringInkPad(a)
+
+    /**
+     * Half the angular width the ring must leave at the 12 or 6 o'clock mouth for [part],
+     * in degrees; `0` when the mouth holds nothing.
+     *
+     * The piece's ink, its clearance and **the arc's own round cap** all have to fit outside
+     * the cut point: the cap is a circle of `stroke / 2` centred on the arc's end, so a cut
+     * sized to the piece alone leaves the cap sitting on the piece - which reads as "there is
+     * no opening". Measured at radius [B_R], the line the arc is drawn on.
+     *
+     * Only pieces whose ink is known without a text measurement get a fitted mouth: the Wi-Fi
+     * arcs and the bolt. Text keeps the reference [GAP_WIDTH_DEG], because its width depends on
+     * the string and on the font the user installed.
+     */
+    @JvmStatic
+    fun notchHalfDeg(z: Int, part: Int, a: StatusAppearance): Float {
+        if (part == Prefs.PART_NONE) return 0f
+        val inkW = when (part) {
+            Prefs.PART_WIFI -> W_INK_W * notchWifiScale(z, a)
+            Prefs.PART_BOLT -> 15f * notchBoltScale(z, a)
+            else -> return GAP_WIDTH_DEG * 0.5f
+        }
+        val capR = a.ringStroke * RING_STROKE_RATIO * 0.5f
+        val reach = inkW * 0.5f + NOTCH_PIECE_CLEARANCE + capR
+        val half = Math.toDegrees(
+            kotlin.math.asin((reach / B_R).coerceIn(0f, 1f).toDouble()),
+        ).toFloat()
+        return half.coerceIn(12f, GAP_WIDTH_DEG * 0.5f)
+    }
+
+    /**
+     * Half the angular width the ring leaves at a flank for `part`, in degrees; `0` keeps the
+     * ring closed there.
+     *
+     * Every piece may sit on a flank now, so this answers for all of them: a bead row uses its
+     * own span (see [flankOpenHalfDeg]), the Wi-Fi fan keeps the ring closed because it is
+     * drawn *outside* the stroke, and anything else - a reading, the bolt - is cut for a cell
+     * of its reference width.
+     */
+    @JvmStatic
+    fun flankHalfDeg(part: Int, a: StatusAppearance): Float {
+        // An empty flank leaves the ring closed; only a piece opens a mouth for itself.
+        if (part == Prefs.PART_NONE) return 0f
+        val stroke = a.ringStroke * RING_STROKE_RATIO
+        val capR = stroke * 0.5f
+        val inkHalf = when {
+            Prefs.isSignalRow(part) -> {
+                val columns = a.signalColumns.coerceIn(4, 5)
+                // The row spans BEAD_SPAN_DEG; the cut is that half plus the clearance rule.
+                return flankOpenHalfDeg(columns, stroke, flankDotR(columns, a.dotScaleFactor()))
+            }
+            part == Prefs.PART_WIFI -> return 0f
+            part == Prefs.PART_BOLT -> 7.5f * a.boltScaleFactor()
+            else -> FLANK_CELL_INK_HALF
+        }
+        val half = Math.toDegrees(
+            kotlin.math.asin(((inkHalf + NOTCH_PIECE_CLEARANCE + capR) / B_R).coerceIn(0f, 1f).toDouble()),
+        ).toFloat()
+        return half.coerceIn(10f, GAP_WIDTH_DEG * 0.5f)
+    }
+
+    /** The widest a flank cell's ink may be, across the flat of its mouth. */
+    @JvmStatic
+    fun flankCellWidth(halfDeg: Float): Float =
+        (2f * B_R * kotlin.math.sin(Math.toRadians(halfDeg.toDouble())).toFloat())
+            .coerceAtMost(INK_W * 0.6f)
+
+    /** The height a flank cell's ink may use: the middle band's, which is the roomiest. */
+    const val FLANK_CELL_ROOM_H = DOT_BOX_CENTRE
+
+    /** Reference half-width of a reading on a flank, before the real string is fitted. */
+    private const val FLANK_CELL_INK_HALF = 17f
 
     /** Half the angular span the row's bead centres occupy on the ring, in degrees. */
     @JvmStatic
@@ -1755,13 +1952,24 @@ object IconGeometry {
      * @param roomH     the height that opening's reading is fitted to
      */
     @JvmStatic
-    fun capPieceReach(part: Int, level: Int, type: String, stroke: Float, roomH: Float): Float {
+    fun capPieceReach(
+        part: Int, level: Int, type: String, stroke: Float, roomH: Float,
+        userFactor: Float = 1f,
+    ): Float {
         return when (part) {
-            // The arcs are drawn at capWifiScale about their own centre.
-            Prefs.PART_WIFI -> W_INK_W * capWifiScale(stroke) * 0.5f
+            // The arcs are drawn at their fitted scale about their own centre, and the user's
+            // size can grow them up to the band. The gap has to be cut for the drawn width,
+            // or a large size leaves the fan overlapping the outline.
+            Prefs.PART_WIFI -> {
+                val room = roomH / W_INK_H
+                W_INK_W * fittedScale(room, userFactor) * 0.5f
+            }
             // The bolt path is 12.5 units wide against its 19.9 of height; the reach is
             // half of that, scaled the way the bolt itself is.
-            Prefs.PART_BOLT -> 6.25f * capBoltScale(stroke)
+            Prefs.PART_BOLT -> {
+                val room = roomH / BOLT_INK_H
+                6.25f * fittedScale(room, userFactor)
+            }
             // Three digits is the widest this can get.
             Prefs.PART_VALUE -> capTextReach("100", stroke, roomH)
             Prefs.PART_TYPE -> capTextReach("5GA", stroke, roomH)
@@ -1773,6 +1981,24 @@ object IconGeometry {
             Prefs.PART_FPS -> capTextReach("120", stroke, roomH)
             else -> 0f
         }
+    }
+
+    /**
+     * The height an **icon** may use in a capsule opening.
+     *
+     * Not [capOpeningTextRoomH]: that budget is measured from the band's outer edge and is what
+     * a line of digits is fitted to. An icon is centred on the lane (see [openingLaneCy]) and
+     * may use the whole lane around it, which is larger - the difference is what made the
+     * capsule's Wi-Fi come out noticeably smaller than the ring's.
+     */
+    @JvmStatic
+    fun capOpeningIconRoomH(stroke: Float): Float {
+        val cy = capOpeningCy(true, stroke)
+        val outward = cy - CAP_INK_TOP
+        val inward = capInteriorTop(stroke) - cy
+        // One unit of slack: the outermost arc is antialiased, and a fit that lands exactly on
+        // the box edge loses its fringe to the host's clip.
+        return 2f * minOf(inward, outward) - 1f
     }
 
     /**
@@ -1961,7 +2187,7 @@ object IconGeometry {
         // host is asked for that width. The scale stays height-driven, so the glyph keeps its
         // size and the extra width becomes margin, instead of the arcs being clipped at the
         // view's edge as they were.
-        return (INK_W + 2f * ringFlankWifiExtra(a)) / INK_H
+        return (INK_W + 2f * ringFlankWifiExtra(a)) / ringInkH(a)
     }
 
 }

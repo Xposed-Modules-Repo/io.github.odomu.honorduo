@@ -353,15 +353,13 @@ object Prefs {
     /**
      * Whether zone `zone` may hold part `id`.
      *
-     * 1. A signal row may not sit in the ring's middle band.
-     * 2. The left and right flanks currently ONLY accept signal rows.
+     * One rule left: a signal row may not sit in the ring's middle band, because a row there
+     * would be drawn across the readings. The flanks take every piece - a reading, the clock,
+     * the bolt, the arcs - each in the mouth the ring cuts for it.
      */
     @JvmStatic
-    fun zoneAccepts(zone: Int, id: Int): Boolean = when (zone) {
-        ZONE_CENTRE -> !isSignalRow(id)
-        ZONE_LEFT, ZONE_RIGHT -> isSignalRow(id) || id == PART_WIFI
-        else -> true
-    }
+    fun zoneAccepts(zone: Int, id: Int): Boolean =
+        zone != ZONE_CENTRE || !isSignalRow(id)
 
     /** Whether `id` is a row of level dots: the aggregate meter or either card's row. */
     @JvmStatic

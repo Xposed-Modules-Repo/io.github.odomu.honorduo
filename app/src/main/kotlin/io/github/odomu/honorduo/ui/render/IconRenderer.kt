@@ -153,6 +153,13 @@ object IconRenderer {
      */
     private val SEGMENTS = FloatArray(8)
 
+    /**
+     * The rings openings for one call, as `(startDeg, endDeg)` pairs; rewritten per call.
+     *
+     * At most four (two mouths, two flank cuts); [addRingGap] refuses to write past the end.
+     */
+    private val GAPS = FloatArray(8)
+
     /** One travelling segment of the capsule's outline; rewritten per segment. */
     private val FLOW_PATH = Path()
 
@@ -486,6 +493,7 @@ object IconRenderer {
         drawBattery(
             c, level, role, fg, a, r.gapStart(), r.gapEnd(), r.sweep(), r.arcStart(), charging,
             openLeft = hasLeftDots, openRight = hasRightDots,
+            topHalfDeg = r.topHalfDeg, bottomHalfDeg = r.bottomHalfDeg,
         )
         for (z in 0 until 3) {
             val chain = a.ringZones.getOrNull(z)
@@ -497,30 +505,28 @@ object IconRenderer {
 
             val cx = IconGeometry.B_CX
             val cy = when (z) {
-                0 -> IconGeometry.ZONE_CY[0] - a.ringSpacingY.toFloat()
+                0 -> IconGeometry.notchCy(0, a)
                 1 -> IconGeometry.ZONE_CY[1]
-                else -> IconGeometry.ZONE_CY[2] + a.ringSpacingY.toFloat()
+                else -> IconGeometry.notchCy(2, a)
             }
-            val width = 78f - a.ringStroke - 2f * RING_SLOT_INSET
+            // The same box the mouth is cut for (see IconGeometry.notchHalfDeg), so a piece
+            // can never be fitted wider than the opening it was measured against.
+            val width = IconGeometry.notchSlotW(a.ringStroke)
             val height = when (z) {
-                0 -> IconGeometry.DOT_BOX_TOP
+                0 -> IconGeometry.notchSlotH(0, part)
                 1 -> IconGeometry.DOT_BOX_CENTRE
-                else -> IconGeometry.DOT_BOX_BOTTOM
+                else -> IconGeometry.notchSlotH(2, part)
             }
             c.withTranslation(cx, cy) {
                 if (part == Prefs.PART_WIFI) {
-                    val extra = max(0f, a.arcStroke - IconGeometry.W_STROKE)
-                    val boost = if (z == 1) RING_WIFI_BOOST else 0.88f
-                    val scale = min(
-                        width / (IconGeometry.W_INK_W + extra),
-                        height / (IconGeometry.W_INK_H + extra),
-                    ) * boost * a.wifiScaleFactor()
+                    // Capped by the slot, not multiplied past it: a size setting above 100%
+                    // used to draw the fan out of the ink box, where the host clips it.
+                    val scale = IconGeometry.notchWifiScale(z, a)
                     c.scale(scale, scale)
                     c.translate(-IconGeometry.W_CX, -IconGeometry.W_INK_CY)
                     drawWifiArcs(c, wifiLevel, fg, a)
                 } else if (part == Prefs.PART_BOLT) {
-                    val fit = min(width / 15f, height / IconGeometry.BOLT_INK_H)
-                    val scale = fit * a.boltScaleFactor()
+                    val scale = IconGeometry.notchBoltScale(z, a)
                     c.scale(scale, scale)
                     c.translate(-IconGeometry.BOLT_CX_REF, -IconGeometry.BOLT_INK_CY)
                     drawBoltShape(c, if (quickCharging) IconGeometry.QUICK_CHARGE else fg, a)
@@ -627,79 +633,7 @@ object IconRenderer {
                     }
                     }
                 } else {
-                    val text = when (part) {
-                        Prefs.PART_VALUE -> valueText(level, a)
-                        Prefs.PART_TYPE -> type
-                        Prefs.PART_POWER -> powerText()
-                        Prefs.PART_RUNNING -> powerText()
-                        Prefs.PART_TEMP -> tempText()
-                        Prefs.PART_CURRENT -> currentText(a)
-                        Prefs.PART_FPS -> fpsText()
-                        else -> StatusState.sClockText
-                    }
-                    if (!text.isNullOrEmpty()) {
-                        val weight = when (part) {
-                            Prefs.PART_VALUE -> a.valueWeight
-                            Prefs.PART_TYPE -> a.typeWeight
-                            Prefs.PART_POWER, Prefs.PART_RUNNING,
-                            Prefs.PART_TEMP, Prefs.PART_CURRENT, Prefs.PART_FPS,
-                            -> a.perfTypeWeight()
-                            else -> a.clockWeight
-                        }
-                        val requested = when (part) {
-                            Prefs.PART_VALUE -> maxOf(a.valueSize.toFloat(), 50f)
-                            Prefs.PART_TYPE -> maxOf(a.typeSize.toFloat(), 46f)
-                            Prefs.PART_POWER, Prefs.PART_RUNNING,
-                            Prefs.PART_TEMP, Prefs.PART_CURRENT, Prefs.PART_FPS,
-                            -> maxOf(a.perfReadingSize().toFloat(), 46f)
-                            else -> maxOf(a.clockSize.toFloat(), 46f)
-                        }
-                        applyWeight(weight)
-                        TEXT.textSize = requested
-                        // Type is fitted to the THIRD it sits in, not to the small placement box that positions a drawn figure (28/44/20 units).
-                        val room = IconGeometry.zoneTextRoomH(z)
-                        val suffixScale = if (part == Prefs.PART_TYPE) a.typeSuffixScale else 100
-                        // The height cap is a straight ratio at the requested size.
-                        val inkAtRequested = max(1f, textInkHeight(text, requested))
-                        val maxByHeight = requested * room / inkAtRequested
-                        // The width cap is NOT independent of the answer.
-                        var fitted = maxByHeight
-                        for (pass in 0 until 4) {
-                            val inkH = max(1f, textInkHeight(text, fitted))
-                            val maxByWidth = fitSize(
-                                text, requested,
-                                IconGeometry.zoneTextRoomW(z, a.ringStroke, inkH), suffixScale
-                            )
-                            val next = min(maxByHeight, maxByWidth)
-                            if (abs(next - fitted) < 0.05f) {
-                                fitted = next
-                                break
-                            }
-                            fitted = next
-                        }
-                        // Centred in the band, and on its INK rather than its metrics.
-                        val slotCentre = IconGeometry.zoneTextCy(z, a.ringStroke) -
-                                IconGeometry.ZONE_CY[z]
-                        val baseline = inkCentredBaseline(text, fitted, slotCentre)
-                        if (part == Prefs.PART_TYPE) {
-                            drawType(c, text, 0f, baseline, fitted, fg, a)
-                        } else {
-                            TEXT.textAlign = Paint.Align.CENTER
-                            TEXT.textSize = fitted
-                            if (part == Prefs.PART_CLOCK) {
-                                drawTimeGlyphs(
-                                    c, TEXT, text, 0f, baseline,
-                                    if (isDarkBackground(fg)) a.clockDigitColorsOnDark else a.clockDigitColorsOnLight,
-                                    fg,
-                                )
-                            } else {
-                                val tempIsHigh = a.roleColorsTemp && part == Prefs.PART_TEMP &&
-                                    StatusState.sBatteryHot
-                                TEXT.color = if (tempIsHigh) (if (isDarkBackground(fg)) a.highTempOnDark else a.highTempOnLight) else fg
-                                c.drawText(text, 0f, baseline, TEXT)
-                            }
-                        }
-                    }
+                    drawRingText(c, part, type, level, fg, a, z, 0f)
                 }
             }
         }
@@ -755,6 +689,130 @@ object IconRenderer {
         }
         if (hasRightWifi) {
             drawRingFlankWifi(c, wifiLevel, fg, a, isLeft = false)
+        }
+        // Every other piece may hold a flank too: drawn in the mouth the ring was cut for it,
+        // centred on 9 or 3 o'clock.
+        drawFlankPiece(c, level, quickCharging, type, fg, a, r, Prefs.ZONE_LEFT, isLeft = true)
+        drawFlankPiece(c, level, quickCharging, type, fg, a, r, Prefs.ZONE_RIGHT, isLeft = false)
+    }
+
+    /**
+     * One non-bead, non-Wi-Fi piece on a flank: a reading, the clock, the bolt.
+     *
+     * The mouth there is cut by [StatusAppearance.Ring.flankHalfDeg], and the piece is fitted
+     * to the flat of that mouth, so the two can never disagree about how much room exists.
+     */
+    private fun drawFlankPiece(
+        c: Canvas, level: Int, quickCharging: Boolean, type: String?,
+        fg: Int, a: StatusAppearance, r: StatusAppearance.Ring, zone: Int, isLeft: Boolean,
+    ) {
+        val part = r.parts[zone]
+        if (part == Prefs.PART_NONE || Prefs.isSignalRow(part) || part == Prefs.PART_WIFI) return
+        val half = r.flankHalfDeg(zone)
+        if (half <= 0f) return
+        val cx = if (isLeft) IconGeometry.B_CX - IconGeometry.B_R else IconGeometry.B_CX + IconGeometry.B_R
+        c.withTranslation(cx, IconGeometry.B_CY) {
+            if (part == Prefs.PART_BOLT) {
+                val roomW = IconGeometry.flankCellWidth(half) - 2f * IconGeometry.NOTCH_PIECE_CLEARANCE
+                val roomH = IconGeometry.FLANK_CELL_ROOM_H
+                val fit = min(roomW / 15f, roomH / IconGeometry.BOLT_INK_H)
+                val scale = fit * a.boltScaleFactor()
+                c.scale(scale, scale)
+                c.translate(-IconGeometry.BOLT_CX_REF, -IconGeometry.BOLT_INK_CY)
+                drawBoltShape(c, if (quickCharging) IconGeometry.QUICK_CHARGE else fg, a)
+            } else {
+                drawRingText(c, part, type, level, fg, a, -1, half)
+            }
+        }
+    }
+
+    /**
+     * One text reading in the ring: a band's third, or a flank's cell.
+     *
+     * `band` names the zone the reading sits in; passing a negative value means "a flank",
+     * where the room is the cell cut for it rather than a third's chord. Shared so the two
+     * places cannot fit the same string two different ways.
+     */
+    private fun drawRingText(
+        c: Canvas, part: Int, type: String?, level: Int, fg: Int,
+        a: StatusAppearance, band: Int, flankHalfDeg: Float,
+    ) {
+        val flank = band < 0
+        val text = when (part) {
+            Prefs.PART_VALUE -> valueText(level, a)
+            Prefs.PART_TYPE -> type
+            Prefs.PART_POWER, Prefs.PART_RUNNING -> powerText()
+            Prefs.PART_TEMP -> tempText()
+            Prefs.PART_CURRENT -> currentText(a)
+            Prefs.PART_FPS -> fpsText()
+            else -> StatusState.sClockText
+        }
+        if (text.isNullOrEmpty()) return
+        val weight = when (part) {
+            Prefs.PART_VALUE -> a.valueWeight
+            Prefs.PART_TYPE -> a.typeWeight
+            Prefs.PART_POWER, Prefs.PART_RUNNING,
+            Prefs.PART_TEMP, Prefs.PART_CURRENT, Prefs.PART_FPS,
+            -> a.perfTypeWeight()
+            else -> a.clockWeight
+        }
+        val requested = when (part) {
+            Prefs.PART_VALUE -> maxOf(a.valueSize.toFloat(), 50f)
+            Prefs.PART_TYPE -> maxOf(a.typeSize.toFloat(), 46f)
+            Prefs.PART_POWER, Prefs.PART_RUNNING,
+            Prefs.PART_TEMP, Prefs.PART_CURRENT, Prefs.PART_FPS,
+            -> maxOf(a.perfReadingSize().toFloat(), 46f)
+            else -> maxOf(a.clockSize.toFloat(), 46f)
+        }
+        applyWeight(weight)
+        TEXT.textSize = requested
+        val room = if (flank) {
+            IconGeometry.FLANK_CELL_ROOM_H
+        } else {
+            IconGeometry.zoneTextRoomH(band)
+        }
+        val suffixScale = if (part == Prefs.PART_TYPE) a.typeSuffixScale else 100
+        // The height cap is a straight ratio at the requested size.
+        val inkAtRequested = max(1f, textInkHeight(text, requested))
+        val maxByHeight = requested * room / inkAtRequested
+        // The width cap is NOT independent of the answer: the third's room is a chord that
+        // narrows as the line grows, the flank's is the flat of its mouth and does not.
+        val flankRoomW = IconGeometry.flankCellWidth(flankHalfDeg) - 2f * IconGeometry.NOTCH_PIECE_CLEARANCE
+        var fitted = maxByHeight
+        for (pass in 0 until 4) {
+            val inkH = max(1f, textInkHeight(text, fitted))
+            val roomW = if (flank) flankRoomW else IconGeometry.zoneTextRoomW(band, a.ringStroke, inkH)
+            val next = min(maxByHeight, fitSize(text, requested, roomW, suffixScale))
+            if (abs(next - fitted) < 0.05f) {
+                fitted = next
+                break
+            }
+            fitted = next
+        }
+        // Centred on its INK rather than on its metrics.
+        val slotCentre = if (flank) 0f else IconGeometry.zoneTextCy(band, a.ringStroke) -
+            IconGeometry.ZONE_CY[band]
+        val baseline = inkCentredBaseline(text, fitted, slotCentre)
+        if (part == Prefs.PART_TYPE) {
+            drawType(c, text, 0f, baseline, fitted, fg, a)
+            return
+        }
+        TEXT.textAlign = Paint.Align.CENTER
+        TEXT.textSize = fitted
+        if (part == Prefs.PART_CLOCK) {
+            drawTimeGlyphs(
+                c, TEXT, text, 0f, baseline,
+                if (isDarkBackground(fg)) a.clockDigitColorsOnDark else a.clockDigitColorsOnLight,
+                fg,
+            )
+        } else {
+            val tempIsHigh = a.roleColorsTemp && part == Prefs.PART_TEMP && StatusState.sBatteryHot
+            TEXT.color = if (tempIsHigh) {
+                if (isDarkBackground(fg)) a.highTempOnDark else a.highTempOnLight
+            } else {
+                fg
+            }
+            c.drawText(text, 0f, baseline, TEXT)
         }
     }
 
@@ -819,8 +877,8 @@ object IconRenderer {
         STROKE.strokeWidth = stroke
         STROKE.style = Paint.Style.STROKE
         // One reach per opening, because the two openings no longer necessarily hold the same thing.
-        val topReach = openingReach(cap, IconZones.Zone.TOP, stroke, level, mobileType)
-        val bottomReach = openingReach(cap, IconZones.Zone.BOTTOM, stroke, level, mobileType)
+        val topReach = openingReach(cap, IconZones.Zone.TOP, stroke, level, mobileType, a)
+        val bottomReach = openingReach(cap, IconZones.Zone.BOTTOM, stroke, level, mobileType, a)
         val openLeft = cap.dotsIn(IconZones.Zone.LEFT)
         val openRight = cap.dotsIn(IconZones.Zone.RIGHT)
         val hasLeftWifi = cap.parts[IconZones.Zone.LEFT.ordinal] == Prefs.PART_WIFI
@@ -982,29 +1040,48 @@ object IconRenderer {
     ) {
         when (part) {
             Prefs.PART_BOLT -> {
-                val baseScale = if (heightHint > 0f) {
+                // An opening gives an icon the whole lane it is centred on; the body gives it
+                // the capsule's own reference scale.
+                val room = if (heightHint > 0f) IconGeometry.capOpeningIconRoomH(stroke) else -1f
+                val baseScale = if (room > 0f) {
                     val maxW = if (width > 0f) width else 40f
-                    minOf(maxW / 15f, heightHint / IconGeometry.BOLT_INK_H) * 0.95f
+                    minOf(maxW / 15f, room / IconGeometry.BOLT_INK_H)
                 } else {
                     IconGeometry.capBoltScale(stroke)
                 }
-                val ink = BOLT_INK_W * baseScale * a.boltScaleFactor()
+                // Capped by the room: multiplying past it drew the bolt out of the ink box,
+                // where the host clipped it.
+                val scale = if (room > 0f) {
+                    IconGeometry.fittedScale(baseScale, a.boltScaleFactor())
+                } else {
+                    baseScale * a.boltScaleFactor()
+                }
+                val ink = BOLT_INK_W * scale
                 drawCapsuleBolt(
                     c, stroke, if (quickCharging) IconGeometry.QUICK_CHARGE else fg, a,
-                    alignedCx(anchorX, ink, align), cy, heightHint, width,
+                    alignedCx(anchorX, ink, align), cy, heightHint, width, scale,
                 )
             }
             Prefs.PART_WIFI -> {
                 val extra = max(0f, a.arcStroke - IconGeometry.W_STROKE)
-                val baseScale = if (heightHint > 0f) {
+                val room = if (heightHint > 0f) IconGeometry.capOpeningIconRoomH(stroke) else -1f
+                val baseScale = if (room > 0f) {
                     val maxW = if (width > 0f) width else 60f
-                    minOf(maxW / (IconGeometry.W_INK_W + extra), heightHint / (IconGeometry.W_INK_H + extra)) * 0.95f
+                    minOf(
+                        maxW / (IconGeometry.W_INK_W + extra),
+                        room / (IconGeometry.W_INK_H + extra),
+                    )
                 } else {
                     IconGeometry.capWifiScale(stroke)
                 }
-                val ink = IconGeometry.W_INK_W * baseScale * a.wifiScaleFactor()
+                val scale = if (room > 0f) {
+                    IconGeometry.fittedScale(baseScale, a.wifiScaleFactor())
+                } else {
+                    baseScale * a.wifiScaleFactor()
+                }
+                val ink = IconGeometry.W_INK_W * scale
                 drawCapsuleWifi(
-                    c, stroke, wifiLevel, fg, a, alignedCx(anchorX, ink, align), cy, heightHint, width,
+                    c, stroke, wifiLevel, fg, a, alignedCx(anchorX, ink, align), cy, heightHint, width, scale,
                 )
             }
             Prefs.PART_VALUE -> drawCapsuleValue(
@@ -1086,7 +1163,7 @@ object IconRenderer {
      */
     private fun openingReach(
         cap: StatusAppearance.Capsule, band: IconZones.Zone,
-        stroke: Float, level: Int, type: String?,
+        stroke: Float, level: Int, type: String?, a: StatusAppearance,
     ): Float {
         if (cap.dotsIn(band)) {
             return IconGeometry.capDotReach(stroke)
@@ -1095,9 +1172,14 @@ object IconRenderer {
         if (part == Prefs.PART_NONE) {
             return 0f
         }
+        val factor = when (part) {
+            Prefs.PART_WIFI -> a.wifiScaleFactor()
+            Prefs.PART_BOLT -> a.boltScaleFactor()
+            else -> 1f
+        }
         return IconGeometry.capPieceReach(
             part, level, type ?: "", stroke,
-            IconGeometry.capOpeningTextRoomH(stroke),
+            IconGeometry.capOpeningTextRoomH(stroke), factor,
         ) + IconGeometry.capDotClearance() + stroke * 0.5f
     }
 
@@ -1565,16 +1647,23 @@ object IconRenderer {
     private fun drawCapsuleWifi(
         c: Canvas, stroke: Float, level: Int, fg: Int,
         a: StatusAppearance, cx: Float, cy: Float,
-        heightHint: Float = -1f, width: Float = -1f,
+        heightHint: Float = -1f, width: Float = -1f, scaleIn: Float = -1f,
     ) {
         val extra = max(0f, a.arcStroke - IconGeometry.W_STROKE)
-        val baseScale = if (heightHint > 0f) {
-            val maxW = if (width > 0f) width else 60f
-            minOf(maxW / (IconGeometry.W_INK_W + extra), heightHint / (IconGeometry.W_INK_H + extra)) * 0.95f
+        val scale = if (scaleIn > 0f) {
+            scaleIn
         } else {
-            IconGeometry.capWifiScale(stroke)
+            val baseScale = if (heightHint > 0f) {
+                val maxW = if (width > 0f) width else 60f
+                minOf(
+                    maxW / (IconGeometry.W_INK_W + extra),
+                    heightHint / (IconGeometry.W_INK_H + extra),
+                ) * 0.95f
+            } else {
+                IconGeometry.capWifiScale(stroke)
+            }
+            baseScale * a.wifiScaleFactor()
         }
-        val scale = baseScale * a.wifiScaleFactor()
         c.withTranslation(
             cx - IconGeometry.W_CX * scale,
             cy - IconGeometry.W_INK_CY * scale,
@@ -1650,16 +1739,19 @@ object IconRenderer {
     private fun drawCapsuleBolt(
         c: Canvas, stroke: Float, color: Int, a: StatusAppearance,
         cx: Float, cy: Float,
-        heightHint: Float = -1f, width: Float = -1f,
+        heightHint: Float = -1f, width: Float = -1f, scaleIn: Float = -1f,
     ) {
-        val factor = a.boltScaleFactor()
-        val baseScale = if (heightHint > 0f) {
-            val maxW = if (width > 0f) width else 40f
-            minOf(maxW / 15f, heightHint / IconGeometry.BOLT_INK_H) * 0.95f
+        val scale = if (scaleIn > 0f) {
+            scaleIn
         } else {
-            IconGeometry.capBoltScale(stroke)
+            val baseScale = if (heightHint > 0f) {
+                val maxW = if (width > 0f) width else 40f
+                minOf(maxW / 15f, heightHint / IconGeometry.BOLT_INK_H) * 0.95f
+            } else {
+                IconGeometry.capBoltScale(stroke)
+            }
+            baseScale * a.boltScaleFactor()
         }
-        val scale = baseScale * factor
         c.withTranslation(
             cx - IconGeometry.BOLT_CX_REF * scale,
             cy - IconGeometry.BOLT_INK_CY * scale,
@@ -1937,30 +2029,28 @@ object IconRenderer {
         a: StatusAppearance, gapStart: Float, gapEnd: Float,
         sweep: Float, start: Float, charging: Boolean,
         openLeft: Boolean = false, openRight: Boolean = false,
+        topHalfDeg: Float = 0f, bottomHalfDeg: Float = 0f,
+        leftFlankHalfDeg: Float = 0f, rightFlankHalfDeg: Float = 0f,
     ) {
         val ringStroke = a.ringStroke * IconGeometry.RING_STROKE_RATIO
         STROKE.strokeWidth = ringStroke
-        // A flank that holds a bead row cuts the ring at the row's own span plus the bead,
-        // the arc's cap and their clearance. Cutting it at the row's span exactly - or at a
-        // fixed 60.4 degrees - puts the outermost bead on the cap, where it reads as the
-        // ring's blunt end rather than as a dot: a four-bead flank then looks like two.
-        val flankHalfDeg = if (openLeft || openRight) {
-            val columns = a.signalColumns.coerceIn(4, 5)
-            IconGeometry.flankOpenHalfDeg(columns, ringStroke, IconGeometry.flankDotR(columns, a.dotScaleFactor()))
-        } else {
-            0f
-        }
         val animated = a.animatesOutline(charging, level)
         // Breathing moves the whole ring; the other two move a light along it. One
         // vocabulary per style, so the outline and the bolt always read as one piece.
         val wave = if (animated && a.boltAnim == Prefs.BOLT_ANIM_PULSE) pulseWave() else 1f
 
         STROKE.color = withAlpha(fg, a.trackAlpha)
-        batteryRing(c, 0f, 1f, gapStart, gapEnd, sweep, start, openLeft, openRight, flankHalfDeg)
+        batteryRing(
+            c, 0f, 1f, gapStart, gapEnd, sweep, start, openLeft, openRight,
+            leftFlankHalfDeg, rightFlankHalfDeg, topHalfDeg, bottomHalfDeg,
+        )
 
         if (level > 0) {
             STROKE.color = withAlpha(role, (255 * wave).toInt())
-            batteryRing(c, 0f, min(1f, level / 100f), gapStart, gapEnd, sweep, start, openLeft, openRight, flankHalfDeg)
+            batteryRing(
+                c, 0f, min(1f, level / 100f), gapStart, gapEnd, sweep, start, openLeft, openRight,
+                leftFlankHalfDeg, rightFlankHalfDeg, topHalfDeg, bottomHalfDeg,
+            )
         }
         if (!animated) {
             return
@@ -2121,14 +2211,17 @@ object IconRenderer {
         c: Canvas, fromIn: Float, toIn: Float, gapStart: Float, gapEnd: Float,
         sweep: Float, start: Float,
         openLeft: Boolean = false, openRight: Boolean = false,
-        flankHalfDeg: Float = 0f,
+        leftFlankHalfDeg: Float = 0f, rightFlankHalfDeg: Float = 0f,
+        topHalfDeg: Float = 0f, bottomHalfDeg: Float = 0f,
     ) {
         val from = clamp01(fromIn)
         val to = clamp01(toIn)
         if (to <= from) {
             return
         }
-        if (!openLeft && !openRight) {
+        // The split path only describes a mouth at 12 o'clock; a bottom mouth or a flank cut
+        // needs the segment walk.
+        if (!openLeft && !openRight && sweep >= 360f) {
             val mouthStart = clamp01(gapStart)
             val mouthEnd = clamp01(gapEnd)
             // Path length that actually carries ink; the level is spread over it.
@@ -2161,8 +2254,9 @@ object IconRenderer {
         // frame, and the segment list used to be a List<Pair<Float,Float>> (plus its
         // filter copy) thrown away immediately.
         val segCount = buildRingSegments(
-            SEGMENTS, gapStart != gapEnd, sweep < 360f, openLeft, openRight,
-            flankHalfDeg, Math.toDegrees((STROKE.strokeWidth / IconGeometry.B_R).toDouble()).toFloat(),
+            SEGMENTS, GAPS, start, topHalfDeg, bottomHalfDeg, openLeft, openRight,
+            leftFlankHalfDeg, rightFlankHalfDeg,
+            Math.toDegrees((STROKE.strokeWidth / IconGeometry.B_R).toDouble()).toFloat(),
         )
         var totalDrawn = 0f
         for (i in 0 until segCount) totalDrawn += SEGMENTS[i * 2 + 1]
@@ -2193,47 +2287,76 @@ object IconRenderer {
      * Fills [out] with the ring's drawable segments as `(startDeg, sweepDeg)` pairs and
      * answers how many were written.
      *
-     * A caller-owned buffer rather than a returned list: the segments are recomputed for the
-     * track and for the fill of every frame, and the old `List<Pair<Float,Float>>` plus the
-     * `filter` copy it was cleaned with allocated ~15 objects per call.
+     * The openings are collected as angular gaps and the arcs are their complement, so the
+     * 12 and 6 o'clock mouths, the two flank cuts and any overlap between them are handled by
+     * one rule instead of by hard-coded angles. Caller-owned buffers, because this runs for
+     * the track and for the fill of every frame.
      */
     private fun buildRingSegments(
-        out: FloatArray, topGap: Boolean, bottomOpen: Boolean, openLeft: Boolean,
-        openRight: Boolean, flankHalfDeg: Float = 0f, minSegDeg: Float = 0f,
+        out: FloatArray, gaps: FloatArray, arcStart: Float, topHalf: Float, bottomHalf: Float,
+        openLeft: Boolean, openRight: Boolean,
+        leftFlankHalf: Float, rightFlankHalf: Float, minSegDeg: Float,
     ): Int {
-        val start = if (bottomOpen) 130.2f else 90f
-        val end = if (bottomOpen) 409.8f else 450f
-        var count = 0
-        var curr = start
-
-        // A flank that holds a bead row cuts the ring wider than the row's own span, so the
-        // end beads keep their clearance from the arc's round caps instead of merging into
-        // them. The cut is clamped to whatever ink is left, so a very large bead cannot
-        // invert the segment it sits in.
+        var gapCount = 0
+        if (topHalf > 0f) {
+            gapCount = addRingGap(gaps, gapCount, arcStart, 270f - topHalf, 270f + topHalf)
+        }
+        if (bottomHalf > 0f) {
+            gapCount = addRingGap(gaps, gapCount, arcStart, 90f - bottomHalf, 90f + bottomHalf)
+        }
         if (openLeft) {
-            val cutFrom = maxOf(curr, 180f - flankHalfDeg)
-            if (cutFrom > curr) count = addSegment(out, count, curr, cutFrom - curr, minSegDeg)
-            curr = maxOf(curr, 180f + flankHalfDeg)
+            gapCount = addRingGap(gaps, gapCount, arcStart, 180f - leftFlankHalf, 180f + leftFlankHalf)
         }
-
-        val topStart = if (topGap) 229.8f else 270f
-        val topEnd = if (topGap) 310.2f else 270f
-
-        if (topGap && curr < topStart) {
-            count = addSegment(out, count, curr, topStart - curr, minSegDeg)
-            curr = topEnd
-        }
-
         if (openRight) {
-            val cutFrom = maxOf(curr, 360f - flankHalfDeg)
-            if (cutFrom > curr) count = addSegment(out, count, curr, cutFrom - curr, minSegDeg)
-            curr = maxOf(curr, 360f + flankHalfDeg)
+            gapCount = addRingGap(gaps, gapCount, arcStart, -rightFlankHalf, rightFlankHalf)
         }
-
-        if (curr < end) {
-            count = addSegment(out, count, curr, end - curr, minSegDeg)
+        // At most four gaps, so an insertion sort over the starts is the simplest thing that
+        // is obviously correct.
+        for (i in 1 until gapCount) {
+            var j = i
+            while (j > 0 && gaps[j * 2] < gaps[(j - 1) * 2]) {
+                val s = gaps[j * 2]
+                val e = gaps[j * 2 + 1]
+                gaps[j * 2] = gaps[(j - 1) * 2]
+                gaps[j * 2 + 1] = gaps[(j - 1) * 2 + 1]
+                gaps[(j - 1) * 2] = s
+                gaps[(j - 1) * 2 + 1] = e
+                j--
+            }
+        }
+        val lapEnd = arcStart + 360f
+        var count = 0
+        var cursor = arcStart
+        for (i in 0 until gapCount) {
+            val from = gaps[i * 2]
+            val to = gaps[i * 2 + 1]
+            if (from > cursor) {
+                count = addSegment(out, count, cursor, from - cursor, minSegDeg)
+            }
+            if (to > cursor) cursor = to
+        }
+        if (cursor < lapEnd) {
+            count = addSegment(out, count, cursor, lapEnd - cursor, minSegDeg)
         }
         return count
+    }
+
+    /**
+     * Records one opening of the ring as a gap inside `[anchor, anchor + 360)`.
+     *
+     * @return the new gap count
+     */
+    private fun addRingGap(
+        gaps: FloatArray, count: Int, anchor: Float, fromDeg: Float, toDeg: Float,
+    ): Int {
+        if (count * 2 + 1 >= gaps.size) return count
+        var from = fromDeg
+        while (from < anchor) from += 360f
+        while (from >= anchor + 360f) from -= 360f
+        val to = minOf(from + (toDeg - fromDeg), anchor + 360f)
+        gaps[count * 2] = from
+        gaps[count * 2 + 1] = to
+        return count + 1
     }
 
     /**
@@ -2750,10 +2873,6 @@ object IconRenderer {
      */
     private const val CAP_CELL_PADDING = 6f
 
-    /** Margin between a placed piece and the ring's inner face, in design units. */
-    private const val RING_SLOT_INSET = 2.5f
-
-    private const val RING_WIFI_BOOST = 1.25f
     private const val LONE_ROW_FILL = 0.74f
     private val ACTIVITY_UP = Path()
     private val ACTIVITY_DOWN = Path()
@@ -3577,7 +3696,9 @@ object IconRenderer {
         }
         if (appearance?.ring == true) {
             val extraW = maxOf(0f, appearance.ringSpacingX.toFloat() * 2f)
-            return inkScale(w, h, IconGeometry.INK_W + extraW, IconGeometry.INK_H)
+            return inkScale(
+                w, h, IconGeometry.INK_W + extraW, IconGeometry.ringInkH(appearance),
+            )
         }
         return inkScale(w, h)
     }
@@ -3632,8 +3753,10 @@ object IconRenderer {
             val hasBottomStacked = !appearance.dataSimOnly && ((appearance.ringZones.getOrNull(2)?.size ?: 0) > 1 ||
                 (appearance.ringZones.getOrNull(2)?.contains(Prefs.PART_MOBILE) == true && appearance.dualSim))
             val stackShiftY = if (hasBottomStacked) 2.0f * scale else 0f
+            val inkH = IconGeometry.ringInkH(appearance)
+            val inkTop = IconGeometry.ringInkTop(appearance)
             out[1] = (w - IconGeometry.INK_W * scale) / 2f - IconGeometry.INK_X * scale
-            out[2] = (h - IconGeometry.INK_H * scale) / 2f - IconGeometry.INK_Y * scale - stackShiftY
+            out[2] = (h - inkH * scale) / 2f - inkTop * scale - stackShiftY
         }
         return true
     }

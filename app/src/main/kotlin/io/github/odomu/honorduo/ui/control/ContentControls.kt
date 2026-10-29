@@ -846,23 +846,14 @@ private fun RingPositionControl(
     val id = IconZones.encodePart(part)
     val zones = settings.ringZones
     val placedAt = zones.indexOfFirst { it.contains(id) }
-    val supportsFlanks = part == IconZones.Part.WIFI || IconZones.isSignalRow(part)
-
-    val targetZones = if (supportsFlanks) {
-        listOf(
-            IconZones.Zone.LEFT,
-            IconZones.Zone.TOP,
-            IconZones.Zone.CENTRE,
-            IconZones.Zone.BOTTOM,
-            IconZones.Zone.RIGHT,
-        )
-    } else {
-        listOf(
-            IconZones.Zone.TOP,
-            IconZones.Zone.CENTRE,
-            IconZones.Zone.BOTTOM,
-        )
-    }
+    // Every piece may sit on a flank now: the ring cuts a mouth for whatever is there.
+    val targetZones = listOf(
+        IconZones.Zone.LEFT,
+        IconZones.Zone.TOP,
+        IconZones.Zone.CENTRE,
+        IconZones.Zone.BOTTOM,
+        IconZones.Zone.RIGHT,
+    )
 
     val selected = if (part == IconZones.Part.TYPE && settings.mobileTypeMode == Prefs.MOBILE_TYPE_OUT_RING) {
         targetZones.size + 1

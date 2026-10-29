@@ -44,7 +44,6 @@ internal enum class SettingsPart(val part: IconZones.Part?, val labelRes: Int) {
      * the two per-card rows sit under it.
      */
     Mobile(IconZones.Part.MOBILE, R.string.show_mobile_title),
-    Value(IconZones.Part.VALUE, R.string.show_value_title),
     Bolt(IconZones.Part.BOLT, R.string.show_bolt_title),
     Type(IconZones.Part.TYPE, R.string.show_mobile_type_title),
     Clock(IconZones.Part.CLOCK, R.string.drawing_occupant_clock),
@@ -61,7 +60,18 @@ internal enum class SettingsPart(val part: IconZones.Part?, val labelRes: Int) {
          */
         fun of(part: IconZones.Part?): SettingsPart? = when (part) {
             null -> null
+            // The two cards are one kind of ink: a row of level dots.
             IconZones.Part.SIM_1, IconZones.Part.SIM_2 -> Mobile
+            // The percentage's rows are owned by the battery card (it is the battery's
+            // reading), so this card has no rows of its own to match on. Mapping it there is
+            // what stops the row in the ring's ordering list from opening an empty sheet.
+            IconZones.Part.VALUE -> Battery
+            // Every hardware readout shares one sheet; without this the numeric pieces in the
+            // ordering list had no settings at all, and a long press did nothing.
+            IconZones.Part.POWER, IconZones.Part.RUNNING, IconZones.Part.TEMP,
+            IconZones.Part.CURRENT, IconZones.Part.VOLTAGE, IconZones.Part.FPS,
+            IconZones.Part.SIGNAL, IconZones.Part.BT,
+            -> Readouts
             else -> entries.firstOrNull { it.part == part }
         }
     }
