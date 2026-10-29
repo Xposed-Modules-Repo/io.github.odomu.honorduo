@@ -156,36 +156,19 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk \
              "dist/HonorDuo-${{ steps.stamp.outputs.name }}.apk"
 
-      # The runner can reach GitHub's blob storage; the phone this build gets
-      # installed on cannot (artifact, release assets and logs all time out from
-      # it, while api.github.com is fine). When the workflow is started by hand,
-      # the APK is therefore also committed as base64, which the Git Data API can
-      # serve - so the same build is still installable from here. The file is
-      # removed again by the next manual run.
-      # Only a manual run on the fork branch: this step commits back to the branch it
-      # ran on, and `main` mirrors upstream, where a CI commit does not belong.
-      - name: Publish the APK as base64 in the repo
-        if: github.event_name == 'workflow_dispatch' && github.ref_name == 'fork'
-        run: |
-          base64 -w 0 dist/HonorDuo-*.apk > ci-apk.b64
-          ls -l ci-apk.b64
-          git config user.name "ci"
-          git config user.email "ci@users.noreply.github.com"
-          git add -f ci-apk.b64
-          git commit -m "ci: apk snapshot for on-device install"
-          git push origin HEAD:refs/heads/${GITHUB_REF_NAME}
-
       - uses: actions/upload-artifact@v4
         with:
           name: HonorDuo-${{ steps.stamp.outputs.name }}
           path: dist/*.apk
           if-no-files-found: error
 
-      # A release is published for exactly two things: a pushed v* tag (the real
-      # release, body taken from docs/release-notes) and a manual run (a throwaway
-      # prerelease for testing). An ordinary branch push only produces the artifact.
+      # A release is published for exactly one thing: a pushed tag. A manual run and an
+      # ordinary branch push only produce the artifact. The tag is the repository's own
+      # `[versionCode]-[versionName]`, never a build-unique `ci-...` name: those piled up
+      # as releases nobody asked for, and the committed apk snapshot that used to go with
+      # them is gone as well - it rewrote the branch on every manual run.
       - name: Read release notes
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        if: startsWith(github.ref, 'refs/tags/')
         id: notes
         run: |
           file="docs/release-notes/release-notes-${{ steps.stamp.outputs.name }}.md"
@@ -196,11 +179,11 @@ jobs:
           fi
 
       - name: Publish a release for the APK
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('ci-{0}-{1}', steps.stamp.outputs.code, github.run_number) }}
-          name: HonorDuo ${{ steps.stamp.outputs.name }} (${{ steps.stamp.outputs.code }})
+          tag_name: ${{ github.ref_name }}
+          name: HonorDuo ${{ steps.stamp.outputs.name }}
           body: ${{ steps.notes.outputs.body }}
           files: dist/*.apk
-          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          prerelease: false

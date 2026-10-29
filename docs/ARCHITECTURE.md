@@ -86,8 +86,12 @@ HwSystemIcons
 
 ### 2.3 左右两侧组件
 
-`ZONE_LEFT` / `ZONE_RIGHT` 是圆环与胶囊共用的第 4、5 个位置，只接受信号点行（`PART_MOBILE`、
-`PART_SIM_1`、`PART_SIM_2`）与 Wi-Fi 弧。圆环把两侧画成 **从圆弧上切下来的一段珠子**：
+`ZONE_LEFT` / `ZONE_RIGHT` 是圆环与胶囊共用的第 4、5 个位置。**圆环的两侧现在接受任意组件**：信号点画成珠子，
+Wi-Fi 画成外侧的两段弧，其余组件（电量数字、制式、时钟、硬件读数、闪电）画在 `flankHalfDeg()` 为它切出的开口里，
+沿用中间带的那套文字拟合（`drawRingText()`，`band = -1` 时按开口的平直弦宽取宽）。胶囊的两端是半圆，
+只会画珠子与弧，所以 `IconZones.accepts()` 对胶囊的两侧仍然只放行这两类。
+
+圆环把两侧的信号点画成 **从圆弧上切下来的一段珠子**：
 
 - 珠子口径 `flankBeadR()`：四柱 4.9、五柱 4.2，与上下开口的点同一种墨；乘上「环内信号点大小」
   后仍以 `maxBeadR()` 为上限。
@@ -98,6 +102,15 @@ HwSystemIcons
   端点上，被圆头吞掉，四颗珠子看起来只剩两颗。开口宽度随珠子尺寸变化，并在 `buildRingSegments()`
   里夹住剩余弧长；比两个圆头还短的残段直接丢弃，避免在开口之间留下一个疙瘩。
 - 胶囊沿用同一套位置，但珠子嵌在胶囊左右两个半圆端上，按 `drawCapsuleDots()` 自己的一圈角度排布。
+
+圆环上下两个开口同样按内容开合（`IconGeometry.notchHalfDeg()`）：
+
+- Wi-Fi 弧与闪电的墨宽可以事先算出，开口就按「墨宽/2 + `NOTCH_PIECE_CLEARANCE`」反解成角度
+  （`asin`，以环半径为准）。默认 Wi-Fi 由 96° 收到约 56°，闪电约 38°。
+- 文字与信号点行保持 96° 基准：文字宽度取决于字符串和用户字体，开口按错的尺寸算会裁字。
+- 开口收窄的同时把 Wi-Fi/闪电的放置框高度加了 `NOTCH_PIECE_EXTRA`，所以它们比原来大约 30%，
+  而不是被裁得更小。`buildRingSegments()` 现在按「角度缺口集合 + 取补集」生成圆弧，上下开口、
+  左右切口的重叠自然合并。
 
 左右两侧放 Wi-Fi 时改画两段同心弧（`drawRingFlankWifi()`）：
 
@@ -112,10 +125,12 @@ HwSystemIcons
 `KEY_EFFECTIVE_SCOPE` 存的是**排除位**：`1` 控制中心、`2` 通知面板、`4` 锁屏，`0` 表示全部生效。
 设置页展示成三项多选（勾选=生效），因此三项全勾就是 `0`。
 
-两个位置可能同时成立——锁屏上可以下拉面板——所以 `ScopeTracker` 先把面板类型解析成两个事实：
-面板是哪一页（通知面板 / 控制中心）与是否展开，锁屏则只在**面板收起时**才算数。这样
-「锁屏上打开通知面板」按通知面板判断，而不是被锁屏那一项吞掉；系统上报的 3/4 两个类型
-（锁屏上的通知面板 / 控制中心）也因此能被正确归类。判断结果统一由
+`ScopeTracker` 把面板类型解析成两个事实：面板是哪一页（通知面板 / 控制中心）与是否展开；
+**锁屏与面板互相独立**，锁屏只看 `isKeyguardLocked`。早期版本把「面板展开」当作锁屏不成立的条件，
+结果面板类型在某些 ROM 上迟迟不回 0，排除锁屏就完全失效——所以现在锁屏一票独立判定。
+系统上报的 3/4 两个类型（锁屏上的通知面板 / 控制中心）按面板页归类，不会再把控制中心当成通知面板。
+锁屏状态优先由 `KeyguardLockedStateListener` 推送，注册失败时退化为每次判定前 `isKeyguardLocked` 现查
+（`ScopeTracker.refreshKeyguard()`，每次范围判定一次，不是每帧）。判断结果统一由
 `SystemBarHook.updateEffectiveScopeState()` → `StatusBarRowManager.setSuppressed()` 落地。
 
 选择器至少保留一项：`ContentMultiChoice(minimumSelected = 1)` 拒绝清空最后一项，
@@ -357,7 +372,22 @@ telephony：
 - 导入完成后通过 `repository.syncAllToFramework()` 广播与远程属性直接推送到 Hook 进程即时刷新；
 - 界面层通过 `rememberBackupManager` 接入，彻底与底层文件流和 IO 解耦。
 
-## 九、验证
+## 九、热路径与功耗约束
+
+这几条是给「改完才想起来」的地方写的：它们都是每秒/每帧发生几十次以上的路径，一次分配或一次
+Binder 就能把一个设置项变成耗电项。
+
+| 路径 | 频率 | 约束 |
+| --- | --- | --- |
+| `IconRenderer.drawInto` | 每帧（闪电动画开时 60fps） | 不新建 `List`/数组/`String`。环形分段用 `SEGMENTS` 复用缓冲，弧圆心用 `ARC`，蓝牙数字文本按等级缓存（`btLevelText`）；左右 Wi-Fi 弧只用标量局部变量。 |
+| `View.setFlags` 钩子（`enforceSuppression`） | SystemUI 全进程的每次可见性/标志写入 | 先用整数 id 与类名判断，只有确实开启了槽位开关、且类名像 `StatusBarIconView` / `HwOperatorIconParentView` 时才做反射读 `mSlot`。 |
+| 通知过滤钩子（`matchesHiddenNotif`） | 每个通知每轮排序 | 三个隐藏开关全关时直接返回；`getChannelId` 只对 `com.android.settings`（充电/USB）与 `android`（USB 调试）读，`getGroup` 只对 `android` 读。 |
+| `ACTION_BATTERY_CHANGED` / 天气观察者 | 秒级到分钟级的事件 | 必须同时满足「屏幕亮」「状态栏可见」「功能真的在用」才读。电池读数是 Binder + `BatteryManager`；天气查询是 provider 往返 + JSON 解析。天气的缓存时间戳在失败时也会前进，否则数据为空会让每次重试都打到 provider。 |
+| `LogManager.log` | 每条日志 | 只有调试开关打开或 W/E 才落盘；一次突发合成一次跨进程写入。`AppLogProvider` 的保留清理每小时一次、当日文件名按日缓存，不再逐行扫目录。 |
+| `LogViewerPage` 跟随 | 1 Hz | 只读新增字节（`LogManager.readTail`），上限 1MB；不再重读三天全量，也不会把整段尾部当增量重复追加。 |
+| 设置页拖拽 | 每个 pointer move | `velocity` / `travel` 这类随手指写入的状态只在 draw/layout lambda 里读（`Animatable` + `snapshotFlow`），不放进 composition，否则整条导航栏每帧重组。 |
+
+## 十、验证
 
 构建：
 
