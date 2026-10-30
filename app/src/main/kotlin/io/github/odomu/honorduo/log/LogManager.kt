@@ -16,6 +16,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.min
 
 /**
  * Unified independent logger for both App process and hooked SystemUI process.
@@ -156,7 +157,7 @@ object LogManager {
             val file = files[i]
             val length = runCatching { file.length() }.getOrDefault(0L)
             if (length <= 0L) continue
-            val take = kotlin.math.min(length, remaining)
+            val take = min(length, remaining)
             if (take < length) partialHead = true
             val buffer = ByteArray(take.toInt())
             val read = runCatching {

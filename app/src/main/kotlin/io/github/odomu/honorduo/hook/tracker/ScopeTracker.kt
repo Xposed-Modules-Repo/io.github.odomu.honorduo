@@ -10,8 +10,12 @@
 
 package io.github.odomu.honorduo.hook.tracker
 
+import android.annotation.SuppressLint
 import android.app.KeyguardManager
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import io.github.odomu.honorduo.hook.core.SystemBarHook
 
@@ -85,7 +89,7 @@ internal object ScopeTracker {
         if (locked != keyguardActive) keyguardActive = locked
     }
 
-    @android.annotation.SuppressLint("NewApi", "MissingPermission")
+    @SuppressLint("NewApi", "MissingPermission")
     fun start(context: Context?) {
         val app = context?.applicationContext ?: context ?: return
         if (keyguardWatched) return
@@ -107,9 +111,9 @@ internal object ScopeTracker {
             return
         }
         try {
-            val filter = android.content.IntentFilter(android.content.Intent.ACTION_USER_PRESENT)
-            val unlockReceiver = object : android.content.BroadcastReceiver() {
-                override fun onReceive(ctx: Context?, intent: android.content.Intent?) {
+            val filter = IntentFilter(Intent.ACTION_USER_PRESENT)
+            val unlockReceiver = object : BroadcastReceiver() {
+                override fun onReceive(ctx: Context?, intent: Intent?) {
                     keyguardActive = false
                     SystemBarHook.updateEffectiveScopeState()
                 }

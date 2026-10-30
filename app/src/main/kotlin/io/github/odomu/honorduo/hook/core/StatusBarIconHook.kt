@@ -180,7 +180,7 @@ internal object StatusBarIconHook {
         if (!wifiOnly) {
             val hide = (sHideAlarm && entry in ALARM_ENTRIES) ||
                 (sHideBluetooth && entry in BLUETOOTH_ENTRIES)
-            if (hide) return ColorDrawable(Color.TRANSPARENT)
+            if (hide) return Color.TRANSPARENT.toDrawable()
         }
 
         if (!sWifiEnabled && !sStatusEnabled) return null

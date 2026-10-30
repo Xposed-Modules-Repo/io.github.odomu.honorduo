@@ -15,6 +15,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.database.ContentObserver
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -28,6 +29,7 @@ import io.github.odomu.honorduo.model.StatusState
 import java.net.URLDecoder
 import java.util.concurrent.Executors
 import kotlin.math.roundToInt
+
 /**
  * Manages real-time weather query from MagicOS TotemWeather ContentProvider,
  * listening for content updates and broadcasts with strict power-saving guards.
@@ -199,7 +201,7 @@ internal object WeatherManager {
     /** Queries weather via system lockscreen weather plugin call method (MagicOS standard). */
     private fun queryFromCall(context: Context): WeatherData? = runCatching {
         val cr = context.contentResolver ?: return null
-        val extras = android.os.Bundle().apply {
+        val extras = Bundle().apply {
             putInt("city_type", 10)
             putInt("dayAndNightWeather", 1)
         }

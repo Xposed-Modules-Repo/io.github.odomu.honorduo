@@ -24,6 +24,7 @@ import io.github.odomu.honorduo.hook.core.SystemUiHook
 import io.github.odomu.honorduo.model.ModuleConfig
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.StatusState
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -270,7 +271,7 @@ internal object BatteryPresence {
         if (currentUnits == StatusState.CURRENT_UNKNOWN || voltageMilliVolts <= 0) {
             return StatusState.POWER_UNKNOWN
         }
-        val absCurrent = kotlin.math.abs(currentUnits).toFloat()
+        val absCurrent = abs(currentUnits).toFloat()
         val milliamps = if (absCurrent > 10_000f) absCurrent / 1_000f else absCurrent
         val volts = voltageMilliVolts / 1_000f
         return (milliamps * volts) / 1_000f

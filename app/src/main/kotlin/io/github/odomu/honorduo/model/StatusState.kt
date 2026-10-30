@@ -41,6 +41,8 @@ import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.abs
+import kotlin.math.round
 
 /**
  * Snapshot of everything the status glyph needs: battery level and charge state,
@@ -355,13 +357,13 @@ internal class StatusState(val host: View) {
         fun currentText(unit: Int, positive: Boolean): String? {
             val raw = sCurrentUa
             if (raw == CURRENT_UNKNOWN) return null
-            val absRaw = kotlin.math.abs(raw)
+            val absRaw = abs(raw)
             val milliamps = if (absRaw > 10_000) raw / 1_000f else raw.toFloat()
-            val shown = if (positive) kotlin.math.abs(milliamps) else milliamps
+            val shown = if (positive) abs(milliamps) else milliamps
             return if (unit == Prefs.CURRENT_UNIT_A) {
                 String.format(Locale.US, "%.2fA", shown / 1_000f)
             } else {
-                "${kotlin.math.round(shown).toInt()}mA"
+                "${round(shown).toInt()}mA"
             }
         }
 
@@ -799,6 +801,17 @@ internal class StatusState(val host: View) {
                 sMainHandler.post { SystemUiHook.invalidateHosts() }
             }
         }
+
+        /**
+         * The Wi-Fi level the glyph may ink this frame, or `-1` when there is nothing to
+         * draw.
+         *
+         * Explicit rather than a default on the sizing functions: the status bar and the
+         * settings preview size two different frames, and a default would silently size
+         * one of them for the other's Wi-Fi state.
+         */
+        @JvmStatic
+        fun wifiInkLevel(): Int = if (sWifiPresent) sWifiLevel else -1
 
         /**
          * Resolves the real-time signal strength level for the active mobile data SIM.

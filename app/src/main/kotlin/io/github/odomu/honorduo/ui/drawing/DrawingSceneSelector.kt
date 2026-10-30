@@ -18,6 +18,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import io.github.odomu.honorduo.R
 import io.github.odomu.honorduo.ui.screen.PreviewScene
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
@@ -95,7 +96,7 @@ internal fun SignalOutOfRingNotice() {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
     ) {
         Text(
-            text = stringResource(io.github.odomu.honorduo.R.string.drawing_signal_out_of_ring_notice),
+            text = stringResource(R.string.drawing_signal_out_of_ring_notice),
             style = MiuixTheme.textStyles.footnote2,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
