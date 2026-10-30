@@ -20,8 +20,9 @@ import io.github.odomu.honorduo.hook.tracker.ScreenStateTracker
 import io.github.odomu.honorduo.model.ModuleConfig
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.StatusState
-import io.github.odomu.honorduo.ui.render.IconGeometry
 import io.github.odomu.honorduo.ui.render.IconRenderer
+import io.github.odomu.honorduo.ui.render.geometry.CapsuleGeometry
+import io.github.odomu.honorduo.ui.render.geometry.IconGeometry
 import kotlin.math.roundToInt
 
 /**
@@ -73,12 +74,12 @@ internal class GlyphView(context: Context) : View(context) {
         // Reserve clearance for stacked signal 2 at bottom
         val extraStackH = if (hasBottomStacked) 1.5f * density else 0f
         val wanted = if (a.capsule) {
-            nominal + (2f * IconGeometry.CAP_BAND_H * nominal / IconGeometry.CAP_INK_H).roundToInt()
+            nominal + (2f * CapsuleGeometry.CAP_BAND_H * nominal / CapsuleGeometry.CAP_INK_H).roundToInt()
         } else {
             ((20.5f * density) + extraStackH).roundToInt()
         }
         val height = if (offered > 0) minOf(offered, wanted) else wanted
-        val baseWidth = (height * IconGeometry.hostAspect(a)).roundToInt()
+        val baseWidth = (height * IconGeometry.hostAspect(a, StatusState.wifiInkLevel())).roundToInt()
         // Dynamically widen view as ring spacing widens to push sibling views and avoid clipping
         val extraSpacingW = if (a.ring && a.ringSpacingX > 0) (2f * a.ringSpacingX * density).roundToInt() else 0
         val width = 1.coerceAtLeast(baseWidth + extraSpacingW)

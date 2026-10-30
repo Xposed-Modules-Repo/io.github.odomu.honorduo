@@ -25,9 +25,11 @@ import io.github.odomu.honorduo.model.ModuleSettings
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.StatusAppearance
 import io.github.odomu.honorduo.model.StatusState
-import io.github.odomu.honorduo.ui.render.IconGeometry
+import io.github.odomu.honorduo.ui.render.GlyphInk
 import io.github.odomu.honorduo.ui.render.IconRenderer
 import io.github.odomu.honorduo.ui.render.IconZones
+import io.github.odomu.honorduo.ui.render.OutSignalRenderer
+import io.github.odomu.honorduo.ui.render.geometry.IconGeometry
 import java.util.Calendar
 
 /**
@@ -62,7 +64,7 @@ class StatusPreviewView @JvmOverloads constructor(
     private var quickCharging = false
     private var powerSave = false
     private var low = false
-    private var wifiLevel = 3
+    private var wifiLevel = PREVIEW_WIFI_LEVEL
     private var mobileLevel = 4
     private var slotLevels: IntArray? = null
     private var mobileType = ""
@@ -285,7 +287,7 @@ class StatusPreviewView @JvmOverloads constructor(
 
         val a = StatusAppearance.of(settings)
         labelPaint.color = foreground
-        labelPaint.typeface = IconRenderer.typefaceFor(a.typeWeight)
+        labelPaint.typeface = GlyphInk.typefaceFor(a.typeWeight)
         labelPaint.textAlign = Paint.Align.CENTER
         labelPaint.textScaleX = 1f
         // dp setting to px exactly as the hooked side resolves it, then scaled by this
@@ -294,7 +296,7 @@ class StatusPreviewView @JvmOverloads constructor(
         labelPaint.textSize = size
 
         // Shrink the trailing "A" as the status bar label does; this preview draws with a
-        // Paint, so it takes the same two-run path IconRenderer.drawType takes.
+        // Paint, so it takes the same two-run path GlyphInk.drawType takes.
         val shrunk = IconGeometry.hasShrunkSuffix(mobileType, a.typeSuffixScale)
         val base = if (shrunk) IconGeometry.typeBase(mobileType) else mobileType
         val suffix = if (shrunk) IconGeometry.TYPE_SUFFIX.toString() else ""
@@ -339,7 +341,7 @@ class StatusPreviewView @JvmOverloads constructor(
         val a = StatusAppearance.of(settings)
         val reading = IntArray(2)
         val slots = slotLevels
-        IconRenderer.outSignalLevels(
+        OutSignalRenderer.outSignalLevels(
             a.dataSimOnly, mobileLevel, slots, -1,
             if (slots == null) 0 else slots.count { it >= 0 }, reading,
         )
@@ -349,11 +351,11 @@ class StatusPreviewView @JvmOverloads constructor(
         val dual = reading[1] >= 0
         val type = if (a.labelInReading()) "5G" else null
         val type2 = if (dual) type else null
-        var hostHeight = IconRenderer.outSignalHeight(a, a.outSignalSize, density, dual)
+        var hostHeight = OutSignalRenderer.outSignalHeight(a, a.outSignalSize, density, dual)
         if (a.stackStyle == Prefs.STACK_STYLE_ROWS && dual) {
             hostHeight = Math.round(hostHeight * 1.3f)
         }
-        val hostWidth = IconRenderer.outSignalWidth(hostHeight, a, type, type2, dual)
+        val hostWidth = OutSignalRenderer.outSignalWidth(hostHeight, a, type, type2, dual)
         if (hostWidth <= 0) return
 
         // The reading is shown at its own size, centred in the cell - NOT offset by its margin.
@@ -363,7 +365,7 @@ class StatusPreviewView @JvmOverloads constructor(
         val left = (innerW - drawW) * 0.5f
         val top = (innerH - drawH) * 0.5f
         canvas.withTranslation(left, top) {
-            IconRenderer.drawOutSignal(
+            OutSignalRenderer.drawOutSignal(
                 canvas, drawW, drawH, reading[0], reading[1], foreground, a, type, type2,
             )
         }
@@ -395,6 +397,9 @@ class StatusPreviewView @JvmOverloads constructor(
         /** The frame rate the preview draws; the status bar's own is sampled there. */
         private const val PREVIEW_FPS = 120
 
+        /** Sample Wi-Fi level the preview draws and hit-tests with. */
+        private const val PREVIEW_WIFI_LEVEL = 3
+
         /** The transform the editor hit-tests with; see [IconZones.viewTransform]. */
         @JvmStatic
         fun zoneTransform(
@@ -404,7 +409,7 @@ class StatusPreviewView @JvmOverloads constructor(
             settings: ModuleSettings?,
         ): FloatArray? {
             if (settings == null) return null
-            return IconZones.viewTransform(width, height, inset, StatusAppearance.of(settings))
+            return IconZones.viewTransform(width, height, inset, StatusAppearance.of(settings), PREVIEW_WIFI_LEVEL)
         }
     }
 }

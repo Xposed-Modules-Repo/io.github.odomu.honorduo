@@ -4,7 +4,7 @@ import android.content.Context
 import android.view.Gravity
 import android.widget.TextView
 import io.github.odomu.honorduo.model.StatusState
-import io.github.odomu.honorduo.ui.render.IconGeometry
+import io.github.odomu.honorduo.ui.render.geometry.IconGeometry
 
 internal class OutTypeLabel(context: Context) : TextView(context) {
     var host: StatusState? = null

@@ -1,11 +1,11 @@
 package io.github.odomu.honorduo.ui.view
-import android.content.Context
 
+import android.content.Context
 import android.graphics.Canvas
 import android.view.View
 import io.github.odomu.honorduo.model.ModuleConfig
 import io.github.odomu.honorduo.model.StatusState
-import io.github.odomu.honorduo.ui.render.IconRenderer
+import io.github.odomu.honorduo.ui.render.OutSignalRenderer
 
 internal class OutSignalView(context: Context) : View(context) {
     init {
@@ -29,12 +29,12 @@ internal class OutSignalView(context: Context) : View(context) {
             lp.height
         } else {
             val specH = MeasureSpec.getSize(heightMeasureSpec)
-            if (specH > 0) specH else IconRenderer.outSignalHeight(a, a.outSignalSize, density, dual)
+            if (specH > 0) specH else OutSignalRenderer.outSignalHeight(a, a.outSignalSize, density, dual)
         }
         val w = if (lp != null && lp.width > 0) {
             lp.width
         } else {
-            IconRenderer.outSignalWidth(h, a, type, type2, dual)
+            OutSignalRenderer.outSignalWidth(h, a, type, type2, dual)
         }
         setMeasuredDimension(
             resolveSize(w, widthMeasureSpec),
@@ -44,7 +44,7 @@ internal class OutSignalView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         val source = host ?: return
-        IconRenderer.drawOutSignal(
+        OutSignalRenderer.drawOutSignal(
             canvas, width, height, bars, dots,
             source.foreground(), ModuleConfig.appearance(), type, type2,
         )

@@ -76,7 +76,7 @@ import io.github.odomu.honorduo.ui.drawing.PriorityPreferenceRow
 import io.github.odomu.honorduo.ui.drawing.SceneChip
 import io.github.odomu.honorduo.ui.drawing.SceneSelector
 import io.github.odomu.honorduo.ui.drawing.SignalOutOfRingNotice
-import io.github.odomu.honorduo.ui.manager.SettingsRepository
+import io.github.odomu.honorduo.ui.manager.SettingsStore
 import io.github.odomu.honorduo.ui.render.IconZones
 import io.github.odomu.honorduo.ui.view.StatusPreviewView
 import top.yukonga.miuix.kmp.basic.Button
@@ -194,7 +194,7 @@ private data class ZoneSelection(val zone: IconZones.Zone, val part: IconZones.P
  */
 internal fun LazyListScope.drawingTab(
     settings: ModuleSettings,
-    update: ((SettingsRepository) -> Unit) -> Unit,
+    update: ((SettingsStore) -> Unit) -> Unit,
     onEditColor: (RoleColor) -> Unit,
     onResetColors: () -> Unit,
     /**
@@ -228,7 +228,7 @@ internal fun LazyListScope.drawingTab(
 @Composable
 private fun DrawingEditorCard(
     settings: ModuleSettings,
-    update: ((SettingsRepository) -> Unit) -> Unit,
+    update: ((SettingsStore) -> Unit) -> Unit,
     onEditColor: (RoleColor) -> Unit,
     onResetColors: () -> Unit,
     snapshotForStyle: (Int) -> ModuleSettings,
@@ -857,7 +857,7 @@ private fun PlacementFeedback(
  */
 private fun applyZoneAssignment(
     next: ModuleSettings,
-    repository: SettingsRepository,
+    repository: SettingsStore,
     settings: ModuleSettings,
 ) {
     // The slot-driven arrangements write the whole layout in one transaction.

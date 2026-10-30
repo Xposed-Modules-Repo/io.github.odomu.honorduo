@@ -14,6 +14,10 @@ package io.github.odomu.honorduo.ui.render
 import io.github.odomu.honorduo.model.ModuleSettings
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.StatusAppearance
+import io.github.odomu.honorduo.ui.render.geometry.CapsuleGeometry
+import io.github.odomu.honorduo.ui.render.geometry.IconGeometry
+import io.github.odomu.honorduo.ui.render.geometry.RectGeometry
+import io.github.odomu.honorduo.ui.render.geometry.RingGeometry
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.hypot
@@ -68,8 +72,8 @@ object IconZones {
      * and a seam even one design unit inside them would put the right-hand stroke in the
      * mobile column, where a tap turns the signal meter off instead of flipping the number.
      */
-    private const val RECT_SEAM_LEFT = IconGeometry.RECT_TEXT_LEFT
-    private const val RECT_SEAM_RIGHT = IconGeometry.RECT_TEXT_RIGHT
+    private const val RECT_SEAM_LEFT = RectGeometry.RECT_TEXT_LEFT
+    private const val RECT_SEAM_RIGHT = RectGeometry.RECT_TEXT_RIGHT
 
     /**
      * The ring's two cuts, taken from [IconGeometry].
@@ -78,8 +82,8 @@ object IconZones {
      * that third gives, so the band the editor hit-tests and the band the text is fitted
      * into have to be the same band.
      */
-    private const val RING_TOP_BOTTOM = IconGeometry.ZONE_CUT_TOP
-    private const val RING_CENTRE_BOTTOM = IconGeometry.ZONE_CUT_BOTTOM
+    private const val RING_TOP_BOTTOM = RingGeometry.ZONE_CUT_TOP
+    private const val RING_CENTRE_BOTTOM = RingGeometry.ZONE_CUT_BOTTOM
 
     /**
      * The design-space boxes a zone covers, for the ring and the rectangle.
@@ -148,8 +152,8 @@ object IconZones {
             // A flank holding the Wi-Fi arcs draws *outside* the ring's ink box, so the host
             // carries that width as margin - and the tap that selects that flank has to
             // reach the margin too, or tapping the arcs the user placed lands on nothing.
-            val extra = if (a.ring) IconGeometry.ringFlankWifiExtra(a) else 0f
-            val pad = if (a.ring) IconGeometry.ringInkPad(a) else 0f
+            val extra = if (a.ring) RingGeometry.ringFlankWifiExtra(a) else 0f
+            val pad = if (a.ring) RingGeometry.ringInkPad(a) else 0f
             // Mutated in place rather than copied: `base` was built for this call only, and
             // the settings preview asks for these boxes on every frame of a highlighted flank.
             when (zone) {
@@ -163,38 +167,38 @@ object IconZones {
             }
             return base
         }
-        val stroke = a.ringStroke * IconGeometry.CAP_STROKE_RATIO
-        val top = IconGeometry.capInteriorTop(stroke)
-        val bottom = IconGeometry.capInteriorBottom(stroke)
+        val stroke = a.ringStroke * CapsuleGeometry.CAP_STROKE_RATIO
+        val top = CapsuleGeometry.capInteriorTop(stroke)
+        val bottom = CapsuleGeometry.capInteriorBottom(stroke)
         // Include the antialiased fringe outside the mathematical stroke bounds; this does
         // not move the seams between the readings and the signal rows.
         val fringe = 1f
         // The drawn shape, not the ink box: with two pieces in the body the capsule is
         // the wider one, and a tap past its edge is not a tap on the capsule.
         val shapeRight = a.capsuleRight()
-        val shapeLeft = IconGeometry.capLeftFor(shapeRight, IconGeometry.capPairRight(a))
+        val shapeLeft = CapsuleGeometry.capLeftFor(shapeRight, CapsuleGeometry.capPairRight(a))
         val left = shapeLeft + stroke * 0.5f - fringe
         val right = shapeRight + stroke * 0.5f + fringe
         val hasLeftWifi = a.ringZones.getOrNull(Prefs.ZONE_LEFT)?.contains(Prefs.PART_WIFI) == true
         val hasRightWifi = a.ringZones.getOrNull(Prefs.ZONE_RIGHT)?.contains(Prefs.PART_WIFI) == true
-        val leftWifiExtra = if (hasLeftWifi) IconGeometry.CAP_FLANK_WIFI_W else 0f
-        val rightWifiExtra = if (hasRightWifi) IconGeometry.CAP_FLANK_WIFI_W else 0f
-        val flankWidth = IconGeometry.CAP_RADIUS + fringe
+        val leftWifiExtra = if (hasLeftWifi) CapsuleGeometry.CAP_FLANK_WIFI_W else 0f
+        val rightWifiExtra = if (hasRightWifi) CapsuleGeometry.CAP_FLANK_WIFI_W else 0f
+        val flankWidth = CapsuleGeometry.CAP_RADIUS + fringe
         return when (zone) {
             Zone.TOP -> arrayOf(
-                floatArrayOf(left + flankWidth, IconGeometry.CAP_INK_TOP - fringe, right - flankWidth, top),
+                floatArrayOf(left + flankWidth, CapsuleGeometry.CAP_INK_TOP - fringe, right - flankWidth, top),
             )
             Zone.CENTRE -> arrayOf(
                 floatArrayOf(left + flankWidth, top, right - flankWidth, bottom),
             )
             Zone.BOTTOM -> arrayOf(
-                floatArrayOf(left + flankWidth, bottom, right - flankWidth, IconGeometry.CAP_INK_BOTTOM + fringe),
+                floatArrayOf(left + flankWidth, bottom, right - flankWidth, CapsuleGeometry.CAP_INK_BOTTOM + fringe),
             )
             Zone.LEFT -> arrayOf(
-                floatArrayOf(left - leftWifiExtra, IconGeometry.CAP_INK_TOP - fringe, left + flankWidth, IconGeometry.CAP_INK_BOTTOM + fringe),
+                floatArrayOf(left - leftWifiExtra, CapsuleGeometry.CAP_INK_TOP - fringe, left + flankWidth, CapsuleGeometry.CAP_INK_BOTTOM + fringe),
             )
             Zone.RIGHT -> arrayOf(
-                floatArrayOf(right - flankWidth, IconGeometry.CAP_INK_TOP - fringe, right + rightWifiExtra, IconGeometry.CAP_INK_BOTTOM + fringe),
+                floatArrayOf(right - flankWidth, CapsuleGeometry.CAP_INK_TOP - fringe, right + rightWifiExtra, CapsuleGeometry.CAP_INK_BOTTOM + fringe),
             )
         }
     }
@@ -256,6 +260,7 @@ object IconZones {
         height: Int,
         inset: Float,
         appearance: StatusAppearance?,
+        wifiLevel: Int,
     ): FloatArray? {
         if (width <= 0 || height <= 0 || appearance == null) return null
         val safeInset = inset.coerceIn(0f, MAX_INSET)
@@ -264,7 +269,7 @@ object IconZones {
         val innerH = (height - 2f * pad).roundToInt()
         if (innerW <= 0 || innerH <= 0) return null
         val t = FloatArray(3)
-        if (!IconRenderer.designTransform(innerW, innerH, appearance, t)) return null
+        if (!IconRenderer.designTransform(innerW, innerH, appearance, t, wifiLevel)) return null
         t[1] += pad
         t[2] += pad
         return t
