@@ -134,34 +134,30 @@ internal object BarClockManager {
     }
 
     private fun syncNow(a: StatusAppearance) {
-        var native = sBarClock?.get()
-        // Detached trees retain their internal parent links. Attachment, not a non-null
-        // parent, decides whether this clock can still host a visible replacement.
-        if (native != null && !native.isAttachedToWindow) {
+        // The clock host is chosen separately from the icon tree: the lock screen keeps
+        // its own `HwStatusbarContents` (with a view of the same `clock` id) attached
+        // while it is merely invisible, and it already shows the time in the middle of
+        // the screen. Drawing a second clock there duplicated it and took the real bar's
+        // copy away, so [clockHostViewGroup] never returns that tree - icon settlement,
+        // which the lock screen does need for the merged glyph, still uses every tree.
+        val contents = StatusBarIconManager.clockHostViewGroup
+        val cached = sBarClock?.get()
+        if (cached != null && (!cached.isAttachedToWindow || !cached.inTreeOf(contents))) {
             sBarClock = null
-            native = null
         }
-        if (native == null) {
-            val contents = StatusBarIconManager.contentsViewGroup
+        val owner = contents
+        val native = sBarClock?.get() ?: owner?.let {
             val clockId = StatusBarIconManager.clockId
-            if (contents != null && clockId != 0) {
-                native = contents.findViewById(clockId) as? TextView
-                if (native != null) {
-                    sBarClock = WeakReference(native)
-                }
+            if (clockId == 0) null else (it.findViewById(clockId) as? TextView)?.also { found ->
+                sBarClock = WeakReference(found)
             }
         }
-        // A view we already put in the bar is evidence enough: the lookup above can fail
-        // for a frame while the host swaps trees, and dropping the clock then was how a
-        // rotation or a pull-down left the corner empty for good.
-        val live = sBarClockView?.takeIf { it.parent != null && it.isAttachedToWindow }
-        if (!a.enabled || (native == null && live == null) || a.barClockHidden ||
-            StatusBarRowManager.suppressed || (a.glyph && a.hidesStatusClock()) || !a.drawsBarClock()
-        ) {
+        val suppress = !a.enabled || a.barClockHidden || StatusBarRowManager.suppressed ||
+            (a.glyph && a.hidesStatusClock()) || !a.drawsBarClock()
+        if (owner == null || suppress) {
+            // No tree to draw in, or nothing to draw: drop the replacement and hand the
+            // bar's own clock back, so the lock screen keeps its time.
             removeBarClock()
-            // The clock's visibility is decided by ownership, never by this branch:
-            // when the arrangement draws the time itself the bar's copy has to stay
-            // hidden, and "handing it back" here was what put it back in the corner.
             native?.let { StatusBarIconManager.settleClock(it, a) }
             return
         }
@@ -207,13 +203,15 @@ internal object BarClockManager {
         a.enabled && a.drawsBarClock() && !a.barClockHidden &&
             !StatusBarRowManager.suppressed && !(a.glyph && a.hidesStatusClock())
 
-    fun dropNow() {
-        sBarClockLoop = false
-        sBarClockToken++
-        val view = sBarClockView ?: return
-        sBarClockView = null
-        removeFromParent(view)
-        restoreClipping()
+    /** Whether [view] is [root] itself or a descendant of it. */
+    private fun View.inTreeOf(root: View?): Boolean {
+        if (root == null) return false
+        var current: View? = this
+        while (current != null) {
+            if (current === root) return true
+            current = current.parent as? View
+        }
+        return false
     }
 
     fun onScreenStateChanged(screenOn: Boolean) {

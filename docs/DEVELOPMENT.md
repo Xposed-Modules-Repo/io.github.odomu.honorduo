@@ -42,12 +42,13 @@ app/src/main/kotlin/io/github/odomu/honorduo/
 ├── HonorDuoApp.kt            设置进程；连接 XposedService，断线重连后重放设置
 ├── hook/
 │   ├── core/                 核心 Hook 与底层注入入口
-│   │   ├── StatusHooks.kt        全部注入点总入口、行注册、原生图标抑制、环外视图挂载
-│   │   ├── SystemBarHook.kt      状态栏着色与深浅色模式切换广播通知
-│   │   ├── StatusBarIconHook.kt  原生状态栏图标查找与替换
-│   │   ├── SignalIconHook.kt     移动数据活动监听与原生网络类型替换
-│   │   ├── ShadeHook.kt          下拉通知栏原生日期文本与时间样式接管
-│   │   └── Refl.kt               反射查找与读写的薄封装，静默回退
+│   │   ├── SystemUiHook.kt        注入总入口、配置更新与重绘分发
+│   │   ├── SystemBarHook.kt        状态栏生命周期、时钟、瞬态显示与隐私指示器控制
+│   │   ├── StatusBarIconHook.kt   原生状态栏图标查找与替换
+│   │   ├── SignalIconHook.kt      移动数据活动监听与原生网络类型替换
+│   │   ├── NotifCenterHook.kt     通知中心日期、农历、天气及通知过滤
+│   │   ├── ControlCenterHook.kt   控制中心交互与下拉设置
+│   │   └── Refl.kt               反射查找与读写封装
 │   ├── statusbar/            状态栏图标行容器管理与时钟组件
 │   │   ├── StatusBarRowManager.kt 图标行的注册 / 注销与环外视图排布
 │   │   ├── StatusBarIconManager.kt 状态栏图标资源缓存与位图复用
@@ -87,14 +88,23 @@ app/src/main/kotlin/io/github/odomu/honorduo/
     │   ├── DrawingSceneSelector.kt  预览场景切换器
     │   └── PriorityListSection.kt   优先级顺序列表排布
     ├── manager/              业务控制器与服务
+    │   ├── AppUpdater.kt            应用内检查更新、GitHub Release 解析与下载
     │   ├── ConfigBackupManager.kt   配置导出与恢复（BackupManager 独立生命周期管理）
-    │   ├── FontInstaller.kt         自定义字体文件安装与管理
-    │   ├── RestartController.kt     通过 root shell 重启 com.android.systemui
-    │   ├── SettingsRepository.kt    读写本地 prefs、推送框架、发送重载广播
-    │   └── UpdateController.kt      应用内检查更新、GitHub Release 解析与下载
+    │   ├── GlyphFontInstaller.kt    自定义字体文件安装与管理
+    │   ├── SettingsStore.kt         读写本地 prefs、推送框架、发送重载广播
+    │   └── SystemUiRestarter.kt     通过 root shell 重启 com.android.systemui
     ├── render/               矢量几何与图形渲染引擎
-    │   ├── IconGeometry.kt          120×120 设计空间矢量几何常量
-    │   ├── IconRenderer.kt          圆环 / 矩形 / 胶囊绘制及环外读数渲染
+    │   ├── geometry/         120×120 设计空间的常量与派生几何
+    │   │   ├── IconGeometry.kt      设计空间、墨迹盒、Wi-Fi 弧与制式文字
+    │   │   ├── RingGeometry.kt      圆环开口、三区、翼侧与缺口几何
+    │   │   ├── RectGeometry.kt      矩形排布与环外柱高数组
+    │   │   └── CapsuleGeometry.kt   胶囊主体、开口与内部尺寸
+    │   ├── GlyphInk.kt              共享画笔、路径、字体拟合与读数文本
+    │   ├── IconRenderer.kt          入口分发、尺寸贴合与动画时钟
+    │   ├── RingRenderer.kt          圆环排布绘制与环内 Wi-Fi 弧
+    │   ├── CapsuleRenderer.kt       胶囊排布绘制
+    │   ├── RectRenderer.kt          矩形排布绘制
+    │   ├── OutSignalRenderer.kt     环外读数、标签与预览时钟
     │   ├── IconZones.kt             三个可点区域与组件仲裁
     │   └── WeatherIconDrawer.kt     天气图标矢量绘制
     ├── screen/               顶层独立页面
@@ -137,27 +147,50 @@ app/src/main/kotlin/io/github/odomu/honorduo/
 2. **`ModuleSettings.kt`**：加字段，并接到 `defaults()`、`from(SharedPreferences)`、
    `fromBundle(Bundle)`、`toBundle()`、`copy()`、`applyKeyFrom(src, key)` 与 `equals()`。
    `equals()` 漏字段会让 Compose 认为快照没变、界面和预览都不刷新。
-3. **`StatusAppearance.kt`**：把设置解析成绘制与抑制都能读的字段。渲染器和 `StatusHooks` 只读这个
-   快照，不直接读 `ModuleSettings`。
+3. **`StatusAppearance.kt`**：把设置解析成绘制与抑制都能读的字段。渲染器和 `SystemUiHook` 只读这个
+   快照，不直接读 `ModuleSettings`。时钟新内容必须补进 `drawsBarClock()`；例如只开启农历也需要自绘。
 4. **`ui/control/ContentControls.kt`** 或 **`ui/control/PartControls.kt`**：加开关、位置选择或滑杆；标签写进
    `res/values/strings.xml` 与 `res/values-en/strings.xml`。
-5. **`ui/manager/SettingsRepository.kt`**：加 `setXxx`，先写应用自己的 `SharedPreferences`，再通过
-   `io.github.odomu.honorduo.action.RELOAD` 广播。别忘了把新键补进 `syncAllToFramework()`，否则服务晚绑定时
-   这次写入不会被重放。
+5. **`ui/manager/SettingsStore.kt`**：加 `setXxx`，先写应用自己的 `SharedPreferences`，再通过
+   `io.github.odomu.honorduo.action.RELOAD` 广播。新键还必须补进 `syncAllToFramework()`：恢复备份及服务
+   晚绑定都经过这里，单独切换开关能生效不代表整包恢复完整。时钟同步要覆盖农历开关、日期/星期格式、
+   上下行偏移、行距、农历间距、字号/字重与各深浅色，不能只同步开关。
 
-改完设置后，钩子侧由 `ModuleConfig` 的单键监听或整包广播更新快照，再通知 `StatusHooks` 重绘。
-`ModuleConfig` 还会在安装后 5 秒与 20 秒各补读一次，用来兜住冷启动时 remote preferences 尚未就绪的
-情况。
+恢复配置时，`ConfigBackupManager.importFromJson()` 写入偏好后调用 `syncAllToFramework()`；成功回调在
+`SettingsScreen` 重新 `read()`，随后 `StatusPreviewView.setSettings()` 更新包含农历的预览文本。
+`ModuleConfig` 通过单键监听或整包广播更新钩子侧快照，再由 `SystemUiHook` 刷新自绘时钟与字形。
 
 ## 改绘制
 
-- 一切以 `IconGeometry` 的 120×120 设计空间为单位，`IconRenderer` 只在该空间里画。
+- 一切以 `ui/render/geometry/` 里的 120×120 设计空间为单位，各 `*Renderer` 只在该空间里画。
+- 几何按职责分文件：`IconGeometry` 放共享的设计空间与墨迹盒，`RingGeometry` / `RectGeometry` /
+  `CapsuleGeometry` 各放一种排布的常量与派生函数。一种排布的新常量写进它自己的文件。
 - 改动墨迹盒相关的常量后，`IconGeometry.checkInkBox()` 会在类加载时校验；它抛异常说明字面量漂移了。
-- 圆环、矩形、胶囊共用 `drawType` / `fitSize` 等底层绘制，改这些会同时影响三种布局，先确认
-  是有意的。
+- 圆环、矩形、胶囊共用 `GlyphInk` 的 `drawType` / `fitSize` 等底层绘制，改这些会同时影响三种布局，
+  先确认是有意的。
 - 每帧都在绘制路径上，避免分配：`Paint`、`RectF`、`Path` 都是静态复用对象。
 - 设置界面的预览必须继续调用 `IconRenderer`，不要复制一份几何；预览与状态栏画出不同结果就是
-  从这里开始的。
+  从这里开始的。预览的 Wi-Fi 等级由调用方显式传入（`designTransform` / `hostAspect`），
+  不要让它退回读运行时状态。
+
+### 布局同步与功耗
+
+- `HwSystemIcons.onLayout` 通过 `requestSync()` 合并待执行的行同步；不要添加每帧轮询修复挂载。
+- `inRow()` 只检查父容器引用，不遍历视图树、无定时器；保留它以恢复被宿主移除的子 View。
+- `syncOutViews()` 为信号、读数、制式共用一次 `StatusState.refresh()`；`invalidateAll()` 也在直接同步
+  读数前刷新一次。子同步函数不再各自重复刷新，不改变采样节流规则。
+- `size()` 仅在宽高、重力或 margin 变化时写回 `LayoutParams`，禁止无变化时反复触发布局。
+- `BarClockView.apply()` 已比较内容及尺寸，并在墨迹宽高改变时请求布局；`BarClockManager` 只更新数据和
+  重绘，不得再无条件调用视图及父容器的 `requestLayout()`。仅颜色或数字变化不应强制父级重排。
+- `SystemBarHook` 统一注册宿主、时钟、瞬态栏和隐私指示器钩子，不再为后两者单独建文件。
+- 全局 `View.setFlags` 回调先检查可见性掩码（`0xC`）；焦点、点击等其他标志变化不进入图标抑制流程。
+- 临时露出状态栏不等于展开通知栏：瞬态回调须同时校验 displayId 与 `WindowInsets.Type.statusBars()`。
+  合并为一次主线程恢复任务，执行时重新选择当前 contents/clock，不缓存 View、不增加轮询或延迟重试。
+- 隐私指示器按实例以弱引用跟踪，记录模块实际隐藏前的可见性；关闭隐藏或主开关时只恢复模块改过的值。
+  宿主移除指示器时释放记录及模块可见性，避免同一个 View 下次复用时仍为 `GONE`。
+- 时钟挂载先更新原生 clock 引用再刷新宿主；`invalidateHosts()`、`applyIconVisibility()` 已包含时钟同步，
+  不在同一挂载回调额外重复 `sync()` 或先隐藏原生时钟。
+
 
 ## 调试
 

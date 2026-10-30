@@ -14,10 +14,6 @@
 `docs/release-notes/release-notes-<version>.md` 是本分支每次发版的 changelog 源文件，由
 `release.ps1 -NotesFile` 读取，内容即 GitHub Release 正文。当前版本线从 **1.0.0** 开始：
 
-| 文件 | 内容 |
-| --- | --- |
-| [release-notes-1.0.0.md](release-notes/release-notes-1.0.0.md) | 本分支首个版本。 |
-
 ## 素材
 
 | 路径 | 内容 |

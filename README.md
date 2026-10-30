@@ -1,6 +1,6 @@
 # HonorDuo
 
-[![版本](https://img.shields.io/badge/version-1.0.3-blue)](https://github.com/odomu/HonorDuo/releases/latest)
+[![版本](https://img.shields.io/github/v/release/odomu/HonorDuo?label=version&color=blue)](https://github.com/odomu/HonorDuo/releases/latest)
 [![许可证](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 [![Android](https://img.shields.io/badge/Android-10%2B-green)](https://developer.android.com)
 [![LSPosed](https://img.shields.io/badge/LSPosed-API%20102-orange)](https://github.com/LSPosed/LSPosed)

@@ -88,6 +88,47 @@ internal object StatusBarIconManager {
             clockContents ?: fallback
         }
 
+    /**
+     * Whether [view] belongs to the lock screen's own status bar.
+     *
+     * Found by walking up to the bar root: `keyguard_status_bar.xml` inflates its own
+     * `HwKeyguardStatusBarView`, so the class name is the one signal that distinguishes
+     * the lock screen's bar from the main one without depending on a visibility read.
+     */
+    fun isKeyguardTree(view: View): Boolean {
+        var current: View? = view
+        while (current != null) {
+            if (current.javaClass.name.endsWith("KeyguardStatusBarView")) return true
+            current = current.parent as? View
+        }
+        return false
+    }
+
+    /**
+     * The contents tree the module may draw its own clock into, or null when only the
+     * lock screen's bar is present.
+     *
+     * Separate from [contentsViewGroup] on purpose. That one answers "where is the bar
+     * right now" and is used for icon settlement, which the lock screen does need - it
+     * shows the merged glyph. The clock is the one piece the lock screen does not want:
+     * it has its own time, so a second clock there is a duplicate, and mounting it there
+     * also stole the main bar's copy.
+     */
+    val clockHostViewGroup: ViewGroup?
+        get() = synchronized(CONTENTS) {
+            var fallback: ViewGroup? = null
+            var clockContents: ViewGroup? = null
+            for (i in CONTENTS.indices.reversed()) {
+                val group = CONTENTS[i].get()
+                if (group == null || !group.isAttachedToWindow || isKeyguardTree(group)) continue
+                if (fallback == null) fallback = group
+                if (clockId == 0 || group.findViewById<View>(clockId) == null) continue
+                if (group.isShown) return@synchronized group
+                if (clockContents == null) clockContents = group
+            }
+            clockContents ?: fallback
+        }
+
 
     /** Registers one attached contents view; called for every one, not only the last. */
     fun noteContents(group: ViewGroup) {
@@ -175,7 +216,10 @@ internal object StatusBarIconManager {
         }
         val id = root.id
         if (id == wifiId || id == mobileId || id == batteryId || id == clockId) {
-            if (isOwned(id, a)) {
+            // The lock screen draws its own time and keeps its own clock: it is never
+            // taken over, only handed back. The row suppression still applies to the
+            // merged glyph, which is what the lock screen is meant to show.
+            if (isOwned(id, a) && !isKeyguardClock(root)) {
                 rememberHidden(root)
                 hide(root)
             } else {
@@ -320,10 +364,11 @@ internal object StatusBarIconManager {
         // its write can land before the view is parented (a re-inflated bar sets
         // visibility during inflate), when the contents walk below has nothing to
         // match yet. The class check keeps the calling and projection clocks - which
-        // share the id but are a plain TextView - out of it.
+        // share the id but are a plain TextView - out of it. A clock in the lock
+        // screen's own bar is left alone: the lock screen keeps its own time.
         if (id == clockId &&
             (view is TextView || view.javaClass.name.endsWith(STATUS_BAR_CLOCK_SUFFIX)) &&
-            isOwned(id, a)
+            isOwned(id, a) && !isKeyguardClock(view)
         ) {
             rememberHidden(view)
             hide(view)
@@ -349,6 +394,16 @@ internal object StatusBarIconManager {
         // text, no re-hiding. Only the hand-back below runs.
         if (StatusBarRowManager.suppressed) {
             BarClockManager.sync(a)
+            handBackAll()
+            return
+        }
+        // The master switch is the user saying "give it all back". It is handled before
+        // anything else, and without consulting the id table or the layout: with the
+        // switch off the module replaces nothing, so every view it hid returns to the
+        // visibility the host had given it - the bar's own time and battery included.
+        if (!a.enabled) {
+            BarClockManager.sync(a)
+            settleAllTrackedSlots(a)
             handBackAll()
             return
         }
@@ -455,14 +510,25 @@ internal object StatusBarIconManager {
         }
     }
 
+    /**
+     * Hides [view], recording the visibility it had first.
+     *
+     * Every direct caller - the battery, the type label, the Wi-Fi and mobile icons, the
+     * bar's own clock - used to hide without registering, while [release] restores only
+     * views it holds a record for. One exclusion (an excluded panel, the lockscreen) then
+     * called [handBackAll], which had nothing to hand back, so the native icons stayed
+     * gone for good.
+     */
     fun hide(view: View) {
-        if (view.visibility != View.GONE) {
-            view.visibility = View.GONE
-        }
+        if (view.isGone) return
+        rememberHidden(view)
+        view.visibility = View.GONE
     }
 
     fun release(view: View, a: StatusAppearance = ModuleConfig.appearance()) {
-        if (view.id == clockId && a.barClockHidden) {
+        // The lock screen's clock is the system's, never this module's, so a "hide the
+        // status clock" setting must not reach it.
+        if (view.id == clockId && a.barClockHidden && !isKeyguardClock(view)) {
             if (view.visibility != View.GONE) view.visibility = View.GONE
             return
         }
@@ -478,19 +544,28 @@ internal object StatusBarIconManager {
      * Puts the bar's own clock where the appearance asks for it.
      *
      * The one place the clock's visibility is decided: the module either draws the
-     * time itself and the native copy goes, or the native copy comes back. Written as
+     * time itself and the bar's copy goes, or the native copy comes back. Written as
      * a single rule because "handing back" [release] alone used to force the clock
      * visible on every repaint, and the clock placed inside the glyph flickered back
      * into the top-left corner whenever the suppression hook missed a write.
+     *
+     * A clock inside the lock screen's own bar is never taken over, whatever the
+     * settings say: the lock screen already shows the time in the middle of the screen,
+     * and the module's second clock there was both a duplicate and the reason the lock
+     * screen's own time disappeared.
      */
     fun settleClock(view: View, a: StatusAppearance = ModuleConfig.appearance()) {
-        if (isOwned(clockId, a)) {
+        if (isOwned(clockId, a) && !isKeyguardClock(view)) {
             rememberHidden(view)
             hide(view)
         } else {
             release(view, a)
         }
     }
+
+    /** Whether [view] is a clock in the lock screen's own status bar. */
+    private fun isKeyguardClock(view: View): Boolean =
+        view.id == clockId && isKeyguardTree(view)
 
     /**
      * Re-hides the bar's clock when the appearance still owns it.
@@ -503,7 +578,7 @@ internal object StatusBarIconManager {
     fun reassertClock(a: StatusAppearance = ModuleConfig.appearance()) {
         if (!idsResolved || !isOwned(clockId, a)) return
         val view = BarClockManager.nativeClock ?: return
-        if (view.visibility != View.GONE) {
+        if (view.visibility != View.GONE && !isKeyguardClock(view)) {
             rememberHidden(view)
             hide(view)
         }
