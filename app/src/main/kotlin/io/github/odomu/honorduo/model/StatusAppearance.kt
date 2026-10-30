@@ -11,9 +11,10 @@
 
 package io.github.odomu.honorduo.model
 
-import io.github.odomu.honorduo.ui.render.IconGeometry
 import io.github.odomu.honorduo.ui.render.IconRenderer
 import io.github.odomu.honorduo.ui.render.IconZones
+import io.github.odomu.honorduo.ui.render.geometry.CapsuleGeometry
+import io.github.odomu.honorduo.ui.render.geometry.RingGeometry
 import kotlin.math.roundToInt
 
 /**
@@ -174,6 +175,7 @@ class StatusAppearance(c: ModuleSettings) {
 
     /** The bar's alarm icon is hidden; see [Prefs.KEY_HIDE_ALARM_ICON]. */
     @JvmField val hideAlarmIcon: Boolean = enabled && c.hideAlarmIcon
+    @JvmField val hidePrivacyChip: Boolean = enabled && c.hidePrivacyChip
 
     /** The bar's Bluetooth icon is hidden; see [Prefs.KEY_HIDE_BLUETOOTH_ICON]. */
     @JvmField val hideBluetoothIcon: Boolean = enabled && c.hideBluetoothIcon
@@ -607,7 +609,7 @@ class StatusAppearance(c: ModuleSettings) {
      * is nothing to add and the native clock is left alone.
      */
     fun drawsBarClock(): Boolean = enabled && (clockSeconds || clockDate || clockWeekday ||
-        clockTopOffsetX != Prefs.DEF_CLOCK_TOP_OFFSET_X ||
+        clockLunar || clockTopOffsetX != Prefs.DEF_CLOCK_TOP_OFFSET_X ||
         clockBottomOffsetX != Prefs.DEF_CLOCK_BOTTOM_OFFSET_X ||
         clockLunarGap != Prefs.DEF_CLOCK_LUNAR_GAP ||
         clockRowGap != Prefs.DEF_CLOCK_ROW_GAP ||
@@ -665,11 +667,11 @@ class StatusAppearance(c: ModuleSettings) {
         for (id in ringZones[IconZones.Zone.CENTRE.ordinal]) {
             if (id != Prefs.PART_NONE) placed++
         }
-        val extra = IconGeometry.capExtra(this)
+        val extra = CapsuleGeometry.capExtra(this)
         // The spacing setting is not a width knob any more: the cells hang off their own
         // edges, so padding them cannot require a wider shape. Reading it here made the
         // outline move whenever the slider did, while the ink inside stayed put.
-        return (if (placed < 2) IconGeometry.CAP_RIGHT else IconGeometry.CAP_RIGHT_PAIR) + extra
+        return (if (placed < 2) CapsuleGeometry.CAP_RIGHT else CapsuleGeometry.CAP_RIGHT_PAIR) + extra
     }
 
     /** Where each piece goes in the ring arrangement. */
@@ -749,18 +751,18 @@ class StatusAppearance(c: ModuleSettings) {
          * and the old 96 left a visibly empty ring beside it.
          */
         @JvmField
-        val topHalfDeg: Float = IconGeometry.notchHalfDeg(0, parts[0], appearance)
+        val topHalfDeg: Float = RingGeometry.notchHalfDeg(0, parts[0], appearance)
 
         /** The same for the 6 o'clock mouth. */
         @JvmField
-        val bottomHalfDeg: Float = IconGeometry.notchHalfDeg(2, parts[2], appearance)
+        val bottomHalfDeg: Float = RingGeometry.notchHalfDeg(2, parts[2], appearance)
 
         fun gapStart(): Float =
-            if (topHalfDeg <= 0f) IconGeometry.GAP_NONE
+            if (topHalfDeg <= 0f) RingGeometry.GAP_NONE
             else (270f - topHalfDeg - arcStart()) / sweep()
 
         fun gapEnd(): Float =
-            if (topHalfDeg <= 0f) IconGeometry.GAP_NONE
+            if (topHalfDeg <= 0f) RingGeometry.GAP_NONE
             else (270f + topHalfDeg - arcStart()) / sweep()
 
         /** The arc's own sweep: the circle minus both mouths. */
@@ -773,10 +775,10 @@ class StatusAppearance(c: ModuleSettings) {
          * Half the ring's cut at a flank for the piece that side holds, in degrees.
          *
          * Every piece may sit on a flank now, so the cut is not "the bead row's span" any
-         * more: it follows the piece (see [IconGeometry.flankHalfDeg]).
+         * more: it follows the piece (see [RingGeometry.flankHalfDeg]).
          */
         fun flankHalfDeg(zone: Int): Float =
-            IconGeometry.flankHalfDeg(parts[zone], appearance)
+            RingGeometry.flankHalfDeg(parts[zone], appearance)
 
         val hasLeftDots: Boolean
             get() = Prefs.isSignalRow(parts[Prefs.ZONE_LEFT])
@@ -828,6 +830,8 @@ class StatusAppearance(c: ModuleSettings) {
         /** The next piece that has ink in each band; only the body draws two. */
         @JvmField val second: IntArray = IntArray(Prefs.ZONE_COUNT)
         @JvmField val dotBands: BooleanArray = BooleanArray(Prefs.ZONE_COUNT)
+        /** Resolved signal component per band, retained after parts are cleared for dot drawing. */
+        @JvmField val dotParts: IntArray = IntArray(Prefs.ZONE_COUNT)
 
         @JvmField val bolt: Boolean
         @JvmField val wifi: Boolean
@@ -843,7 +847,11 @@ class StatusAppearance(c: ModuleSettings) {
                     a, a.ringZones[band.ordinal], level, charging, wifiLevel, mobileType,
                 )
             }
-            for (band in zones) dotBands[band.ordinal] = isDotRow(parts[band.ordinal])
+            for (band in zones) {
+                val id = parts[band.ordinal]
+                dotBands[band.ordinal] = isDotRow(id)
+                if (dotBands[band.ordinal]) dotParts[band.ordinal] = id
+            }
 
             val anyPlaced = anyPlaced(parts) ||
                 dotBands[IconZones.Zone.TOP.ordinal] ||
@@ -920,7 +928,7 @@ class StatusAppearance(c: ModuleSettings) {
             wifiLevel: Int,
             mobileType: String?,
         ): Boolean = when (part) {
-            Prefs.PART_WIFI -> (a.wifi || a.hasRingPart(Prefs.PART_WIFI)) && (wifiLevel >= 0 || a.wifiInk(wifiLevel))
+            Prefs.PART_WIFI -> a.wifi && a.wifiInk(wifiLevel)
             Prefs.PART_VALUE -> a.value && level >= 0
             Prefs.PART_BOLT -> a.boltWanted && charging
             Prefs.PART_TYPE -> a.typeInRing && !mobileType.isNullOrEmpty()

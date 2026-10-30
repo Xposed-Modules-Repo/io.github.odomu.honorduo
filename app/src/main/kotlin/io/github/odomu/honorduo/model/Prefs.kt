@@ -156,6 +156,16 @@ object Prefs {
     const val DEF_HIDE_BLUETOOTH_ICON = false
 
     /**
+     * Hides the privacy chip - the green circle the bar shows while an app is using the
+     * camera or the microphone.
+     *
+     * Off by default. It is the only place the system says "something is watching", and a
+     * user who turns this on should have asked for it rather than discovered it missing.
+     */
+    const val KEY_HIDE_PRIVACY_CHIP = "hide_privacy_chip"
+    const val DEF_HIDE_PRIVACY_CHIP = false
+
+    /**
      * Size of the Wi-Fi arcs, as a percentage of the size the arrangement fits them to.
      *
      * One key for every arrangement: the arcs are one drawing, so a user who finds them

@@ -21,7 +21,7 @@ import io.github.odomu.honorduo.ui.component.GlassDropdownPreference
 import io.github.odomu.honorduo.ui.component.GlassMultiDropdownPreference
 import io.github.odomu.honorduo.ui.component.SettingsItemMargin
 import io.github.odomu.honorduo.ui.dialog.zoneLabelRes
-import io.github.odomu.honorduo.ui.manager.SettingsRepository
+import io.github.odomu.honorduo.ui.manager.SettingsStore
 import io.github.odomu.honorduo.ui.render.IconZones
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -147,6 +147,7 @@ internal enum class ContentControl(val owner: SettingsPart) {
     ClockStyle(SettingsPart.Clock),
     HideAlarmIcon(SettingsPart.Appearance),
     HideBluetoothIcon(SettingsPart.Appearance),
+    HidePrivacyChip(SettingsPart.Appearance),
     ShadeHidePower(SettingsPart.Shade),
     CcSliderLongPress(SettingsPart.Shade),
     ShadeHideBell(SettingsPart.Shade),
@@ -172,7 +173,7 @@ internal fun contentControlsFor(part: SettingsPart): List<ContentControl> =
 internal fun ContentControlRow(
     control: ContentControl,
     settings: ModuleSettings,
-    update: ((SettingsRepository) -> Unit) -> Unit,
+    update: ((SettingsStore) -> Unit) -> Unit,
     ringSettings: ModuleSettings = settings,
 ) {
     val a = StatusAppearance.of(settings)
@@ -393,6 +394,12 @@ internal fun ContentControlRow(
             summaryRes = R.string.hide_bluetooth_icon_summary,
             dependencies = listOf(settings.enabled to R.string.master_module_title),
         ) { value -> update { it.setHideBluetoothIcon(value) } }
+        ContentControl.HidePrivacyChip -> ContentToggle(
+            checked = settings.hidePrivacyChip,
+            title = R.string.hide_privacy_chip_title,
+            summaryRes = R.string.hide_privacy_chip_summary,
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { value -> update { it.setHidePrivacyChip(value) } }
         ContentControl.ShadeHidePower -> ContentToggle(
             checked = settings.shadeHidePower,
             title = R.string.shade_hide_power_title,
@@ -628,7 +635,7 @@ internal fun ContentControlRow(
 @Composable
 private fun SignalPositionControl(
     settings: ModuleSettings,
-    update: ((SettingsRepository) -> Unit) -> Unit,
+    update: ((SettingsStore) -> Unit) -> Unit,
 ) {
     val outside = settings.signalMode == Prefs.SIGNAL_OUT_RING
     ContentChoice(
@@ -670,7 +677,7 @@ private fun signalInsideRing(a: StatusAppearance): Boolean =
 private fun SignalCardPositionControl(
     part: IconZones.Part,
     settings: ModuleSettings,
-    update: ((SettingsRepository) -> Unit) -> Unit,
+    update: ((SettingsStore) -> Unit) -> Unit,
     visible: Boolean,
 ) {
     if (!visible) return
@@ -730,7 +737,7 @@ private fun SignalCardPositionControl(
  * nothing placed produced none. Two rows for one decision invited the pair to disagree, so
  * they are one row here - index 0 means off-and-unplaced, 1..3 mean on-and-in-that-third.
  *
- * Both facts are written together through [SettingsRepository.setWifiPosition], because
+ * Both facts are written together through [SettingsStore.setWifiPosition], because
  * writing them separately would leave a frame in between where the switch and the layout
  * disagree.
  */
@@ -738,7 +745,7 @@ private fun SignalCardPositionControl(
 private fun WifiPositionControl(
     settings: ModuleSettings,
     ringSettings: ModuleSettings,
-    update: ((SettingsRepository) -> Unit) -> Unit,
+    update: ((SettingsStore) -> Unit) -> Unit,
 ) {
     val id = IconZones.encodePart(IconZones.Part.WIFI)
     val placedAt = ringSettings.ringZones.indexOfFirst { it.contains(id) }
@@ -798,7 +805,7 @@ private fun WifiPositionControl(
 @Composable
 private fun TypePositionControl(
     settings: ModuleSettings,
-    update: ((SettingsRepository) -> Unit) -> Unit,
+    update: ((SettingsStore) -> Unit) -> Unit,
     zonesAllowed: Boolean,
 ) {
     val id = IconZones.encodePart(IconZones.Part.TYPE)
@@ -841,7 +848,7 @@ private fun middleBlocked(part: IconZones.Part): Set<Int> =
 private fun RingPositionControl(
     part: IconZones.Part,
     settings: ModuleSettings,
-    update: ((SettingsRepository) -> Unit) -> Unit,
+    update: ((SettingsStore) -> Unit) -> Unit,
 ) {
     val id = IconZones.encodePart(part)
     val zones = settings.ringZones

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">HonorDuo</string>
-    <string name="xposed_description">荣耀状态栏 · 网络与电量三合一</string>
+    <string name="module_description">荣耀状态栏 · 网络、信号与电量三合一</string>
 
     <string name="group_stroke">描边</string>
     <string name="group_scale">整体尺寸</string>
@@ -337,6 +337,8 @@
     <string name="hide_hd_vowifi_summary">使用 Wi‑Fi 通话时，状态栏不再显示 HD 标记</string>
     <string name="hide_alarm_icon_title">隐藏闹钟</string>
     <string name="hide_alarm_icon_summary">不在状态栏显示闹钟图标；闹钟本身仍会正常响铃。</string>
+    <string name="hide_privacy_chip_title">隐藏隐私指示</string>
+    <string name="hide_privacy_chip_summary">隐藏状态栏右侧的绿色圆点；它表示有应用正在使用相机或麦克风，关闭后将不再提示。</string>
     <string name="hide_bluetooth_icon_title">隐藏蓝牙</string>
     <string name="hide_bluetooth_icon_summary">不在状态栏显示蓝牙图标；蓝牙连接与音频不受影响。</string>
     <string name="clock_weather_style_title">天气显示风格</string>

@@ -3,7 +3,7 @@
     <string name="drawing_quick_edit_title">Quick edit</string>
     <string name="drawing_order_title">In-ring order</string>
     <string name="app_name">HonorDuo</string>
-    <string name="xposed_description">Honor status bar · Network and battery, unified</string>
+    <string name="module_description">Honor status bar · Network, signal and battery, unified</string>
 
     <string name="group_stroke">Stroke</string>
     <string name="group_scale">Overall size</string>
@@ -297,6 +297,8 @@
     <string name="hide_hd_vowifi_summary">No HD mark in the status bar while calling over Wi‑Fi</string>
     <string name="hide_alarm_icon_title">Hide alarm</string>
     <string name="hide_alarm_icon_summary">Hides the alarm icon in the status bar; the alarm still rings as usual.</string>
+    <string name="hide_privacy_chip_title">Hide privacy indicator</string>
+    <string name="hide_privacy_chip_summary">Hides the green dot on the right of the status bar; it means an app is using the camera or microphone, and turning this on stops that warning.</string>
     <string name="hide_bluetooth_icon_title">Hide Bluetooth</string>
     <string name="hide_bluetooth_icon_summary">Hides the Bluetooth icon in the status bar; the connection and audio are unaffected.</string>
     <string name="clock_weather_style_title">Weather style</string>

@@ -91,6 +91,7 @@ class ModuleSettings {
     /** Hides the bar's alarm icon; see [Prefs.KEY_HIDE_ALARM_ICON]. */
     @JvmField
     var hideAlarmIcon = Prefs.DEF_HIDE_ALARM_ICON
+    var hidePrivacyChip = Prefs.DEF_HIDE_PRIVACY_CHIP
 
     /** Hides the bar's Bluetooth icon; see [Prefs.KEY_HIDE_BLUETOOTH_ICON]. */
     @JvmField
@@ -455,6 +456,7 @@ class ModuleSettings {
             replaceStatusIcon = Prefs.DEF_REPLACE_STATUS_ICON
             hideStatusClock = Prefs.DEF_HIDE_STATUS_CLOCK
             hideAlarmIcon = Prefs.DEF_HIDE_ALARM_ICON
+            hidePrivacyChip = Prefs.DEF_HIDE_PRIVACY_CHIP
             hideBluetoothIcon = Prefs.DEF_HIDE_BLUETOOTH_ICON
             mobileTypeMode = Prefs.DEF_MOBILE_TYPE_MODE
             valueCentred = Prefs.DEF_VALUE_CENTRED
@@ -658,6 +660,7 @@ class ModuleSettings {
             s.replaceStatusIcon = p.getBoolean(Prefs.KEY_REPLACE_STATUS_ICON, Prefs.DEF_REPLACE_STATUS_ICON)
             s.hideStatusClock = p.getBoolean(Prefs.KEY_HIDE_STATUS_CLOCK, Prefs.DEF_HIDE_STATUS_CLOCK)
             s.hideAlarmIcon = p.getBoolean(Prefs.KEY_HIDE_ALARM_ICON, Prefs.DEF_HIDE_ALARM_ICON)
+            s.hidePrivacyChip = p.getBoolean(Prefs.KEY_HIDE_PRIVACY_CHIP, Prefs.DEF_HIDE_PRIVACY_CHIP)
             s.hideBluetoothIcon = p.getBoolean(Prefs.KEY_HIDE_BLUETOOTH_ICON, Prefs.DEF_HIDE_BLUETOOTH_ICON)
             s.mobileTypeMode = readMobileTypeMode(p, s.trioStyle)
             s.valueCentred = readStyledBoolean(
@@ -991,6 +994,7 @@ class ModuleSettings {
             s.replaceStatusIcon = bundle.getBoolean(Prefs.KEY_REPLACE_STATUS_ICON, Prefs.DEF_REPLACE_STATUS_ICON)
             s.hideStatusClock = bundle.getBoolean(Prefs.KEY_HIDE_STATUS_CLOCK, Prefs.DEF_HIDE_STATUS_CLOCK)
             s.hideAlarmIcon = bundle.getBoolean(Prefs.KEY_HIDE_ALARM_ICON, Prefs.DEF_HIDE_ALARM_ICON)
+            s.hidePrivacyChip = bundle.getBoolean(Prefs.KEY_HIDE_PRIVACY_CHIP, Prefs.DEF_HIDE_PRIVACY_CHIP)
             s.hideBluetoothIcon = bundle.getBoolean(Prefs.KEY_HIDE_BLUETOOTH_ICON, Prefs.DEF_HIDE_BLUETOOTH_ICON)
             s.mobileTypeMode = readMobileTypeMode(bundle, s.trioStyle)
             s.valueCentred = readStyledBoolean(
@@ -1750,6 +1754,7 @@ class ModuleSettings {
             Prefs.KEY_REPLACE_STATUS_ICON -> replaceStatusIcon = src.replaceStatusIcon
             Prefs.KEY_HIDE_STATUS_CLOCK -> hideStatusClock = src.hideStatusClock
             Prefs.KEY_HIDE_ALARM_ICON -> hideAlarmIcon = src.hideAlarmIcon
+            Prefs.KEY_HIDE_PRIVACY_CHIP -> hidePrivacyChip = src.hidePrivacyChip
             Prefs.KEY_HIDE_BLUETOOTH_ICON -> hideBluetoothIcon = src.hideBluetoothIcon
             else -> return false
         }
@@ -1896,6 +1901,7 @@ class ModuleSettings {
         putBoolean(Prefs.KEY_REPLACE_STATUS_ICON, replaceStatusIcon)
         putBoolean(Prefs.KEY_HIDE_STATUS_CLOCK, hideStatusClock)
         putBoolean(Prefs.KEY_HIDE_ALARM_ICON, hideAlarmIcon)
+        putBoolean(Prefs.KEY_HIDE_PRIVACY_CHIP, hidePrivacyChip)
         putBoolean(Prefs.KEY_HIDE_BLUETOOTH_ICON, hideBluetoothIcon)
     }
 
@@ -1964,6 +1970,7 @@ class ModuleSettings {
             shadeHideChargeNotif == other.shadeHideChargeNotif && shadeHideHotspotNotif == other.shadeHideHotspotNotif &&
             shadeHideAdbNotif == other.shadeHideAdbNotif &&
             replaceStatusIcon == other.replaceStatusIcon && hideAlarmIcon == other.hideAlarmIcon &&
+            hidePrivacyChip == other.hidePrivacyChip &&
             hideBluetoothIcon == other.hideBluetoothIcon &&
             // Colors & thresholds
             roleColors == other.roleColors && roleColorsTemp == other.roleColorsTemp && lowThreshold == other.lowThreshold &&
