@@ -14,7 +14,7 @@ import java.io.InputStream
  * Copies a font the user picked into a place the hooked SystemUI process can
  * read, and reports what happened.
  */
-internal object FontInstaller {
+internal object GlyphFontInstaller {
 
     /** Subdirectory under the app's external media dir. */
     private const val DIR_NAME = "fonts"

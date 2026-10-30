@@ -38,7 +38,7 @@ import io.github.odomu.honorduo.ui.render.IconZones
  * write is pushed, otherwise a value the user changes while the service is
  * bound would never reach SystemUI.
  */
-class SettingsRepository(val context: Context) {
+class SettingsStore(val context: Context) {
 
     private val appContext = context.applicationContext
     private val service: XposedService? get() = HonorDuoApp.xposedService
@@ -254,6 +254,7 @@ class SettingsRepository(val context: Context) {
     fun setReplaceStatusIcon(value: Boolean) = writeBoolean(Prefs.KEY_REPLACE_STATUS_ICON, value)
     fun setHideStatusClock(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_STATUS_CLOCK, value)
     fun setHideAlarmIcon(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_ALARM_ICON, value)
+    fun setHidePrivacyChip(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_PRIVACY_CHIP, value)
     fun setHideBluetoothIcon(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_BLUETOOTH_ICON, value)
 
     fun setPerfTempChargingOnly(value: Boolean) =
@@ -636,6 +637,19 @@ class SettingsRepository(val context: Context) {
             prefs.putBoolean(Prefs.KEY_CLOCK_SECONDS, snapshot.clockSeconds)
             prefs.putBoolean(Prefs.KEY_CLOCK_DATE, snapshot.clockDate)
             prefs.putBoolean(Prefs.KEY_CLOCK_WEEKDAY, snapshot.clockWeekday)
+            prefs.putInt(Prefs.KEY_CLOCK_TOP_OFFSET_X, snapshot.clockTopOffsetX)
+            prefs.putInt(Prefs.KEY_CLOCK_BOTTOM_OFFSET_X, snapshot.clockBottomOffsetX)
+            prefs.putInt(Prefs.KEY_CLOCK_LUNAR_GAP, snapshot.clockLunarGap)
+            prefs.putInt(Prefs.KEY_CLOCK_ROW_GAP, snapshot.clockRowGap)
+            prefs.putBoolean(Prefs.KEY_CLOCK_LUNAR, snapshot.clockLunar)
+            prefs.putInt(Prefs.KEY_CLOCK_DATE_FORMAT, snapshot.clockDateFormat)
+            prefs.putInt(Prefs.KEY_CLOCK_WEEKDAY_FORMAT, snapshot.clockWeekdayFormat)
+            prefs.putInt(Prefs.KEY_COLOR_CLOCK_WEEKDAY_ON_DARK, snapshot.clockWeekdayColorOnDark)
+            prefs.putInt(Prefs.KEY_COLOR_CLOCK_WEEKDAY_ON_LIGHT, snapshot.clockWeekdayColorOnLight)
+            prefs.putInt(Prefs.KEY_COLOR_CLOCK_DATE_ON_DARK, snapshot.clockDateColorOnDark)
+            prefs.putInt(Prefs.KEY_COLOR_CLOCK_DATE_ON_LIGHT, snapshot.clockDateColorOnLight)
+            prefs.putInt(Prefs.KEY_COLOR_CLOCK_LUNAR_ON_DARK, snapshot.clockLunarColorOnDark)
+            prefs.putInt(Prefs.KEY_COLOR_CLOCK_LUNAR_ON_LIGHT, snapshot.clockLunarColorOnLight)
             prefs.putBoolean(Prefs.KEY_CLOCK_WEATHER, snapshot.clockWeather)
             prefs.putInt(Prefs.KEY_CLOCK_WEATHER_STYLE, snapshot.clockWeatherStyle)
             prefs.putInt(Prefs.KEY_CLOCK_STYLE, snapshot.clockStyle)
@@ -643,6 +657,7 @@ class SettingsRepository(val context: Context) {
             prefs.putBoolean(Prefs.KEY_SHADE_HIDE_BELL, snapshot.shadeHideBell)
             prefs.putBoolean(Prefs.KEY_HIDE_STATUS_CLOCK, snapshot.hideStatusClock)
             prefs.putBoolean(Prefs.KEY_HIDE_ALARM_ICON, snapshot.hideAlarmIcon)
+            prefs.putBoolean(Prefs.KEY_HIDE_PRIVACY_CHIP, snapshot.hidePrivacyChip)
             prefs.putBoolean(Prefs.KEY_HIDE_BLUETOOTH_ICON, snapshot.hideBluetoothIcon)
             prefs.putBoolean(Prefs.KEY_SHADE_LUNAR, snapshot.shadeLunar)
             prefs.putBoolean(Prefs.KEY_SHADE_WEATHER, snapshot.shadeWeather)

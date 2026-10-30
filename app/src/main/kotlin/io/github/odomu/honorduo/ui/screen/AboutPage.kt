@@ -54,7 +54,7 @@ import io.github.odomu.honorduo.BuildConfig
 import io.github.odomu.honorduo.R
 import io.github.odomu.honorduo.ui.component.AmbientMeshBackground
 import io.github.odomu.honorduo.ui.dialog.ReleaseNotesDialog
-import io.github.odomu.honorduo.ui.manager.UpdateController
+import io.github.odomu.honorduo.ui.manager.AppUpdater
 import io.github.odomu.honorduo.ui.manager.UpdateState
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -68,11 +68,13 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.shader.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlin.math.cos
+import kotlin.math.sin
 
 /** Scrolling brand header over a persistent, full-screen animated mesh. */
 @Composable
 internal fun AboutPage(
-    updater: UpdateController,
+    updater: AppUpdater,
     onBack: () -> Unit,
     onCheckUpdate: () -> Unit,
 ) {
@@ -171,8 +173,8 @@ internal fun AboutPage(
                 val dotAngles = intArrayOf(58, 79, 101, 122)
                 for (deg in dotAngles) {
                     val rad = Math.toRadians(deg.toDouble())
-                    val x = center.x + (kotlin.math.cos(rad) * ringR).toFloat()
-                    val y = center.y + (kotlin.math.sin(rad) * ringR).toFloat()
+                    val x = center.x + (cos(rad) * ringR).toFloat()
+                    val y = center.y + (sin(rad) * ringR).toFloat()
                     drawCircle(color = glyphColor, radius = dotRadius, center = Offset(x, y))
                 }
 
@@ -217,7 +219,7 @@ internal fun AboutPage(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = stringResource(R.string.xposed_description),
+                text = stringResource(R.string.module_description),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Normal,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,

@@ -61,7 +61,7 @@ internal sealed interface RestartState {
 /**
  * Owns the one-shot "restart System UI" action.
  */
-internal class RestartController {
+internal class SystemUiRestarter {
 
     var state: RestartState by mutableStateOf(RestartState.Idle)
         private set

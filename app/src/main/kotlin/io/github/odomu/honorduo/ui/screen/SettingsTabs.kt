@@ -9,7 +9,6 @@ import android.provider.Settings
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,18 +22,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -63,13 +58,9 @@ import io.github.odomu.honorduo.ui.component.SettingTile
 import io.github.odomu.honorduo.ui.component.SettingsItemMargin
 import io.github.odomu.honorduo.ui.component.isDarkTheme
 import io.github.odomu.honorduo.ui.control.SettingsPart
-import io.github.odomu.honorduo.ui.dialog.ReleaseNotesLoader
-import io.github.odomu.honorduo.ui.manager.HAS_REPO
-import io.github.odomu.honorduo.ui.manager.REPO_HOME
-import io.github.odomu.honorduo.ui.manager.SettingsRepository
-import io.github.odomu.honorduo.ui.manager.UpdateController
+import io.github.odomu.honorduo.ui.manager.AppUpdater
+import io.github.odomu.honorduo.ui.manager.SettingsStore
 import io.github.odomu.honorduo.ui.manager.UpdateState
-import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -161,9 +152,9 @@ internal fun LazyListScope.settingsTab(onOpenPart: (SettingsPart) -> Unit) {
 /** Home page: activation banner, activation state, info, backup & restore, logs, about, font and nav styles. */
 internal fun LazyListScope.aboutTab(
     settings: ModuleSettings,
-    repository: SettingsRepository,
+    repository: SettingsStore,
     service: XposedService?,
-    updater: UpdateController,
+    updater: AppUpdater,
     installingFont: Boolean,
     onChooseFont: () -> Unit,
     onClearFont: (String) -> Unit,
@@ -171,7 +162,7 @@ internal fun LazyListScope.aboutTab(
     onImportBackup: () -> Unit,
     onOpenLogs: () -> Unit,
     onOpenAboutPage: () -> Unit,
-    update: ((SettingsRepository) -> Unit) -> Unit,
+    update: ((SettingsStore) -> Unit) -> Unit,
 ) {
     val isActivated = service != null
     val scopes = runCatching { service?.scope }.getOrNull() ?: emptyList()
@@ -638,7 +629,7 @@ fun enabledCount(settings: ModuleSettings): Int {
         a.perfFps,
         a.clockSeconds || a.clockDate || a.clockWeekday || a.clockLunar || a.clockWeather,
         a.shadeHidePower || a.shadeHideBell || a.shadeLunar || a.shadeWeather,
-        a.replaceStatusIcon || a.hideAlarmIcon || a.hideBluetoothIcon,
+        a.replaceStatusIcon || a.hideAlarmIcon || a.hideBluetoothIcon || a.hidePrivacyChip,
     ).count { it }
 }
 
@@ -652,137 +643,3 @@ fun readFrameworkInfo(service: XposedService?, unknown: String): String {
     }.getOrDefault(unknown)
 }
 
-/**
- * The in-app updater card.
- */
-@Composable
-internal fun UpdateCard(
-    updater: UpdateController,
-    showMessage: (String) -> Unit,
-    onCheck: () -> Unit,
-    onOpenReleaseNotes: () -> Unit,
-) {
-    val state = updater.state
-    val isDownloading = state is UpdateState.Downloading
-    val isChecking = state is UpdateState.Checking
-    val isAvailable = state is UpdateState.Available
-    val context = LocalContext.current
-    val currentVersion = remember(context) {
-        runCatching {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName
-        }.getOrNull()?.takeIf { it.isNotBlank() } ?: "1.0.4"
-    }
-    val scope = rememberCoroutineScope()
-    var isFetchingNotes by remember { mutableStateOf(false) }
-
-    val status: String? = when (state) {
-        is UpdateState.Idle -> stringResource(R.string.update_summary_idle)
-        is UpdateState.Checking -> stringResource(R.string.update_checking)
-        is UpdateState.UpToDate -> stringResource(R.string.update_uptodate, state.current)
-        is UpdateState.NoRelease -> stringResource(R.string.update_no_release)
-        is UpdateState.Available -> null
-        is UpdateState.Downloading -> stringResource(
-            R.string.update_downloading,
-            (state.progress * 100f).toInt(),
-        )
-        is UpdateState.Ready -> stringResource(R.string.update_download_completed)
-        is UpdateState.Failed -> listOfNotNull(
-            stringResource(
-                if (HAS_REPO) R.string.update_failed else R.string.update_unconfigured,
-            ),
-            state.detail?.takeIf { it.isNotBlank() },
-        ).joinToString(" · ")
-    }
-
-    val updateNotice: (@Composable () -> Unit)? = when (state) {
-        is UpdateState.Downloading -> {
-            {
-                top.yukonga.miuix.kmp.basic.LinearProgressIndicator(
-                    progress = state.progress.takeIf { it > 0f },
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                )
-            }
-        }
-        is UpdateState.Available -> {
-            {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 2.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFE53935)),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = stringResource(R.string.update_available, state.info.version),
-                        fontSize = 13.sp,
-                        color = Color(0xFFE53935),
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
-            }
-        }
-        else -> null
-    }
-
-    Card {
-        ArrowPreference(
-            title = stringResource(R.string.update_title),
-            summary = status,
-            insideMargin = SettingsItemMargin,
-            enabled = !isDownloading,
-            endActions = {
-                if (isChecking) {
-                    Box(
-                        modifier = Modifier
-                            .padding(end = 8.dp)
-                            .size(26.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(size = 20.dp)
-                    }
-                }
-            },
-            bottomAction = updateNotice,
-            onClick = onCheck,
-        )
-
-        ArrowPreference(
-            title = stringResource(R.string.release_notes_title),
-            summary = stringResource(R.string.release_notes_summary),
-            insideMargin = SettingsItemMargin,
-            endActions = {
-                if (isFetchingNotes) {
-                    Box(
-                        modifier = Modifier
-                            .padding(end = 8.dp)
-                            .size(26.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(size = 20.dp)
-                    }
-                }
-            },
-            onClick = {
-                scope.launch {
-                    isFetchingNotes = true
-                    ReleaseNotesLoader.fetch(targetVersion = currentVersion, forceRefresh = true)
-                    isFetchingNotes = false
-                    onOpenReleaseNotes()
-                }
-            },
-        )
-
-        if (HAS_REPO) {
-            ArrowPreference(
-                title = stringResource(R.string.update_repo),
-                summary = stringResource(R.string.update_repo_summary),
-                insideMargin = SettingsItemMargin,
-                onClick = { updater.openInBrowser(REPO_HOME) },
-            )
-        }
-    }
-}

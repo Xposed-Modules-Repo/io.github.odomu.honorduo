@@ -39,7 +39,7 @@ import java.util.Locale
  */
 class BackupManager(
     private val context: Context,
-    private val repository: SettingsRepository,
+    private val repository: SettingsStore,
     private val scope: CoroutineScope,
     private val onExportSuccess: () -> Unit,
     private val onImportSuccess: (count: Int) -> Unit,
@@ -96,7 +96,7 @@ class BackupManager(
 @Composable
 fun rememberBackupManager(
     context: Context,
-    repository: SettingsRepository,
+    repository: SettingsStore,
     onExportSuccess: () -> Unit,
     onImportSuccess: (count: Int) -> Unit,
     onError: (message: String) -> Unit,
@@ -163,7 +163,7 @@ internal object ConfigBackupManager {
      *
      * @return Count of restored keys, or throws on read/parse error.
      */
-    fun importFromJson(context: Context, uri: Uri, repository: SettingsRepository): Int {
+    fun importFromJson(context: Context, uri: Uri, repository: SettingsStore): Int {
         val jsonString = context.contentResolver.openInputStream(uri)?.use { stream ->
             BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { it.readText() }
         } ?: throw IllegalArgumentException("Cannot open backup file")

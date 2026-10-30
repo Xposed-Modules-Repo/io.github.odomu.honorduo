@@ -50,7 +50,7 @@ import io.github.odomu.honorduo.ui.control.SliderRow
 import io.github.odomu.honorduo.ui.control.contentControlsFor
 import io.github.odomu.honorduo.ui.control.roleColorsForPart
 import io.github.odomu.honorduo.ui.control.slidersForEditor
-import io.github.odomu.honorduo.ui.manager.SettingsRepository
+import io.github.odomu.honorduo.ui.manager.SettingsStore
 import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -65,7 +65,7 @@ internal fun PartSettingsSheet(
     show: Boolean,
     part: SettingsPart,
     settings: ModuleSettings,
-    update: ((SettingsRepository) -> Unit) -> Unit,
+    update: ((SettingsStore) -> Unit) -> Unit,
     onEditColor: (RoleColor) -> Unit,
     onResetColors: () -> Unit,
     onDismiss: () -> Unit,
@@ -235,7 +235,7 @@ internal fun PartSettingsSheet(
 @Composable
 internal fun ClockDigitColorDialog(
     settings: ModuleSettings,
-    update: ((SettingsRepository) -> Unit) -> Unit,
+    update: ((SettingsStore) -> Unit) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var onDark by remember { mutableStateOf(false) }

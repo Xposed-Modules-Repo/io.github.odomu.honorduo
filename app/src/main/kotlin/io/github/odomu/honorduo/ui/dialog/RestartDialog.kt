@@ -21,8 +21,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.odomu.honorduo.R
-import io.github.odomu.honorduo.ui.manager.RestartController
 import io.github.odomu.honorduo.ui.manager.RestartState
+import io.github.odomu.honorduo.ui.manager.SystemUiRestarter
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
@@ -35,7 +35,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  */
 @Composable
 internal fun RestartDialog(
-    controller: RestartController,
+    controller: SystemUiRestarter,
     show: Boolean,
     onDismiss: () -> Unit,
 ) {

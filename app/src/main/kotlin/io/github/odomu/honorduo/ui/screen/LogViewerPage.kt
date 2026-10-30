@@ -6,6 +6,7 @@
 package io.github.odomu.honorduo.ui.screen
 
 import android.content.ClipData
+import android.content.Context
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -71,7 +72,7 @@ import androidx.core.content.FileProvider
 import io.github.odomu.honorduo.R
 import io.github.odomu.honorduo.log.LogManager
 import io.github.odomu.honorduo.model.Prefs
-import io.github.odomu.honorduo.ui.manager.SettingsRepository
+import io.github.odomu.honorduo.ui.manager.SettingsStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -136,12 +137,12 @@ private data class LogReadResult(
     val newSize: Long,
 )
 
-private fun readSnapshot(context: android.content.Context): LogReadResult = runCatching {
+private fun readSnapshot(context: Context): LogReadResult = runCatching {
     val (lines, size) = LogManager.readSnapshot(context, MAX_LOG_LINES)
     LogReadResult(lines, size)
 }.getOrDefault(LogReadResult(emptyList(), 0L))
 
-private fun readIncremental(context: android.content.Context, afterOffset: Long): LogReadResult =
+private fun readIncremental(context: Context, afterOffset: Long): LogReadResult =
     runCatching {
         val (lines, size) = LogManager.readIncremental(context, afterOffset, MAX_LOG_LINES)
         LogReadResult(lines, size)
@@ -156,7 +157,7 @@ private fun readIncremental(context: android.content.Context, afterOffset: Long)
  */
 @Composable
 internal fun LogViewerPage(
-    repository: SettingsRepository,
+    repository: SettingsStore,
     onBack: () -> Unit,
     showMessage: (String) -> Unit,
 ) {

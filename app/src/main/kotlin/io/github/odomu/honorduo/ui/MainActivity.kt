@@ -18,7 +18,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.remember
 import io.github.odomu.honorduo.model.Prefs
-import io.github.odomu.honorduo.ui.manager.SettingsRepository
+import io.github.odomu.honorduo.ui.manager.SettingsStore
 import io.github.odomu.honorduo.ui.screen.SettingsScreen
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            val repository = remember { SettingsRepository(applicationContext) }
+            val repository = remember { SettingsStore(applicationContext) }
             MiuixTheme(controller = remember { ThemeController() }) {
                 SettingsScreen(repository)
             }

@@ -19,7 +19,7 @@ import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.StatusAppearance
 import io.github.odomu.honorduo.ui.component.IntSlider
 import io.github.odomu.honorduo.ui.dialog.RoleColor
-import io.github.odomu.honorduo.ui.manager.SettingsRepository
+import io.github.odomu.honorduo.ui.manager.SettingsStore
 import io.github.odomu.honorduo.ui.render.IconZones
 
 /**
@@ -130,7 +130,7 @@ internal class SliderSpec(
      */
     val maxFor: (StatusAppearance) -> Int = { max },
     val read: (ModuleSettings) -> Int,
-    val write: (SettingsRepository, Int) -> Unit,
+    val write: (SettingsStore, Int) -> Unit,
     val titleRes: (StatusAppearance) -> Int,
     val summaryRes: (StatusAppearance) -> Int,
     val enabled: (StatusAppearance) -> Boolean,
@@ -703,7 +703,7 @@ internal fun roleColorsForPart(part: IconZones.Part): List<RoleColor> = when (pa
 internal fun SliderRow(
     spec: SliderSpec,
     settings: ModuleSettings,
-    update: ((SettingsRepository) -> Unit) -> Unit,
+    update: ((SettingsStore) -> Unit) -> Unit,
 ) {
     val a = StatusAppearance.of(settings)
     IntSlider(

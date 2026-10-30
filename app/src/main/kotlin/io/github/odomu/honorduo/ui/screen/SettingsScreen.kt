@@ -92,13 +92,13 @@ import io.github.odomu.honorduo.ui.dialog.ResetColorsDialog
 import io.github.odomu.honorduo.ui.dialog.RestartDialog
 import io.github.odomu.honorduo.ui.dialog.RoleColor
 import io.github.odomu.honorduo.ui.drawing.SceneSelector
-import io.github.odomu.honorduo.ui.manager.FontInstaller
+import io.github.odomu.honorduo.ui.manager.AppUpdater
+import io.github.odomu.honorduo.ui.manager.GlyphFontInstaller
 import io.github.odomu.honorduo.ui.manager.HAS_REPO
 import io.github.odomu.honorduo.ui.manager.InstallResult
-import io.github.odomu.honorduo.ui.manager.RestartController
 import io.github.odomu.honorduo.ui.manager.RestartState
-import io.github.odomu.honorduo.ui.manager.SettingsRepository
-import io.github.odomu.honorduo.ui.manager.UpdateController
+import io.github.odomu.honorduo.ui.manager.SettingsStore
+import io.github.odomu.honorduo.ui.manager.SystemUiRestarter
 import io.github.odomu.honorduo.ui.manager.UpdateState
 import io.github.odomu.honorduo.ui.manager.rememberBackupManager
 import kotlinx.coroutines.launch
@@ -133,7 +133,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  */
 
 @Composable
-fun SettingsScreen(repository: SettingsRepository) {
+fun SettingsScreen(repository: SettingsStore) {
     // Kept as explicit state objects, not just `by` delegates, because the nav
     // entries below are built once and remembered: an entry that closed over the
     // *value* of settings would keep rendering the snapshot it was built with.
@@ -182,7 +182,7 @@ fun SettingsScreen(repository: SettingsRepository) {
     // that scroll out of view, and a download in flight must survive the user
     // flicking over to another tab and back.
     val context = LocalContext.current
-    val updater = remember(context) { UpdateController(context.applicationContext) }
+    val updater = remember(context) { AppUpdater(context.applicationContext) }
     DisposableEffect(updater) { onDispose { updater.dispose() } }
 
     // Same reason as the updater itself: the "release notes" dialog is dismissed by the user,
@@ -236,12 +236,12 @@ fun SettingsScreen(repository: SettingsRepository) {
 
     // Same reasoning as the updater: the dialog can be dismissed mid-kill, and a
     // root prompt that outlives the dialog still has to land somewhere.
-    val restarter = remember { RestartController() }
+    val restarter = remember { SystemUiRestarter() }
     DisposableEffect(restarter) { onDispose { restarter.dispose() } }
 
     // Single funnel: apply the write, then re-read so the preview never shows a
     // value the repository did not accept (clamping happens on read).
-    fun update(block: (SettingsRepository) -> Unit) {
+    fun update(block: (SettingsStore) -> Unit) {
         block(repository)
         settings = repository.read()
     }
@@ -296,18 +296,18 @@ fun SettingsScreen(repository: SettingsRepository) {
         if (uri == null) return@rememberLauncherForActivityResult
         installingFont = true
         scope.launch {
-            when (val result = FontInstaller.install(context, uri)) {
-                is FontInstaller.Result.Installed -> {
+            when (val result = GlyphFontInstaller.install(context, uri)) {
+                is GlyphFontInstaller.Result.Installed -> {
                     val previous = settingsState.value.fontPath
                     if (previous.isNotEmpty() && previous != result.path) {
-                        FontInstaller.remove(previous)
+                        GlyphFontInstaller.remove(previous)
                     }
                     update { it.setFontPath(result.path) }
                     showMessage(String.format(msgFontApplied, result.name))
                 }
-                FontInstaller.Result.NotAFont ->
+                GlyphFontInstaller.Result.NotAFont ->
                     showMessage(msgFontNotAFont)
-                is FontInstaller.Result.Failed -> {
+                is GlyphFontInstaller.Result.Failed -> {
                     showMessage(msgFontFailed)
                 }
             }
@@ -473,7 +473,7 @@ fun SettingsScreen(repository: SettingsRepository) {
                                     onChooseFont = { fontPicker.launch(arrayOf("*/*")) },
                                     onClearFont = { fontPath ->
                                         update { it.setFontPath("") }
-                                        scope.launch { FontInstaller.remove(fontPath) }
+                                        scope.launch { GlyphFontInstaller.remove(fontPath) }
                                     },
                                     onExportBackup = { backupManager.exportBackup() },
                                     onImportBackup = { backupManager.importBackup() },

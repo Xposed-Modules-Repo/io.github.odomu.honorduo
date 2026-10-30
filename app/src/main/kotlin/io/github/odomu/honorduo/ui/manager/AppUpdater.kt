@@ -196,7 +196,7 @@ internal enum class InstallResult {
  * tab: a LazyColumn disposes items that scroll away, and a download must not die
  * because the user flicked to the Colours tab.
  */
-internal class UpdateController(private val context: Context) {
+internal class AppUpdater(private val context: Context) {
 
     var state: UpdateState by mutableStateOf(UpdateState.Idle)
         private set
@@ -290,7 +290,7 @@ internal class UpdateController(private val context: Context) {
      * @return [InstallResult.Started] once the system installer is on screen;
      *   [InstallResult.NeedsPermission] when the "install unknown apps" grant is
      *   still missing, in which case the caller
-     *   [UpdateController.openInstallPermissionScreen]; or
+     *   [AppUpdater.openInstallPermissionScreen]; or
      *   [InstallResult.NoInstaller] when no activity on the device would handle
      *   the intent.
      */
