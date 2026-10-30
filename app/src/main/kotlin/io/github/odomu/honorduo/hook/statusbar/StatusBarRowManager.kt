@@ -38,14 +38,16 @@ import io.github.odomu.honorduo.model.ModuleConfig
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.StatusAppearance
 import io.github.odomu.honorduo.model.StatusState
-import io.github.odomu.honorduo.ui.render.IconGeometry
-import io.github.odomu.honorduo.ui.render.IconRenderer
+import io.github.odomu.honorduo.ui.render.GlyphInk
+import io.github.odomu.honorduo.ui.render.OutSignalRenderer
+import io.github.odomu.honorduo.ui.render.geometry.IconGeometry
 import io.github.odomu.honorduo.ui.view.GlyphView
 import io.github.odomu.honorduo.ui.view.OutSignalView
 import io.github.odomu.honorduo.ui.view.OutTypeLabel
 import io.github.odomu.honorduo.ui.view.PerfLabel
 import java.lang.reflect.Field
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -97,7 +99,6 @@ internal object StatusBarRowManager {
     fun firstRowResources(): Resources? = snapshot().firstOrNull()?.row?.resources
 
     /** Registers (or refreshes) the row for a `HwSystemIcons` instance. */
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     fun register(row: ViewGroup) {
         if (find(row) != null) return
         val battery = idView(row, "battery") ?: return
@@ -180,6 +181,10 @@ internal object StatusBarRowManager {
         // `syncRow` already settled each row's container, so this pass is only for the
         // bar's contents (the clock copy that lives outside the rows) and the hand-back.
         StatusBarIconManager.applyIconVisibility(rowsSettled = !suppressed)
+        // Explicit, because the visibility listener that normally rebuilds the clock can
+        // run while `suppressed` is still true - pulling the shade down and opening an app
+        // at the same instant does exactly that - and then nothing else ever asked again.
+        if (!suppressed) BarClockManager.sync(ModuleConfig.appearance())
     }
 
     private fun hideAll(row: Row) {
@@ -259,6 +264,10 @@ internal object StatusBarRowManager {
         // hook only sees visibility writes, and a copy re-shown through another path
         // would otherwise sit in the corner until the next settings change.
         StatusBarIconManager.reassertClock(a)
+        // The host replaces the clock view when it re-inflates the row, and only a layout
+        // pass is guaranteed to happen afterwards. Without this the clock stayed missing
+        // until the next settings change.
+        BarClockManager.requestOnLayout(a)
         syncOutViews(row)
         if (force || row.lastStyle != a.style) {
             row.lastStyle = a.style
@@ -304,7 +313,9 @@ internal object StatusBarRowManager {
     }
 
     private fun mountGlyph(row: Row) {
-        if (row.glyph != null) return
+        if (inRow(row, row.glyph) != null) return
+        remove(row, row.glyph)
+        row.glyph = null
         val glyph = GlyphView(row.row.context).also { it.state = row.state }
         val at = row.container.indexOfChild(row.battery)
         row.container.addView(
@@ -343,6 +354,9 @@ internal object StatusBarRowManager {
      */
     private fun syncOutViews(row: Row) {
         val a = ModuleConfig.appearance()
+        // All three consumers share one snapshot; invalidateAll refreshes its own
+        // snapshot before calling syncPerfReadouts directly.
+        if (a.stackedOut() || a.perfPairShown() || a.typeOutOfRing) row.state.refresh()
         for (slot in a.outOrder) {
             when (slot) {
                 Prefs.OUT_SLOT_SIGNAL -> syncSignal(row, a)
@@ -395,18 +409,18 @@ internal object StatusBarRowManager {
             return
         }
         val density = row.row.resources.displayMetrics.density
-        var signal = row.signal
-        if (signal == null) {
-            signal = OutSignalView(row.row.context)
-            insertBefore(row, signal)
-            row.signal = signal
-            row.outOrderApplied = null
+        val signal = inRow(row, row.signal) ?: run {
+            remove(row, row.signal)
+            OutSignalView(row.row.context).also {
+                insertBefore(row, it)
+                row.outOrderApplied = null
+            }
         }
+        row.signal = signal
         signal.host = row.state
         val rowHeight = row.row.height
         val reading = IntArray(2)
-        row.state.refresh()
-        IconRenderer.outSignalLevels(
+        OutSignalRenderer.outSignalLevels(
             a.dataSimOnly, row.state.mobileLevel,
             row.state.slotLevels, StatusState.sDataSlot, row.state.sims, reading,
         )
@@ -444,7 +458,7 @@ internal object StatusBarRowManager {
         signal.type2 = if (a.dataSimOnly || !dual) null else row.state.slotTypes[1].ifEmpty { fallback }
         signal.bars = max(0, reading[0])
         signal.dots = reading[1]
-        var height = IconRenderer.outSignalHeight(a, a.outSignalSize, density, dual)
+        var height = OutSignalRenderer.outSignalHeight(a, a.outSignalSize, density, dual)
         // The reading is centred in the row, and its caption is drawn flush with its TOP,
         // so anything taller than the row overflows UPWARD first and the bar's top edge
         // eats the caption before it touches the bars. The row's own height is not the
@@ -463,7 +477,7 @@ internal object StatusBarRowManager {
                 height = min(height, maxSafe)
             }
         }
-        val width = IconRenderer.outSignalWidth(
+        val width = OutSignalRenderer.outSignalWidth(
             height, a, signal.type, signal.type2, dual,
         )
         val marginDp = if (a.outSignalMargin in 0..16) a.outSignalMargin else Prefs.DEF_OUT_SIGNAL_MARGIN
@@ -555,7 +569,6 @@ internal object StatusBarRowManager {
             row.fps = null
             return
         }
-        row.state.refresh()
         val density = row.row.resources.displayMetrics.density
 
         val charging = StatusState.sChargingAttached
@@ -649,17 +662,18 @@ internal object StatusBarRowManager {
             remove(row, existing)
             return null
         }
-        var label = existing
-        if (label == null) {
-            label = PerfLabel(row.row.context)
-            insertBefore(row, label)
-            row.outOrderApplied = null
+        val label = inRow(row, existing) ?: run {
+            remove(row, existing)
+            PerfLabel(row.row.context).also {
+                insertBefore(row, it)
+                row.outOrderApplied = null
+            }
         }
         label.host = row.state
         val text = items.joinToString(PERF_BREAK.toString()) { it.text }
         applyTypeface(label, a.perfTypeWeight())
         val targetSize = perfTextSize(text, row, a, density)
-        if (kotlin.math.abs(label.textSize - targetSize) > 0.05f) {
+        if (abs(label.textSize - targetSize) > 0.05f) {
             label.setTextSize(TypedValue.COMPLEX_UNIT_PX, targetSize)
         }
         label.setLineSpacing(a.perfLineGap * density, 1f)
@@ -668,7 +682,7 @@ internal object StatusBarRowManager {
         val highTempItem = items.firstOrNull { it.isHighTemp }
         if (label.text.toString() != text) {
             if (highTempItem != null) {
-                val highColor = if (IconRenderer.isDarkBackground(baseColor)) a.highTempOnDark else a.highTempOnLight
+                val highColor = if (GlyphInk.isDarkBackground(baseColor)) a.highTempOnDark else a.highTempOnLight
                 val tempStr = highTempItem.text
                 val idx = text.indexOf(tempStr)
                 if (idx >= 0) {
@@ -702,15 +716,15 @@ internal object StatusBarRowManager {
             return
         }
         val density = row.row.resources.displayMetrics.density
-        var label = row.type
-        if (label == null) {
-            label = OutTypeLabel(row.row.context)
-            insertBefore(row, label)
-            row.type = label
-            row.outOrderApplied = null
+        val label = inRow(row, row.type) ?: run {
+            remove(row, row.type)
+            OutTypeLabel(row.row.context).also {
+                insertBefore(row, it)
+                row.outOrderApplied = null
+            }
         }
+        row.type = label
         label.host = row.state
-        row.state.refresh()
         val text = row.state.mobileType
         if (text.isEmpty()) {
             StatusBarIconManager.hide(label)
@@ -766,6 +780,17 @@ internal object StatusBarRowManager {
         view.layoutParams = lp
     }
 
+    /**
+     * [view] when it is still a child of the row, `null` when the host took it away.
+     *
+     * The host re-inflates and re-themes the container without telling us, and it removes
+     * our children on the way. The field then still points at a parentless view, and every
+     * `if (view == null)` mount check kept answering "already mounted" - the glyph, the
+     * signal reading, the readouts and the type label stayed gone until the row object
+     * itself was rebuilt.
+     */
+    private fun <T : View> inRow(row: Row, view: T?): T? = view?.takeIf { it.parent === row.container }
+
     private fun remove(row: Row, view: View?) {
         if (view == null) return
         try {
@@ -788,7 +813,7 @@ internal object StatusBarRowManager {
     }
 
     private fun applyTypeface(view: TextView, weight: Int) {
-        val face = IconRenderer.typefaceFor(weight)
+        val face = GlyphInk.typefaceFor(weight)
         if (view.typeface !== face) {
             view.typeface = face
         }
@@ -825,7 +850,7 @@ internal object StatusBarRowManager {
     }
 
     private fun perfLineHeight(size: Float, weight: Int, gapDp: Float = 0f, density: Float = 0f): Float {
-        PERF_PROBE.typeface = IconRenderer.typefaceFor(weight)
+        PERF_PROBE.typeface = GlyphInk.typefaceFor(weight)
         PERF_PROBE.textSize = size
         val metrics = PERF_PROBE.fontMetrics
         return metrics.descent - metrics.ascent + gapDp * density

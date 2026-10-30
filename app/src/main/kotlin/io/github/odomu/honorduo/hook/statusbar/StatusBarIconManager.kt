@@ -58,12 +58,45 @@ internal object StatusBarIconManager {
     @Volatile var idsResolved = false
         private set
 
+    /**
+     * Every `HwStatusbarContents` registered at attachment, in attachment order.
+     * Main and overlay bars contain a clock; the notch header does not. Detached
+     * trees can remain reachable, so selection must check attachment explicitly.
+     */
+    private val CONTENTS = ArrayList<WeakReference<ViewGroup>>()
+
     /** The bar's contents row, which holds the clock; registered when it attaches. */
     @Volatile
     var contents: WeakReference<ViewGroup>? = null
 
+    /** The best live bar tree: prefer the currently shown contents that owns the clock. */
     val contentsViewGroup: ViewGroup?
-        get() = contents?.get()
+        get() = synchronized(CONTENTS) {
+            var fallback: ViewGroup? = null
+            var clockContents: ViewGroup? = null
+            for (i in CONTENTS.indices.reversed()) {
+                val group = CONTENTS[i].get()
+                if (group == null || !group.isAttachedToWindow) {
+                    CONTENTS.removeAt(i)
+                    continue
+                }
+                if (fallback == null) fallback = group
+                if (clockId == 0 || group.findViewById<View>(clockId) == null) continue
+                if (group.isShown) return@synchronized group
+                if (clockContents == null) clockContents = group
+            }
+            clockContents ?: fallback
+        }
+
+
+    /** Registers one attached contents view; called for every one, not only the last. */
+    fun noteContents(group: ViewGroup) {
+        synchronized(CONTENTS) {
+            CONTENTS.removeAll { it.get() == null || it.get() === group }
+            CONTENTS.add(WeakReference(group))
+        }
+        contents = WeakReference(group)
+    }
 
     /**
      * Views hidden by this module, with the visibility the host had given each of

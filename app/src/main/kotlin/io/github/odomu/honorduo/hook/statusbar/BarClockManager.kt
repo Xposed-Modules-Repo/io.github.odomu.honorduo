@@ -29,12 +29,13 @@ import io.github.odomu.honorduo.hook.tracker.WeatherManager
 import io.github.odomu.honorduo.model.ModuleConfig
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.StatusAppearance
-import io.github.odomu.honorduo.ui.render.IconRenderer
+import io.github.odomu.honorduo.ui.render.GlyphInk
 import io.github.odomu.honorduo.ui.view.BarClockView
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.util.Calendar
 import kotlin.math.min
+
 /**
  * Manages the custom status bar clock (two-line date/weekday/lunar/time),
  * its lifecycle, view mounting, overflow clipping, and stepping cadence.
@@ -134,6 +135,12 @@ internal object BarClockManager {
 
     private fun syncNow(a: StatusAppearance) {
         var native = sBarClock?.get()
+        // Detached trees retain their internal parent links. Attachment, not a non-null
+        // parent, decides whether this clock can still host a visible replacement.
+        if (native != null && !native.isAttachedToWindow) {
+            sBarClock = null
+            native = null
+        }
         if (native == null) {
             val contents = StatusBarIconManager.contentsViewGroup
             val clockId = StatusBarIconManager.clockId
@@ -144,8 +151,12 @@ internal object BarClockManager {
                 }
             }
         }
-        if (!a.enabled || native == null || a.barClockHidden || StatusBarRowManager.suppressed ||
-            (a.glyph && a.hidesStatusClock()) || !a.drawsBarClock()
+        // A view we already put in the bar is evidence enough: the lookup above can fail
+        // for a frame while the host swaps trees, and dropping the clock then was how a
+        // rotation or a pull-down left the corner empty for good.
+        val live = sBarClockView?.takeIf { it.parent != null && it.isAttachedToWindow }
+        if (!a.enabled || (native == null && live == null) || a.barClockHidden ||
+            StatusBarRowManager.suppressed || (a.glyph && a.hidesStatusClock()) || !a.drawsBarClock()
         ) {
             removeBarClock()
             // The clock's visibility is decided by ownership, never by this branch:
@@ -154,9 +165,13 @@ internal object BarClockManager {
             native?.let { StatusBarIconManager.settleClock(it, a) }
             return
         }
+        if (native == null) return
         val view = ensureBarClock(native)
         if (view == null) {
-            if (sBarClockView == null && !sBarClockPending) {
+            // Only a clock that exists but is not laid out yet is worth retrying. A
+            // parentless one is re-resolved by the next row layout (see [requestOnLayout]);
+            // posting a retry for it resent the same failing pass forever on the main thread.
+            if (sBarClockView == null && !sBarClockPending && native.parent != null) {
                 sBarClockPending = true
                 native.post {
                     sBarClockPending = false
@@ -169,6 +184,28 @@ internal object BarClockManager {
         view.invalidate()
         startBarClockLoop(view)
     }
+
+    /**
+     * The bar's own clock is replaced whenever the host re-inflates the row, and no hook
+     * of ours sees that swap. A layout pass does, and this is what it asks: cheap enough
+     * to run on every layout (two booleans unless the view is missing), and it re-adds
+     * the clock instead of waiting for the next settings change to do it.
+     */
+    fun requestOnLayout(a: StatusAppearance = ModuleConfig.appearance()) {
+        if (!needsView(a)) return
+        // Only when the view is missing or belongs to a different tree: a clock that is
+        // already parented is left alone, so a layout pass that this file's own
+        // requestLayout triggered cannot come back here.
+        val parent = sBarClock?.get()?.parent
+        val view = sBarClockView
+        if (view != null && view.isAttachedToWindow && parent != null && view.parent === parent) return
+        sync(a)
+    }
+
+    /** Whether this object should be drawing the bar's clock for [a] at all. */
+    private fun needsView(a: StatusAppearance): Boolean =
+        a.enabled && a.drawsBarClock() && !a.barClockHidden &&
+            !StatusBarRowManager.suppressed && !(a.glyph && a.hidesStatusClock())
 
     fun dropNow() {
         sBarClockLoop = false
@@ -289,7 +326,7 @@ internal object BarClockManager {
         val userScale = a.clockSize / Prefs.DEF_CLOCK_SIZE.toFloat()
         val baseSize = native.textSize * userScale
         val density = view.resources.displayMetrics.density
-        val isDark = IconRenderer.isDarkBackground(native.currentTextColor)
+        val isDark = GlyphInk.isDarkBackground(native.currentTextColor)
         val wkColor = if (isDark) a.clockWeekdayColorOnDark else a.clockWeekdayColorOnLight
         val dtColor = if (isDark) a.clockDateColorOnDark else a.clockDateColorOnLight
         val lnColor = if (isDark) a.clockLunarColorOnDark else a.clockLunarColorOnLight
@@ -312,8 +349,6 @@ internal object BarClockManager {
         // part in that comparison, so a colour change would otherwise never reach the view.
         view.digitColors = if (isDark) a.clockDigitColorsOnDark else a.clockDigitColorsOnLight
         view.invalidate()
-        view.requestLayout()
-        (view.parent as? View)?.requestLayout()
     }
 
     private fun startBarClockLoop(view: BarClockView) {
@@ -335,8 +370,13 @@ internal object BarClockManager {
         }
         val a = ModuleConfig.appearance()
         val native = sBarClock?.get()
-        if (!a.enabled || native == null || (a.glyph && a.hidesStatusClock()) || !a.drawsBarClock()) {
-            removeBarClock()
+        if (!a.enabled || native == null || !native.isAttachedToWindow ||
+            (a.glyph && a.hidesStatusClock()) || !a.drawsBarClock()
+        ) {
+            // `native.parent == null` is not "nothing to draw": it is the host having
+            // replaced the clock under us. Resolving again is what puts a clock back;
+            // dropping the view here was the second half of the missing-clock bug.
+            if (native == null || !native.isAttachedToWindow) sync(a) else removeBarClock()
             return
         }
         try {

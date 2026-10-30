@@ -10,9 +10,9 @@ import android.widget.TextView
 import io.github.odomu.honorduo.hook.statusbar.BarClockManager
 import io.github.odomu.honorduo.hook.statusbar.ClockTicker
 import io.github.odomu.honorduo.model.Prefs
-import io.github.odomu.honorduo.ui.render.IconGeometry
-import io.github.odomu.honorduo.ui.render.IconRenderer
+import io.github.odomu.honorduo.ui.render.GlyphInk
 import io.github.odomu.honorduo.ui.render.WeatherIconDrawer
+import io.github.odomu.honorduo.ui.render.geometry.RectGeometry
 import java.lang.ref.WeakReference
 import kotlin.math.ceil
 import kotlin.math.max
@@ -121,7 +121,7 @@ internal class BarClockView(context: Context) : View(context) {
                 this.ink == ink && this.weekdayColor == weekdayColor &&
                 this.dateColor == dateColor && this.lunarColor == lunarColor &&
                 this.weatherColor == weatherColor &&
-                this.baseSize == baseSize && this.maxHeight == maxHeight &&
+                this.baseSize == baseSize && (maxHeight <= 0 || this.maxHeight == maxHeight) &&
                 this.topOffsetX == topOffsetX && this.bottomOffsetX == bottomOffsetX &&
                 this.lunarGap == lunarGap && this.rowGap == rowGap
             ) {
@@ -142,7 +142,10 @@ internal class BarClockView(context: Context) : View(context) {
             this.lunarColor = lunarColor
             this.weatherColor = weatherColor
             this.baseSize = baseSize
-            this.maxHeight = maxHeight
+            // A zero height is "not resolved yet", not a zero-height bar: keeping the last
+            // real one is what stops the clamp from flapping on the frame a rotation or a
+            // shade pull leaves the bar unmeasured.
+            if (maxHeight > 0) this.maxHeight = maxHeight
             this.topOffsetX = topOffsetX
             this.bottomOffsetX = bottomOffsetX
             this.lunarGap = lunarGap
@@ -195,7 +198,7 @@ internal class BarClockView(context: Context) : View(context) {
             if (txt.isEmpty()) return 0f
             paint.textSize = sz
             val iconW = when {
-                vectorWeather() -> sz * IconGeometry.WEATHER_ICON_SCALE + sz * 0.25f
+                vectorWeather() -> sz * RectGeometry.WEATHER_ICON_SCALE + sz * 0.25f
                 symbolWeather() -> paint.measureText(WeatherIconDrawer.glyphFor(weatherCondition)) + sz * 0.25f
                 else -> 0f
             }
@@ -210,7 +213,7 @@ internal class BarClockView(context: Context) : View(context) {
                 blockHeight = 0f
                 return
             }
-            paint.typeface = IconRenderer.typefaceFor(weight)
+            paint.typeface = GlyphInk.typefaceFor(weight)
             var scale = 1f
             val isBalanced = clockStyle == Prefs.CLOCK_STYLE_BALANCED
             val topFactor = if (isBalanced) ClockTicker.BAR_DATE_SCALE else 1f
@@ -233,8 +236,14 @@ internal class BarClockView(context: Context) : View(context) {
             if (hasBottomRow) {
                 needed += lineHeight(baseSize * bottomFactor) + (if (hasTopRow) rowGap else 0f)
             }
+            // Only a real height is a bound. `maxHeight` reads 0 whenever the bar height
+            // cannot be resolved - before the first layout, and on the layout pass that
+            // runs while the shade is opening - and clamping to it set the scale to zero,
+            // which made the clock draw nothing at all. A zero here means "unknown", so
+            // the block keeps its natural size and the row clips it for the one frame
+            // that is wrong rather than for as long as the value stays zero.
             val room = maxHeight.toFloat()
-            if (needed > 0f && needed > room) {
+            if (room > 0f && needed > room) {
                 scale = room / needed
             }
             val budget = if (availW > 0) {
@@ -340,7 +349,7 @@ internal class BarClockView(context: Context) : View(context) {
 
         override fun onDraw(canvas: Canvas) {
             if (time.isEmpty() || timeSize <= 0f) return
-            paint.typeface = IconRenderer.typefaceFor(weight)
+            paint.typeface = GlyphInk.typefaceFor(weight)
             val currentInk = inkHost?.get()?.currentTextColor ?: ink
             val wkDrawColor = if (weekdayColor != 0) weekdayColor else currentInk
             val dtDrawColor = if (dateColor != 0) dateColor else currentInk
@@ -359,7 +368,7 @@ internal class BarClockView(context: Context) : View(context) {
                 val inkCentre = yBaseline + (bounds.top + bounds.bottom) * 0.5f
                 when {
                     vectorWeather() -> {
-                        val iconSz = sz * IconGeometry.WEATHER_ICON_SCALE
+                        val iconSz = sz * RectGeometry.WEATHER_ICON_SCALE
                         WeatherIconDrawer.drawWeatherIcon(
                             canvas, WeatherIconDrawer.parseWeatherType(weatherCondition),
                             x, inkCentre - iconSz * 0.5f, iconSz, wtDrawColor,

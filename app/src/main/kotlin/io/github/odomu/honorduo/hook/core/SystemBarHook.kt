@@ -1,8 +1,11 @@
 package io.github.odomu.honorduo.hook.core
 
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
 import android.widget.TextView
 import androidx.annotation.RequiresApi
 import io.github.libxposed.api.XposedModule
@@ -13,8 +16,9 @@ import io.github.odomu.honorduo.hook.tracker.BarVisibility
 import io.github.odomu.honorduo.hook.tracker.ScopeTracker
 import io.github.odomu.honorduo.model.ModuleConfig
 import io.github.odomu.honorduo.model.Prefs
+import io.github.odomu.honorduo.model.StatusAppearance
 import io.github.odomu.honorduo.model.StatusState
-import io.github.odomu.honorduo.ui.render.IconRenderer
+import io.github.odomu.honorduo.ui.render.GlyphInk
 import java.lang.ref.WeakReference
 
 /**
@@ -28,6 +32,32 @@ import java.lang.ref.WeakReference
  * - Listens for tint changes across status-bar containers to refresh glyph and clock colors.
  */
 internal object SystemBarHook {
+    private const val VISIBILITY_FLAGS = 0x0000000C
+
+    private const val TRANSIENT_CALLBACK =
+        "com.android.systemui.statusbar.data.repository.StatusBarModePerDisplayRepositoryImpl\$commandQueueCallback\$1"
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var transientDisplayId = -1
+    private val restoreTransientClock = Runnable {
+        val appearance = ModuleConfig.appearance()
+        if (appearance.enabled) {
+            val contents = StatusBarIconManager.contentsViewGroup
+            if (contents?.display?.displayId == transientDisplayId) {
+                val clock = contents.findViewById<View>(StatusBarIconManager.clockId) as? TextView
+                if (clock != null) {
+                    BarClockManager.noteNativeClock(clock)
+                    BarClockManager.sync(appearance)
+                }
+            }
+        }
+    }
+
+    private class PrivacyChipState(view: View) {
+        val view = WeakReference(view)
+        var hiddenVisibility: Int? = null
+    }
+    private val privacyChips = ArrayList<PrivacyChipState>()
 
     /**
      * Installs all status bar view and container hooks into the target ClassLoader.
@@ -36,7 +66,6 @@ internal object SystemBarHook {
      * @param cl SystemUI ClassLoader containing target view classes.
      * @return Total count of successfully installed hooks.
      */
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     fun install(module: XposedModule, cl: ClassLoader): Int {
         var hooked = 0
         hooked += hookRow(module, cl)
@@ -48,12 +77,98 @@ internal object SystemBarHook {
         hooked += hookPanel(module, cl)
         hooked += hookBluetooth(module, cl)
         hooked += hookOperatorIcons(module, cl)
+        hooked += hookTransientStatusBar(module, cl)
+        hooked += hookPrivacyChip(module, cl)
         return hooked
     }
+
+    /** A light swipe can reveal the status bar without expanding the notification panel. */
+    private fun hookTransientStatusBar(module: XposedModule, cl: ClassLoader): Int {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return 0
+        val callback = Refl.cls(TRANSIENT_CALLBACK, cl) ?: return 0
+        val displayField = Refl.field(callback, "\$thisDisplayId") ?: return 0
+        val showTransient = Refl.methodNamed(callback, "showTransient", 3) ?: return 0
+        return SystemUiHook.hook(module, showTransient, "honorduo-transient-status-bar") { chain ->
+            val result = chain.proceed()
+            val displayId = (chain.getArg(0) as? Number)?.toInt()
+            val types = (chain.getArg(1) as? Number)?.toInt() ?: 0
+            val targetDisplay = (Refl.get(displayField, chain.thisObject) as? Number)?.toInt()
+            if (displayId != null && displayId == targetDisplay &&
+                (types and WindowInsets.Type.statusBars()) != 0
+            ) {
+                // Coalesce one replay after the repository dispatch. Only primitive
+                // display state is retained; no View or repeating timer is captured.
+                transientDisplayId = displayId
+                mainHandler.removeCallbacks(restoreTransientClock)
+                mainHandler.post(restoreTransientClock)
+            }
+            result
+        }
+    }
+
+    /** Keep the host's add/remove bookkeeping intact and hide only the chip itself. */
+    private fun hookPrivacyChip(module: XposedModule, cl: ClassLoader): Int {
+        val bar = Refl.cls("com.android.systemui.statusbar.phone.HwNotchStatusBar", cl) ?: return 0
+        val toggle = Refl.methodNamed(bar, "togglePrivacyChip", 2) ?: return 0
+        return SystemUiHook.hook(module, toggle, "honorduo-privacy-chip") { chain ->
+            chain.proceed()
+            val chip = chain.getArg(0) as? View
+            val show = chain.getArg(1) as? Boolean ?: false
+            if (chip != null) updatePrivacyChip(chip, show)
+            null
+        }
+    }
+
+    /** Records only live show events; release our visibility before the host reuses a chip. */
+    private fun updatePrivacyChip(chip: View, show: Boolean) {
+        for (i in privacyChips.indices.reversed()) {
+            val state = privacyChips[i]
+            val view = state.view.get()
+            if (view == null) {
+                privacyChips.removeAt(i)
+            } else if (view === chip) {
+                if (show) {
+                    setPrivacyChipHidden(state, chip, ModuleConfig.appearance().hidePrivacyChip)
+                } else {
+                    setPrivacyChipHidden(state, chip, false)
+                    privacyChips.removeAt(i)
+                }
+                return
+            }
+        }
+        if (show) {
+            val state = PrivacyChipState(chip)
+            privacyChips.add(state)
+            setPrivacyChipHidden(state, chip, ModuleConfig.appearance().hidePrivacyChip)
+        }
+    }
+
+    /** Applies settings to all shown chip instances, including master-switch hand-back. */
+    fun applyPrivacyChipVisibility(a: StatusAppearance) {
+        for (i in privacyChips.indices.reversed()) {
+            val state = privacyChips[i]
+            val chip = state.view.get()
+            if (chip == null) privacyChips.removeAt(i)
+            else setPrivacyChipHidden(state, chip, a.hidePrivacyChip)
+        }
+    }
+
+    private fun setPrivacyChipHidden(state: PrivacyChipState, chip: View, hide: Boolean) {
+        if (hide) {
+            if (chip.visibility != View.GONE) {
+                if (state.hiddenVisibility == null) state.hiddenVisibility = chip.visibility
+                chip.visibility = View.GONE
+            }
+        } else {
+            val previous = state.hiddenVisibility ?: return
+            state.hiddenVisibility = null
+            if (chip.visibility == View.GONE) chip.visibility = previous
+        }
+    }
+
     /**
      * Hooks `HwSystemIcons` container methods to manage module view lifecycle and capsule collision.
      */
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     private fun hookRow(module: XposedModule, cl: ClassLoader): Int {
         val rowClass = Refl.cls("com.android.systemui.statusbar.HwSystemIcons", cl) ?: return 0
         var n = 0
@@ -205,7 +320,8 @@ internal object SystemBarHook {
         return SystemUiHook.hook(module, method, "honorduo-visibility") { chain ->
             val result = chain.proceed()
             val self = chain.thisObject
-            if (self is View) {
+            val mask = (chain.getArg(1) as? Number)?.toInt() ?: 0
+            if (self is View && (mask and VISIBILITY_FLAGS) != 0) {
                 StatusBarIconManager.enforceSuppression(self)
             }
             result
@@ -221,13 +337,14 @@ internal object SystemBarHook {
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is ViewGroup) {
-                StatusBarIconManager.contents = WeakReference(self)
+                StatusBarIconManager.noteContents(self)
                 val clockId = StatusBarIconManager.clockId
-                if (clockId != 0 && BarClockManager.nativeClock == null) {
-                    val native = self.findViewById<View>(clockId) as? TextView
+                if (clockId != 0) {
+                    // The notch header can attach last without containing a clock.
+                    val current = StatusBarIconManager.contentsViewGroup
+                    val native = current?.findViewById<View>(clockId) as? TextView
                     if (native != null) {
                         BarClockManager.noteNativeClock(native)
-                        StatusBarIconManager.settleClock(native)
                     }
                 }
                 // A second, independent place to learn the lockscreen exists: the battery
@@ -258,13 +375,12 @@ internal object SystemBarHook {
             val result = chain.proceed()
             val self = chain.thisObject
             if (self is TextView) {
-                if (self.typeface != null) {
-                    IconRenderer.adoptSystemTypeface(self.typeface)
-                    SystemUiHook.invalidateHosts()
-                }
                 BarClockManager.noteNativeClock(self)
-                BarClockManager.dropNow()
-                BarClockManager.sync(ModuleConfig.appearance())
+                if (self.typeface != null) {
+                    GlyphInk.adoptSystemTypeface(self.typeface)
+                }
+                // invalidateHosts already syncs the clock, or records a replay while hidden.
+                SystemUiHook.invalidateHosts()
             }
             result
         }

@@ -12,8 +12,10 @@
 package io.github.odomu.honorduo.hook.core
 
 import android.content.Context
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import androidx.annotation.RequiresApi
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
 import io.github.odomu.honorduo.hook.statusbar.BarClockManager
@@ -28,6 +30,7 @@ import io.github.odomu.honorduo.log.LogManager
 import io.github.odomu.honorduo.model.ModuleConfig
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.StatusState
+import java.lang.reflect.Constructor
 import java.lang.reflect.Method
 
 /**
@@ -52,6 +55,7 @@ internal object SystemUiHook {
 
     private var sScreenTrackerStarted = false
 
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     fun install(module: XposedModule, cl: ClassLoader) {
         sModule = module
         ModuleConfig.install(module)
@@ -84,6 +88,7 @@ internal object SystemUiHook {
         StatusBarRowManager.syncAll(a, force = true)
         BarClockManager.sync(a)
         StatusBarIconManager.applyIconVisibility(a)
+        SystemBarHook.applyPrivacyChipVisibility(a)
         StatusBarIconHook.updateConfig(
             a.replaceWifiIcon,
             a.replaceStatusIcon,
@@ -186,7 +191,7 @@ internal object SystemUiHook {
     }
     fun hook(
         module: XposedModule,
-        c: java.lang.reflect.Constructor<*>?,
+        c: Constructor<*>?,
         id: String,
         hooker: XposedInterface.Hooker,
     ): Int {
