@@ -28,8 +28,8 @@ android {
         minSdk = 29
         //noinspection TargetSdkVersionUpdate
         targetSdk = 37
-        versionCode = tagVersionCode ?: 10005
-        versionName = tagVersionName ?: "1.0.5"
+        versionCode = tagVersionCode ?: 10007
+        versionName = tagVersionName ?: "1.0.7"
 
         buildConfigField("String", "REPO_SLUG", "\"$repoSlug\"")
     }
@@ -82,6 +82,10 @@ android {
         }
     }
 
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+
     lint {
         checkReleaseBuilds = false
         abortOnError = false
@@ -94,9 +98,16 @@ kotlin {
     }
 }
 
+// Unit tests load the framework-facing classes outside LSPosed.
+configurations.named("testImplementation") {
+    extendsFrom(configurations.getByName("compileOnly"))
+}
+
 dependencies {
     // Provided by the Xposed framework at runtime, never bundled.
     compileOnly("io.github.libxposed:api:102.0.0")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.17")
     // Needed by the settings app to talk to the framework service.
     implementation("io.github.libxposed:service:102.0.0")
     // LSPosed official tool library for high-performance hidden API access and reflection.
@@ -109,7 +120,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     // @Serializable on the nav routes. miuix-nav only exposes it as a runtime
     // dependency, so the annotation and the inlined serializer() lookup need it
-    // declared here to be on the compile classpath.
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
 
     // Backdrop and squircle shapes. These are NOT Miuix: they are kyant0's libraries, and
