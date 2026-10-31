@@ -1,5 +1,6 @@
 # HonorDuo
 
+[![Version](https://img.shields.io/github/v/release/odomu/HonorDuo?label=version&color=blue)](https://github.com/odomu/HonorDuo/releases/latest)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](https://github.com/odomu/HonorDuo/blob/main/LICENSE)
 [![Android](https://img.shields.io/badge/Android-10%2B-green)](https://developer.android.com)
 [![LSPosed](https://img.shields.io/badge/LSPosed-API%20102-orange)](https://github.com/LSPosed/LSPosed)

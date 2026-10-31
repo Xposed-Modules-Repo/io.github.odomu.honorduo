@@ -71,6 +71,7 @@ internal object BarClockManager {
         val draw = Refl.methodNamed(clockClass, "onDraw", 1) ?: return 0
         val dimensions = Refl.methodNamed(View::class.java, "setMeasuredDimension", 2) ?: return 0
         var count = 0
+
         count += SystemUiHook.hook(module, measure, "honorduo-clock-measure") { chain ->
             val result = chain.proceed()
             val native = chain.thisObject as? TextView
@@ -99,9 +100,6 @@ internal object BarClockManager {
             if (native == null || renderer == null) {
                 chain.proceed()
             } else {
-                // Re-enforce overflow on every draw: the capsule animation resets
-                // clipChildren/clipToPadding on ancestor views between frames.
-                allowOverflow(native)
                 drawRenderer(native, renderer, chain.getArg(0) as Canvas)
                 null
             }
@@ -123,13 +121,21 @@ internal object BarClockManager {
     }
 
     internal fun drawRenderer(native: TextView, renderer: BarClockView, canvas: Canvas) {
+        // Sync padding every draw: it may have changed between the last measure pass
+        // and this draw call (a one-frame delay that briefly misaligns the block).
+        renderer.setPadding(
+            native.paddingLeft, native.paddingTop,
+            native.paddingRight, native.paddingBottom,
+        )
         if (renderer.width != native.width || renderer.height != native.height) {
             renderer.measure(
                 View.MeasureSpec.makeMeasureSpec(native.width, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(native.height, View.MeasureSpec.EXACTLY),
             )
-            renderer.layout(0, 0, native.width, native.height)
         }
+        // Always layout so the draw coordinate system matches the current native size
+        // even when a layout pass ran after the last measure hook (capsule collapse).
+        renderer.layout(0, 0, native.width, native.height)
         val save = canvas.save()
         try {
             canvas.translate(native.scrollX.toFloat(), native.scrollY.toFloat())
