@@ -14,6 +14,7 @@ internal class OutSignalView(context: Context) : View(context) {
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
     }
     var host: StatusState? = null
+    var foreground: Int = -1
 
     var bars: Int = 0
     var dots: Int = -1
@@ -43,10 +44,10 @@ internal class OutSignalView(context: Context) : View(context) {
     }
 
     override fun onDraw(canvas: Canvas) {
-        val source = host ?: return
+        if (host == null) return
         OutSignalRenderer.drawOutSignal(
             canvas, width, height, bars, dots,
-            source.foreground(), ModuleConfig.appearance(), type, type2,
+            foreground, ModuleConfig.appearance(), type, type2,
         )
     }
 }

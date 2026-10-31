@@ -14,8 +14,6 @@ package io.github.odomu.honorduo.hook.statusbar
 import android.content.res.Resources
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewParent
-import android.widget.TextView
 import androidx.core.view.isGone
 import io.github.odomu.honorduo.hook.core.Refl
 import io.github.odomu.honorduo.hook.tracker.WifiPresence
@@ -88,6 +86,22 @@ internal object StatusBarIconManager {
             clockContents ?: fallback
         }
 
+    /**
+     * Whether [view] belongs to the lock screen's own status bar.
+     *
+     * Found by walking up to the bar root: `keyguard_status_bar.xml` inflates its own
+     * `HwKeyguardStatusBarView`, so the class name is the one signal that distinguishes
+     * the lock screen's bar from the main one without depending on a visibility read.
+     */
+    fun isKeyguardTree(view: View): Boolean {
+        var current: View? = view
+        while (current != null) {
+            if (current.javaClass.name.endsWith("KeyguardStatusBarView")) return true
+            current = current.parent as? View
+        }
+        return false
+    }
+
 
     /** Registers one attached contents view; called for every one, not only the last. */
     fun noteContents(group: ViewGroup) {
@@ -118,8 +132,6 @@ internal object StatusBarIconManager {
 
     private const val STATUS_ICON_VIEW_SUFFIX = "StatusBarIconView"
 
-    /** The bar's own clock view, whose visibility is owned by the arrangement. */
-    private const val STATUS_BAR_CLOCK_SUFFIX = "HwStatusBarClock"
 
     /** The stylus icon the bar also draws from the Bluetooth slot family. */
     private const val BLUETOOTH_PENCIL_SLOT = "bluetooth_pencil"
@@ -162,7 +174,7 @@ internal object StatusBarIconManager {
         id == wifiId -> a.glyph && a.ownsWifi()
         id == mobileId -> (a.glyph && (a.signalDots() || a.drawsAnySimRow())) || a.stackedOut()
         id == batteryId -> a.glyph
-        id == clockId -> a.barClockHidden || (a.glyph && a.hidesStatusClock()) || BarClockManager.isClockAttached
+        id == clockId -> false
         else -> false
     }
 
@@ -174,7 +186,11 @@ internal object StatusBarIconManager {
             }
         }
         val id = root.id
-        if (id == wifiId || id == mobileId || id == batteryId || id == clockId) {
+        if (id == clockId) {
+            release(root, a)
+            return
+        }
+        if (id == wifiId || id == mobileId || id == batteryId) {
             if (isOwned(id, a)) {
                 rememberHidden(root)
                 hide(root)
@@ -316,21 +332,11 @@ internal object StatusBarIconManager {
         if (id == 0 || !knownId) {
             return
         }
-        // The clock is the one icon whose ownership does not depend on the container:
-        // its write can land before the view is parented (a re-inflated bar sets
-        // visibility during inflate), when the contents walk below has nothing to
-        // match yet. The class check keeps the calling and projection clocks - which
-        // share the id but are a plain TextView - out of it.
-        if (id == clockId &&
-            (view is TextView || view.javaClass.name.endsWith(STATUS_BAR_CLOCK_SUFFIX)) &&
-            isOwned(id, a)
-        ) {
-            rememberHidden(view)
-            hide(view)
-            return
-        }
+        // Clock ownership is scoped to a real attached bar, like every other icon.
+        // Never suppress a same-id keyguard or unparented clock during inflation.
+        if (id == clockId && isKeyguardClock(view)) return
         if (!insideOwnedContainer(view)) return
-        if (isOwned(id, ModuleConfig.appearance())) {
+        if (isOwned(id, a)) {
             rememberHidden(view)
             hide(view)
         }
@@ -352,6 +358,16 @@ internal object StatusBarIconManager {
             handBackAll()
             return
         }
+        // The master switch is the user saying "give it all back". It is handled before
+        // anything else, and without consulting the id table or the layout: with the
+        // switch off the module replaces nothing, so every view it hid returns to the
+        // visibility the host had given it - the bar's own time and battery included.
+        if (!a.enabled) {
+            BarClockManager.sync(a)
+            settleAllTrackedSlots(a)
+            handBackAll()
+            return
+        }
         if (a.hidesStatusClock()) {
             ClockTicker.refresh()
         }
@@ -367,32 +383,21 @@ internal object StatusBarIconManager {
                 settle(row.container, a)
             }
         }
-        contentsViewGroup?.let { settle(it, a) }
+        synchronized(CONTENTS) {
+            for (entry in CONTENTS) entry.get()?.let { settle(it, a) }
+        }
         settleAllTrackedSlots(a)
 
-        synchronized(HIDDEN) {
-            for (i in HIDDEN.indices.reversed()) {
-                val view = HIDDEN[i].view.get()
-                if (view == null) {
-                    HIDDEN.removeAt(i)
-                } else if (!insideOwnedContainer(view)) {
-                    // A slot icon is handed back with the visibility the host gave it;
-                    // forcing VISIBLE would draw an alarm or Bluetooth icon that is not
-                    // actually on. The clock is never handed back on this path either:
-                    // its container is the bar's contents, and a re-parented copy (a
-                    // keyguard rebuild, a multi-user switch) would otherwise come back
-                    // in the corner while the glyph still draws the time.
-                    when {
-                        // Handed back only when the settings no longer ask for it. A
-                        // view the keyguard re-created sits outside every container this
-                        // pass walks, and restoring it blindly is what put the alarm
-                        // icon back on the lockscreen.
-                        isSlotTracked(view) -> if (!hidesSlot(view, a)) restoreSlotIcon(view)
-                        view.id == clockId && isOwned(clockId, a) -> hide(view)
-                        else -> release(view, a)
-                    }
-                    HIDDEN.removeAt(i)
-                }
+        val tracked = synchronized(HIDDEN) {
+            HIDDEN.removeAll { it.view.get() == null }
+            HIDDEN.mapNotNull { it.view.get() }
+        }
+        for (view in tracked) {
+            if (insideOwnedContainer(view)) continue
+            if (isSlotTracked(view)) {
+                if (!hidesSlot(view, a)) restoreSlotIcon(view)
+            } else {
+                release(view, a)
             }
         }
     }
@@ -420,7 +425,7 @@ internal object StatusBarIconManager {
                 if (known == null) {
                     HIDDEN.removeAt(i)
                 } else if (known === view) {
-                    return entry.previous
+                    return HIDDEN.removeAt(i).previous
                 }
             }
         }
@@ -455,17 +460,22 @@ internal object StatusBarIconManager {
         }
     }
 
+    /**
+     * Hides [view], recording the visibility it had first.
+     *
+     * Every direct caller - the battery, the type label, the Wi-Fi and mobile icons, the
+     * bar's own clock - used to hide without registering, while [release] restores only
+     * views it holds a record for. One exclusion (an excluded panel, the lockscreen) then
+     * called [handBackAll], which had nothing to hand back, so the native icons stayed
+     * gone for good.
+     */
     fun hide(view: View) {
-        if (view.visibility != View.GONE) {
-            view.visibility = View.GONE
-        }
+        if (view.isGone) return
+        rememberHidden(view)
+        view.visibility = View.GONE
     }
 
     fun release(view: View, a: StatusAppearance = ModuleConfig.appearance()) {
-        if (view.id == clockId && a.barClockHidden) {
-            if (view.visibility != View.GONE) view.visibility = View.GONE
-            return
-        }
         // Only ever restore what this module hid. A blind VISIBLE re-showed icons the
         // host hides by itself on the lockscreen, and fighting those writes is what
         // made the bar blink there.
@@ -474,39 +484,23 @@ internal object StatusBarIconManager {
         if (view.visibility != target) view.visibility = target
     }
 
-    /**
-     * Puts the bar's own clock where the appearance asks for it.
-     *
-     * The one place the clock's visibility is decided: the module either draws the
-     * time itself and the native copy goes, or the native copy comes back. Written as
-     * a single rule because "handing back" [release] alone used to force the clock
-     * visible on every repaint, and the clock placed inside the glyph flickered back
-     * into the top-left corner whenever the suppression hook missed a write.
-     */
-    fun settleClock(view: View, a: StatusAppearance = ModuleConfig.appearance()) {
-        if (isOwned(clockId, a)) {
-            rememberHidden(view)
-            hide(view)
-        } else {
-            release(view, a)
-        }
-    }
 
-    /**
-     * Re-hides the bar's clock when the appearance still owns it.
-     *
-     * The suppression hook only sees visibility *writes*; a copy re-shown through a
-     * path that does not write visibility would stay up. The row asks this on every
-     * layout, which is cheap (one id compare and one visibility read) and heals the
-     * state within a frame.
-     */
-    fun reassertClock(a: StatusAppearance = ModuleConfig.appearance()) {
-        if (!idsResolved || !isOwned(clockId, a)) return
-        val view = BarClockManager.nativeClock ?: return
-        if (view.visibility != View.GONE) {
-            rememberHidden(view)
-            hide(view)
+    /** The lock screen's own clock is never part of the status-bar replacement. */
+    private fun isKeyguardClock(view: View): Boolean =
+        view.id == clockId && isKeyguardTree(view)
+
+    /** Resolves ROM tint for the actual painted View, not a hidden battery's stale box. */
+    fun foreground(view: View, fallback: Int): Int {
+        var contents = view.parent as? View
+        while (contents != null && !contents.javaClass.name.endsWith("HwStatusbarContents")) {
+            contents = contents.parent as? View
         }
+        contents ?: return fallback
+        val tint = Refl.getInt(Refl.field(contents.javaClass, "mIconTint"), contents, fallback)
+        val area = Refl.get(Refl.field(contents.javaClass, "mTintArea"), contents) ?: return tint
+        val dispatcher = Refl.cls("com.android.systemui.plugins.DarkIconDispatcher", contents.javaClass.classLoader ?: return tint)
+        val resolve = Refl.method(dispatcher, "getTint", android.graphics.Rect::class.java, View::class.java, Int::class.javaPrimitiveType!!)
+        return (Refl.invoke(resolve, null, area, view, tint) as? Int) ?: tint
     }
 
     /**
@@ -518,13 +512,13 @@ internal object StatusBarIconManager {
      * nothing standing in for it.
      */
     fun insideOwnedContainer(view: View): Boolean {
-        val c = contentsViewGroup
-        var p: ViewParent? = view.parent
-        while (p != null) {
-            if (p is ViewGroup && (p === c || StatusBarRowManager.find(p) != null)) {
-                return true
-            }
-            p = (p as? View)?.parent
+        var parent = view.parent as? View
+        while (parent != null) {
+            if (parent.javaClass.name.endsWith("HwStatusbarContents") ||
+                parent is ViewGroup && synchronized(CONTENTS) { val candidate = parent; CONTENTS.any { it.get() === candidate } } ||
+                parent is ViewGroup && StatusBarRowManager.find(parent) != null
+            ) return true
+            parent = parent.parent as? View
         }
         return false
     }

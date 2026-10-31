@@ -181,10 +181,6 @@ internal object StatusBarRowManager {
         // `syncRow` already settled each row's container, so this pass is only for the
         // bar's contents (the clock copy that lives outside the rows) and the hand-back.
         StatusBarIconManager.applyIconVisibility(rowsSettled = !suppressed)
-        // Explicit, because the visibility listener that normally rebuilds the clock can
-        // run while `suppressed` is still true - pulling the shade down and opening an app
-        // at the same instant does exactly that - and then nothing else ever asked again.
-        if (!suppressed) BarClockManager.sync(ModuleConfig.appearance())
     }
 
     private fun hideAll(row: Row) {
@@ -259,16 +255,8 @@ internal object StatusBarRowManager {
             StatusBarIconManager.hide(row.battery)
         }
         StatusBarIconManager.settle(row.container, a)
-        // The row lays out on every status-bar change, which is the cheap moment to
-        // put the bar's own clock back where the arrangement wants it: the suppression
-        // hook only sees visibility writes, and a copy re-shown through another path
-        // would otherwise sit in the corner until the next settings change.
-        StatusBarIconManager.reassertClock(a)
-        // The host replaces the clock view when it re-inflates the row, and only a layout
-        // pass is guaranteed to happen afterwards. Without this the clock stayed missing
-        // until the next settings change.
-        BarClockManager.requestOnLayout(a)
         syncOutViews(row)
+        refreshTint(row)
         if (force || row.lastStyle != a.style) {
             row.lastStyle = a.style
             row.glyph?.requestLayout()
@@ -887,7 +875,6 @@ internal object StatusBarRowManager {
         val isShown = (isCapsule || isColored) && right > 0
         val avoidRight = if (isShown) right else 0
         val row = find(rowView) ?: return
-        if (row.lastAvoidBound == avoidRight) return
         row.lastAvoidBound = avoidRight
         handleCapsuleAvoidance(rowView, isShown, avoidRight)
     }
@@ -988,17 +975,26 @@ internal object StatusBarRowManager {
         val a = ModuleConfig.appearance()
         for (row in snapshot()) {
             row.state.refresh()
-            val fg = row.state.foreground()
-            row.glyph?.invalidate()
-            row.signal?.invalidate()
             if (a.perfPairShown()) {
                 syncPerfReadouts(row, a)
             }
-            row.perf?.setTextColor(fg)
-            row.fps?.setTextColor(fg)
-            row.type?.setTextColor(fg)
+            refreshTint(row)
             row.row.invalidate()
         }
+    }
+
+    /** Tint belongs to each visible component's geometry in its own bar tree. */
+    private fun refreshTint(row: Row) {
+        val glyphHost = row.glyph ?: row.row
+        row.state.ink = StatusBarIconManager.foreground(glyphHost, row.state.foreground())
+        row.glyph?.invalidate()
+        row.signal?.let {
+            it.foreground = StatusBarIconManager.foreground(it, row.state.foreground())
+            it.invalidate()
+        }
+        row.perf?.let { it.setTextColor(StatusBarIconManager.foreground(it, row.state.foreground())) }
+        row.fps?.let { it.setTextColor(StatusBarIconManager.foreground(it, row.state.foreground())) }
+        row.type?.let { it.setTextColor(StatusBarIconManager.foreground(it, row.state.foreground())) }
     }
 
     @SuppressLint("InternalInsetResource")

@@ -1,19 +1,16 @@
-package io.github.odomu.honorduo.ui.view
+﻿package io.github.odomu.honorduo.ui.view
 
 import android.content.Context
-import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
 import android.view.View
-import android.widget.TextView
 import io.github.odomu.honorduo.hook.statusbar.BarClockManager
 import io.github.odomu.honorduo.hook.statusbar.ClockTicker
 import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.ui.render.GlyphInk
 import io.github.odomu.honorduo.ui.render.WeatherIconDrawer
 import io.github.odomu.honorduo.ui.render.geometry.RectGeometry
-import java.lang.ref.WeakReference
 import kotlin.math.ceil
 import kotlin.math.max
 
@@ -46,11 +43,14 @@ internal class BarClockView(context: Context) : View(context) {
          * changes nothing else, and an array cannot be compared with `==` in that early-out.
          */
         var digitColors: IntArray = IntArray(0)
+        var geometryVersion: Long = 0
+            private set
 
-        private var inkHost: WeakReference<TextView>? = null
+
 
         private var baseSize = 0f
         private var maxHeight = 0
+        private var measuredContentHeight: Int? = null
         private var topOffsetX = 0f
         private var bottomOffsetX = 0f
         private var lunarGap = 0f
@@ -61,15 +61,6 @@ internal class BarClockView(context: Context) : View(context) {
         private var blockWidth = 0f
         private var blockHeight = 0f
 
-        fun bindInk(host: TextView) {
-            inkHost = WeakReference(host)
-        }
-
-        fun refreshInk() {
-            val host = inkHost?.get() ?: return
-            ink = host.currentTextColor
-            invalidate()
-        }
 
         init {
             isClickable = false
@@ -77,14 +68,6 @@ internal class BarClockView(context: Context) : View(context) {
             importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
         }
 
-        override fun setTranslationX(translationX: Float) {
-            val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-            if (isLandscape) {
-                super.setTranslationX(0f)
-            } else {
-                super.setTranslationX(translationX)
-            }
-        }
 
         /**
          * The time, one character at a time, so each glyph can take its own colour.
@@ -113,6 +96,7 @@ internal class BarClockView(context: Context) : View(context) {
             baseSize: Float, maxHeight: Int,
             topOffsetX: Float, bottomOffsetX: Float,
             lunarGap: Float, rowGap: Float,
+            availableWidth: Int,
         ) {
             if (this.time == time && this.date == date && this.weekday == weekday &&
                 this.lunar == lunar && this.weatherCondition == weatherCondition &&
@@ -150,30 +134,43 @@ internal class BarClockView(context: Context) : View(context) {
             this.bottomOffsetX = bottomOffsetX
             this.lunarGap = lunarGap
             this.rowGap = rowGap
-            val targetW = if (width > 0) width else (resources.displayMetrics.widthPixels * BarClockManager.BAR_CLOCK_WIDTH_SHARE).toInt()
+            val targetW = if (availableWidth > 0) {
+                (availableWidth - paddingLeft - paddingRight).coerceAtLeast(0)
+            } else {
+                (resources.displayMetrics.widthPixels * BarClockManager.BAR_CLOCK_WIDTH_SHARE).toInt() - paddingLeft - paddingRight
+            }
             val oldW = ceil(blockWidth).toInt()
             val oldH = ceil(blockHeight).toInt()
-            solve(targetW)
+            solve(targetW, measuredContentHeight ?: maxHeight)
             val newW = ceil(blockWidth).toInt()
             val newH = ceil(blockHeight).toInt()
             if (oldW != newW || oldH != newH) {
+                geometryVersion++
                 requestLayout()
-                (parent as? View)?.requestLayout()
             }
             invalidate()
         }
 
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val availW = MeasureSpec.getSize(widthMeasureSpec)
-            solve(availW)
+            val contentW = (availW - paddingLeft - paddingRight).coerceAtLeast(0)
+            // 1.0.4 fitted the block to the bar height. The native clock's own box is
+            // shorter (it sits below the contents' top padding), so fitting to that box
+            // shrank and clipped the first row. Keep the bar height as the budget and let
+            // the block overflow its box, which the parents allow.
+            val contentH = if (maxHeight > 0) {
+                maxHeight
+            } else {
+                (MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
+            }
+            measuredContentHeight = contentH
+            solve(contentW, contentH)
             val wantedW = ceil(blockWidth).toInt() + paddingLeft + paddingRight
             val wantedH = ceil(blockHeight).toInt() + paddingTop + paddingBottom
-            val width = if (availW > 0 && MeasureSpec.getMode(widthMeasureSpec) != MeasureSpec.UNSPECIFIED) {
-                minOf(max(1, wantedW), availW)
-            } else {
-                max(1, wantedW)
-            }
-            setMeasuredDimension(width, max(1, wantedH))
+            setMeasuredDimension(
+                resolveSize(max(1, wantedW), widthMeasureSpec),
+                resolveSize(max(1, wantedH), heightMeasureSpec),
+            )
         }
 
         /** True for the styles that draw the module's own vector icon. */
@@ -205,7 +202,7 @@ internal class BarClockView(context: Context) : View(context) {
             return iconW + paint.measureText(txt)
         }
 
-        private fun solve(availW: Int) {
+        private fun solve(availW: Int, availH: Int = maxHeight) {
             if (time.isEmpty() || baseSize <= 0f) {
                 timeSize = 0f
                 lineSize = 0f
@@ -231,20 +228,20 @@ internal class BarClockView(context: Context) : View(context) {
                 date.isNotEmpty() || lunar.isNotEmpty() || weekday.isNotEmpty()
             }
 
-            var needed = 0f
-            if (hasTopRow) needed += lineHeight(baseSize * topFactor)
-            if (hasBottomRow) {
-                needed += lineHeight(baseSize * bottomFactor) + (if (hasTopRow) rowGap else 0f)
+            val topFull = if (hasTopRow) fullLineHeight(baseSize * topFactor) else 0f
+            val topAdvance = if (hasTopRow) lineHeight(baseSize * topFactor) else 0f
+            val bottomFull = if (hasBottomRow) fullLineHeight(baseSize * bottomFactor) else 0f
+            val fixedGap = if (hasTopRow && hasBottomRow) rowGap else 0f
+            val naturalTextHeight = when {
+                hasTopRow && hasBottomRow -> max(topFull, topAdvance + bottomFull)
+                hasTopRow -> topFull
+                hasBottomRow -> bottomFull
+                else -> 0f
             }
-            // Only a real height is a bound. `maxHeight` reads 0 whenever the bar height
-            // cannot be resolved - before the first layout, and on the layout pass that
-            // runs while the shade is opening - and clamping to it set the scale to zero,
-            // which made the clock draw nothing at all. A zero here means "unknown", so
-            // the block keeps its natural size and the row clips it for the one frame
-            // that is wrong rather than for as long as the value stays zero.
-            val room = maxHeight.toFloat()
-            if (room > 0f && needed > room) {
-                scale = room / needed
+            val naturalHeight = naturalTextHeight + fixedGap
+            val room = availH.coerceAtLeast(0).toFloat()
+            if (naturalHeight > room && naturalTextHeight > 0f) {
+                scale = ((room - fixedGap).coerceAtLeast(0f) / naturalTextHeight).coerceAtMost(1f)
             }
             val budget = if (availW > 0) {
                 availW.toFloat()
@@ -305,12 +302,16 @@ internal class BarClockView(context: Context) : View(context) {
                 widest = budget
             }
             blockWidth = widest
-            blockHeight = (if (hasTopRow) lineHeight(timeSize * topFactor) else 0f) +
-                (if (hasBottomRow) {
-                    lineHeight(timeSize * bottomFactor) + (if (hasTopRow) rowGap else 0f)
-                } else {
-                    0f
-                })
+            val finalTopAdvance = if (hasTopRow) lineHeight(timeSize * topFactor) else 0f
+            val finalTopFull = if (hasTopRow) fullLineHeight(timeSize * topFactor) else 0f
+            val finalBottomFull = if (hasBottomRow) fullLineHeight(timeSize * bottomFactor) else 0f
+            val finalGap = if (hasTopRow && hasBottomRow) rowGap else 0f
+            blockHeight = when {
+                hasTopRow && hasBottomRow -> max(finalTopFull, finalTopAdvance + finalGap + finalBottomFull)
+                hasTopRow -> finalTopFull
+                hasBottomRow -> finalBottomFull
+                else -> 0f
+            }
         }
 
         /**
@@ -342,6 +343,12 @@ internal class BarClockView(context: Context) : View(context) {
             val metrics = paint.fontMetrics
             return (metrics.descent - metrics.ascent) * BarClockManager.BAR_CLOCK_LINE_SPACING
         }
+        private fun fullLineHeight(size: Float): Float {
+            if (size <= 0f) return 0f
+            paint.textSize = size
+            val metrics = paint.fontMetrics
+            return metrics.descent - metrics.ascent
+        }
 
         private fun gap(size: Float): Float = size * BarClockManager.BAR_CLOCK_GAP
 
@@ -350,7 +357,7 @@ internal class BarClockView(context: Context) : View(context) {
         override fun onDraw(canvas: Canvas) {
             if (time.isEmpty() || timeSize <= 0f) return
             paint.typeface = GlyphInk.typefaceFor(weight)
-            val currentInk = inkHost?.get()?.currentTextColor ?: ink
+            val currentInk = ink
             val wkDrawColor = if (weekdayColor != 0) weekdayColor else currentInk
             val dtDrawColor = if (dateColor != 0) dateColor else currentInk
             val lnDrawColor = if (lunarColor != 0) lunarColor else currentInk
@@ -405,10 +412,16 @@ internal class BarClockView(context: Context) : View(context) {
 
             val topSize = timeSize * topFactor
             val bottomSize = timeSize * bottomFactor
-            val topInk = if (hasTopRow) lineHeight(topSize) else 0f
-            val bottomInk = if (hasBottomRow) lineHeight(bottomSize) else 0f
+            val topAdvance = if (hasTopRow) lineHeight(topSize) else 0f
+            val topFull = if (hasTopRow) fullLineHeight(topSize) else 0f
+            val bottomFull = if (hasBottomRow) fullLineHeight(bottomSize) else 0f
             val rowGapPx = if (hasTopRow && hasBottomRow) rowGap else 0f
-            val totalH = topInk + bottomInk + rowGapPx
+            val totalH = when {
+                hasTopRow && hasBottomRow -> max(topFull, topAdvance + rowGapPx + bottomFull)
+                hasTopRow -> topFull
+                hasBottomRow -> bottomFull
+                else -> 0f
+            }
             val innerLeft = paddingLeft.toFloat()
             val innerW = (width - paddingLeft - paddingRight).toFloat()
             val step = gap(lineSize)
@@ -417,7 +430,16 @@ internal class BarClockView(context: Context) : View(context) {
             // Each row is centred in the box on its own, so a row that lost a piece
             // stays centred instead of hanging off the left; the two offsets nudge a
             // row away from that centred position rather than setting its origin.
-            var rowTop = (paddingTop + height - paddingBottom) / 2f - totalH / 2f
+            // Each row is centred in the box on its own, so a row that lost a piece
+            // stays centred instead of hanging off the left; the two offsets nudge a
+            // row away from that centred position rather than setting its origin.
+            // A capsule animation can shrink the clock's box for a frame or two. Centring
+            // a taller block in a shorter box pushed the first row above the bar's top
+            // edge, where the window clipped it. The block is centred only while it fits;
+            // otherwise it starts at the content top so the first row stays intact.
+            val innerTop = paddingTop.toFloat()
+            val innerHeight = (height - paddingTop - paddingBottom).toFloat()
+            var rowTop = innerTop + (max(innerHeight, totalH) - totalH) / 2f
             paint.textAlign = Paint.Align.LEFT
 
             if (hasTopRow) {
@@ -465,7 +487,7 @@ internal class BarClockView(context: Context) : View(context) {
                     x += paint.measureText(time) + step
                     drawWeatherAt(x, captionBaseline, lineSize)
                 }
-                rowTop += topInk + rowGapPx
+                rowTop += topAdvance + rowGapPx
             }
 
             if (hasBottomRow) {

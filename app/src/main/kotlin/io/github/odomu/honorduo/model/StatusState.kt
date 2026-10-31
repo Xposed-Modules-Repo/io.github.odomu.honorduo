@@ -14,7 +14,6 @@ package io.github.odomu.honorduo.model
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.content.res.Configuration
 import android.content.res.Resources
 import android.os.Build
 import android.os.Handler
@@ -55,9 +54,7 @@ import kotlin.math.round
  * - battery state from `HwBatteryManager`, the singleton
  *   `HwStatusBarBatteryView.onBatteryUpdate` itself reads, so the glyph and the
  *   native battery artwork can never disagree;
- * - ink from the battery's border view (`BatteryTintView.mDefaultColor`), which is
- *   the colour `HwStatusbarContents.refreshTint` last handed to the native
- *   battery and therefore the colour the user is looking at;
+ * - ink supplied by the row's tint event, resolved at the visible glyph's position;
  * - Wi-Fi and mobile levels from the two `setIconForView` entry points, the one
  *   call every signal icon on this ROM goes through;
  * - per-SIM levels from telephony, because the icons name no SIM.
@@ -79,7 +76,7 @@ internal class StatusState(val host: View) {
     @JvmField
     var powerSave = false
 
-    /** The ink this host's glyph is drawn with, resolved in [refresh]. */
+    /** The visible glyph's tint, supplied by its row rather than the hidden battery. */
     @JvmField
     var ink = 0
 
@@ -163,42 +160,12 @@ internal class StatusState(val host: View) {
         }
         bluetoothBattery = if (ModuleConfig.appearance().btBatteryMode > 0) sBluetoothBatteryLevel else -1
 
-        ink = resolveInk()
     }
 
-    /**
-     * The battery's own `mTintColor` first, the border's `mDefaultColor` second.
-     *
-     * `HwStatusbarContents.refreshTint()` writes `mTintColor` unconditionally, while the
-     * `TintUtil.updateTintWithArea` pass that refreshes the border's tint list runs over
-     * the battery's children - and the battery is GONE here. Preferring the border made
-     * the glyph keep the previous background's ink across a light/dark switch until the
-     * border happened to be repainted.
-     */
-    private fun resolveInk(): Int {
-        val tint = Refl.getInt(hostTint, host, 0)
-        if (tint != 0) return tint
-        val border = Refl.get(hostBorder, host)
-        if (border != null) {
-            if (borderInk == null) borderInk = Refl.field(border.javaClass, "mDefaultColor")
-            val colour = Refl.getInt(borderInk, border, 0)
-            if (colour != 0) return colour
-        }
-        return if (nightMode()) WHITE else DEFAULT_FOREGROUND
-    }
 
-    /** The plain icon colour: what MagicOS would paint the battery icon in. */
+    /** Current glyph foreground; previews may supply their own ink. */
     fun foreground(): Int = if (ink != 0) ink else DEFAULT_FOREGROUND
 
-    private fun nightMode(): Boolean {
-        val context = appContext() ?: return false
-        return try {
-            val uiMode = context.resources.configuration.uiMode
-            uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-        } catch (_: Throwable) {
-            false
-        }
-    }
 
     companion object {
 
@@ -522,9 +489,6 @@ internal class StatusState(val host: View) {
         private var hostLevel: Field? = null
         private var hostCharging: Field? = null
         private var hostPowerSave: Field? = null
-        private var hostTint: Field? = null
-        private var hostBorder: Field? = null
-        private var borderInk: Field? = null
         private var hostFieldsReady = false
 
         /**
@@ -705,8 +669,6 @@ internal class StatusState(val host: View) {
             hostLevel = Refl.field(c, "mLevel")
             hostCharging = Refl.field(c, "mIsCharging")
             hostPowerSave = Refl.field(c, "mIsPowerSave")
-            hostTint = Refl.field(c, "mTintColor")
-            hostBorder = Refl.field(c, "mBorderView")
             hostFieldsReady = hostLevel != null
         }
 
