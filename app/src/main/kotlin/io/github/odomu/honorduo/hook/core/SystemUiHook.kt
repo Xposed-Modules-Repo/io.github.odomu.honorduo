@@ -66,7 +66,6 @@ internal object SystemUiHook {
         var hooked = 0
         hooked += SystemBarHook.install(module, cl)
         hooked += SignalIconHook.install(module, cl)
-        hooked += BarClockManager.hookPivotXY(module, cl)
         hooked += StatusBarIconHook.install(module, cl)
         hooked += NotifCenterHook.install(module, cl)
         hooked += ControlCenterHook.install(module, cl)
@@ -86,9 +85,7 @@ internal object SystemUiHook {
             log(LOG_INFO, "config changed, rows=${StatusBarRowManager.rowsCount()} enabled=${a.glyph} style=${a.style}")
         }
         StatusBarRowManager.syncAll(a, force = true)
-        BarClockManager.sync(a)
         StatusBarIconManager.applyIconVisibility(a)
-        SystemBarHook.applyPrivacyChipVisibility(a)
         StatusBarIconHook.updateConfig(
             a.replaceWifiIcon,
             a.replaceStatusIcon,

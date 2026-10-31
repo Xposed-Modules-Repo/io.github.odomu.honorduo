@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">HonorDuo</string>
-    <string name="xposed_description">荣耀状态栏 · 网络与电量三合一</string>
+    <string name="module_description">荣耀状态栏 · 网络、信号与电量三合一</string>
 
     <string name="group_stroke">描边</string>
     <string name="group_scale">整体尺寸</string>
@@ -591,4 +591,7 @@
     <string name="font_applied">已应用字体 %1$s</string>
     <string name="font_not_a_font">这个文件不是字体（只支持 .ttf / .otf），已忽略</string>
     <string name="font_failed">字体安装失败，请重试</string>
+    <string name="settings_search_hint">快捷搜索设置</string>
+    <string name="settings_search_empty">没有找到匹配的设置</string>
+    <string name="settings_search_clear">清空搜索</string>
 </resources>

@@ -155,6 +155,7 @@ object Prefs {
     const val KEY_HIDE_BLUETOOTH_ICON = "hide_bluetooth_icon"
     const val DEF_HIDE_BLUETOOTH_ICON = false
 
+
     /**
      * Size of the Wi-Fi arcs, as a percentage of the size the arrangement fits them to.
      *

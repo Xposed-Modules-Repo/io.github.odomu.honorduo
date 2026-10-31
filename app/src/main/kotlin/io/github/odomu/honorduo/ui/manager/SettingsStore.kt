@@ -254,7 +254,6 @@ class SettingsStore(val context: Context) {
     fun setReplaceStatusIcon(value: Boolean) = writeBoolean(Prefs.KEY_REPLACE_STATUS_ICON, value)
     fun setHideStatusClock(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_STATUS_CLOCK, value)
     fun setHideAlarmIcon(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_ALARM_ICON, value)
-    fun setHidePrivacyChip(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_PRIVACY_CHIP, value)
     fun setHideBluetoothIcon(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_BLUETOOTH_ICON, value)
 
     fun setPerfTempChargingOnly(value: Boolean) =
@@ -657,7 +656,6 @@ class SettingsStore(val context: Context) {
             prefs.putBoolean(Prefs.KEY_SHADE_HIDE_BELL, snapshot.shadeHideBell)
             prefs.putBoolean(Prefs.KEY_HIDE_STATUS_CLOCK, snapshot.hideStatusClock)
             prefs.putBoolean(Prefs.KEY_HIDE_ALARM_ICON, snapshot.hideAlarmIcon)
-            prefs.putBoolean(Prefs.KEY_HIDE_PRIVACY_CHIP, snapshot.hidePrivacyChip)
             prefs.putBoolean(Prefs.KEY_HIDE_BLUETOOTH_ICON, snapshot.hideBluetoothIcon)
             prefs.putBoolean(Prefs.KEY_SHADE_LUNAR, snapshot.shadeLunar)
             prefs.putBoolean(Prefs.KEY_SHADE_WEATHER, snapshot.shadeWeather)

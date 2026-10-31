@@ -3,7 +3,7 @@
     <string name="drawing_quick_edit_title">Quick edit</string>
     <string name="drawing_order_title">In-ring order</string>
     <string name="app_name">HonorDuo</string>
-    <string name="xposed_description">Honor status bar · Network and battery, unified</string>
+    <string name="module_description">Honor status bar · Network, signal and battery, unified</string>
 
     <string name="group_stroke">Stroke</string>
     <string name="group_scale">Overall size</string>
@@ -592,4 +592,7 @@
     <string name="font_applied">Applied %1$s</string>
     <string name="font_not_a_font">That file is not a font (only .ttf / .otf), ignored</string>
     <string name="font_failed">Could not install the font, please try again</string>
+    <string name="settings_search_hint">Search settings</string>
+    <string name="settings_search_empty">No matching settings</string>
+    <string name="settings_search_clear">Clear search</string>
 </resources>
