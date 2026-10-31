@@ -1,4 +1,4 @@
-package io.github.odomu.honorduo.ui.screen
+﻿package io.github.odomu.honorduo.ui.screen
 
 import android.app.Activity
 import android.content.ComponentName
@@ -9,6 +9,22 @@ import android.provider.Settings
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import io.github.odomu.honorduo.ui.control.ContentControl
+import io.github.odomu.honorduo.ui.control.geometrySliders
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +40,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
@@ -123,7 +141,51 @@ private val SETTING_ENTRIES = listOf(
 )
 
 /** Settings tab: a two-column grid of tiles, each opening its own sheet. */
-internal fun LazyListScope.settingsTab(onOpenPart: (SettingsPart) -> Unit) {
+internal fun LazyListScope.settingsTab(query: String, onQueryChange: (String) -> Unit, onOpenPart: (SettingsPart) -> Unit) {
+    item(key = "settings-search") {
+        SettingsSearchField(query, onQueryChange)
+    }
+    if (query.isNotBlank()) {
+        item(key = "settings-search-results") {
+            val context = LocalContext.current
+            val needle = query.trim()
+            val results = searchableSettings(context).filter { entry ->
+                settingSearchMatches(
+                    needle,
+                    stringResource(entry.titleRes),
+                    entry.summaryRes?.let(context::getString).orEmpty(),
+                    stringResource(entry.part.labelRes),
+                )
+            }
+            if (results.isEmpty()) {
+                Box(Modifier.fillMaxWidth().padding(vertical = 56.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = stringResource(R.string.settings_search_empty),
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    )
+                }
+            } else {
+                Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                    results.forEachIndexed { index, entry ->
+                        if (index > 0) {
+                            Box(
+                                Modifier.fillMaxWidth().padding(start = 16.dp)
+                                    .height(0.5.dp).background(MiuixTheme.colorScheme.outline.copy(alpha = 0.12f)),
+                            )
+                        }
+                        SearchResultRow(
+                            title = stringResource(entry.titleRes),
+                            summary = entry.summaryRes?.let { stringResource(it) }
+                                ?: stringResource(entry.part.labelRes),
+                            query = needle,
+                            onClick = { onOpenPart(entry.part) },
+                        )
+                    }
+                }
+            }
+        }
+        return
+    }
     SETTING_ENTRIES.chunked(2).forEach { pair ->
         item(key = "tile-${pair[0].title}") {
             Row(
@@ -146,6 +208,145 @@ internal fun LazyListScope.settingsTab(onOpenPart: (SettingsPart) -> Unit) {
                 if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
         }
+    }
+}
+
+internal data class SearchSetting(
+    val key: String,
+    @StringRes val titleRes: Int,
+    @StringRes val summaryRes: Int?,
+    val part: SettingsPart,
+)
+
+/** Only names whose strings do not follow the enum name; the rest resolve by convention. */
+private val CONTROL_TITLE_ALIASES = mapOf(
+    ContentControl.Enabled to "master_module_title",
+    ContentControl.MergeIcons to "master_title",
+    ContentControl.Style to "trio_style_title",
+    ContentControl.MobileActivity to "show_mobile_activity_title",
+    ContentControl.Sim1 to "show_sim_1_title",
+    ContentControl.Sim2 to "show_sim_2_title",
+    ContentControl.Value to "show_value_title",
+    ContentControl.Bolt to "show_bolt_title",
+    ContentControl.Clock to "drawing_occupant_clock",
+    ContentControl.ShadeWeatherStyle to "clock_weather_style_title",
+)
+
+private fun camelToSnake(name: String): String =
+    name.replace(Regex("([a-z0-9])([A-Z])"), "$1_$2").lowercase()
+
+/** Every control and size row, derived from the definitions themselves so new rows are searchable. */
+internal fun searchableSettings(context: Context): List<SearchSetting> {
+    val resources = context.resources
+    fun stringId(name: String): Int =
+        resources.getIdentifier(name, "string", context.packageName)
+
+    val controls = ContentControl.entries.map { control ->
+        val name = camelToSnake(control.name)
+        val titleName = CONTROL_TITLE_ALIASES[control] ?: "${name}_title"
+        val title = stringId(titleName).takeIf { it != 0 } ?: control.owner.labelRes
+        val summary = stringId(titleName.removeSuffix("_title") + "_summary").takeIf { it != 0 }
+        SearchSetting("control-${control.name}", title, summary, control.owner)
+    }
+
+    val appearance = StatusAppearance.of(ModuleSettings.defaults())
+    val sliders = geometrySliders().map { slider ->
+        val title = slider.titleRes(appearance)
+        SearchSetting(
+            key = "slider-${slider.editorOwner.name}-$title",
+            titleRes = title,
+            summaryRes = slider.summaryRes(appearance).takeIf { it != 0 },
+            part = slider.editorOwner,
+        )
+    }
+    return controls + sliders
+}
+
+internal fun settingSearchMatches(query: String, vararg values: String): Boolean =
+    query.isNotBlank() && values.any { it.contains(query.trim(), ignoreCase = true) }
+
+@Composable
+private fun SettingsSearchField(query: String, onQueryChange: (String) -> Unit) {
+    val focusManager = LocalFocusManager.current
+    LaunchedEffect(Unit) { focusManager.clearFocus() }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
+            .background(MiuixTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(28.dp))
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.weight(1f)) {
+            if (query.isEmpty()) Text(stringResource(R.string.settings_search_hint), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+            BasicTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                textStyle = TextStyle(color = MiuixTheme.colorScheme.onSurface, fontSize = 16.sp),
+                cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (query.isNotEmpty()) IconButton(onClick = { onQueryChange("") }, modifier = Modifier.size(32.dp)) {
+            Icon(ImageVector.vectorResource(R.drawable.ic_lucide_x), stringResource(R.string.settings_search_clear), tint = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+        }
+    }
+}
+
+/** One search hit: matched text is tinted, the trailing chevron mirrors a preference row. */
+@Composable
+private fun SearchResultRow(title: String, summary: String?, query: String, onClick: () -> Unit) {
+    val accent = MiuixTheme.colorScheme.primary
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            BasicText(
+                text = highlightMatch(title, query, accent),
+                style = TextStyle(
+                    color = MiuixTheme.colorScheme.onSurface,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
+            )
+            if (!summary.isNullOrBlank()) {
+                BasicText(
+                    text = highlightMatch(summary, query, accent),
+                    style = TextStyle(
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        fontSize = 13.sp,
+                    ),
+                )
+            }
+        }
+        Icon(
+            imageVector = ImageVector.vectorResource(R.drawable.ic_lucide_chevron_right),
+            contentDescription = null,
+            tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+/** Case-insensitive match highlighting; every hit is tinted, not just the first. */
+internal fun highlightMatch(text: String, query: String, accent: Color): AnnotatedString = buildAnnotatedString {
+    if (query.isEmpty()) {
+        append(text)
+        return@buildAnnotatedString
+    }
+    var cursor = 0
+    while (true) {
+        val at = text.indexOf(query, cursor, ignoreCase = true)
+        if (at < 0) {
+            append(text.substring(cursor))
+            break
+        }
+        append(text.substring(cursor, at))
+        withStyle(SpanStyle(color = accent, fontWeight = FontWeight.SemiBold)) {
+            append(text.substring(at, at + query.length))
+        }
+        cursor = at + query.length
     }
 }
 
@@ -629,7 +830,7 @@ fun enabledCount(settings: ModuleSettings): Int {
         a.perfFps,
         a.clockSeconds || a.clockDate || a.clockWeekday || a.clockLunar || a.clockWeather,
         a.shadeHidePower || a.shadeHideBell || a.shadeLunar || a.shadeWeather,
-        a.replaceStatusIcon || a.hideAlarmIcon || a.hideBluetoothIcon || a.hidePrivacyChip,
+        a.replaceStatusIcon || a.hideAlarmIcon || a.hideBluetoothIcon,
     ).count { it }
 }
 

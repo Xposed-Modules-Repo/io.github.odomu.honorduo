@@ -146,6 +146,7 @@ fun SettingsScreen(repository: SettingsStore) {
     var editing by remember { mutableStateOf<RoleColor?>(null) }
     var resettingColors by remember { mutableStateOf(false) }
     var restarting by remember { mutableStateOf(false) }
+    var settingsSearch by rememberSaveable { mutableStateOf("") }
     var activeSettingPart by remember { mutableStateOf<SettingsPart?>(null) }
 
     // The section the page is on *is* the top of the back stack, rather than a
@@ -461,6 +462,8 @@ fun SettingsScreen(repository: SettingsStore) {
                                 )
 
                                 SettingsTab.Settings -> settingsTab(
+                                    query = settingsSearch,
+                                    onQueryChange = { settingsSearch = it },
                                     onOpenPart = { part -> activeSettingPart = part },
                                 )
 
