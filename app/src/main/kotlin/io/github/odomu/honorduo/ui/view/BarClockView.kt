@@ -18,8 +18,14 @@ internal class BarClockView(context: Context) : View(context) {
 
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
+        /** Scratch object reused for every fontMetrics query; avoids per-call allocation. */
+        private val fontMetrics = android.graphics.Paint.FontMetrics()
+
         /** Scratch for tight text bounds; drawing runs on the main thread only. */
         private val bounds = Rect()
+
+        /** Cached result of [weatherLabel]; invalidated whenever weather fields change. */
+        private var cachedWeatherLabel: String? = null
 
         private var time = ""
         private var date = ""
@@ -115,6 +121,10 @@ internal class BarClockView(context: Context) : View(context) {
             this.date = date
             this.weekday = weekday
             this.lunar = lunar
+            if (this.weatherCondition != weatherCondition || this.weatherTemp != weatherTemp ||
+                this.weatherStyle != weatherStyle) {
+                cachedWeatherLabel = null
+            }
             this.weatherCondition = weatherCondition
             this.weatherTemp = weatherTemp
             this.weatherStyle = weatherStyle
@@ -181,13 +191,17 @@ internal class BarClockView(context: Context) : View(context) {
         private fun symbolWeather(): Boolean =
             weatherStyle == Prefs.WEATHER_STYLE_SYMBOL || weatherStyle == Prefs.WEATHER_STYLE_SYMBOL_TEXT
 
-        /** The weather caption as drawn: the style decides whether the condition is in it. */
+        /** The weather caption as drawn: result cached until weather fields change. */
         private fun weatherLabel(): String {
-            if (weatherTemp.isEmpty()) return ""
-            if (weatherStyle == Prefs.WEATHER_STYLE_ICON || weatherStyle == Prefs.WEATHER_STYLE_SYMBOL) {
-                return weatherTemp
+            cachedWeatherLabel?.let { return it }
+            val result = when {
+                weatherTemp.isEmpty() -> ""
+                weatherStyle == Prefs.WEATHER_STYLE_ICON || weatherStyle == Prefs.WEATHER_STYLE_SYMBOL -> weatherTemp
+                weatherCondition.isNotEmpty() -> "$weatherCondition $weatherTemp"
+                else -> weatherTemp
             }
-            return if (weatherCondition.isNotEmpty()) "$weatherCondition $weatherTemp" else weatherTemp
+            cachedWeatherLabel = result
+            return result
         }
 
         private fun weatherWidth(sz: Float): Float {
@@ -340,14 +354,14 @@ internal class BarClockView(context: Context) : View(context) {
         private fun lineHeight(size: Float): Float {
             if (size <= 0f) return 0f
             paint.textSize = size
-            val metrics = paint.fontMetrics
-            return (metrics.descent - metrics.ascent) * BarClockManager.BAR_CLOCK_LINE_SPACING
+            paint.getFontMetrics(fontMetrics)
+            return (fontMetrics.descent - fontMetrics.ascent) * BarClockManager.BAR_CLOCK_LINE_SPACING
         }
         private fun fullLineHeight(size: Float): Float {
             if (size <= 0f) return 0f
             paint.textSize = size
-            val metrics = paint.fontMetrics
-            return metrics.descent - metrics.ascent
+            paint.getFontMetrics(fontMetrics)
+            return fontMetrics.descent - fontMetrics.ascent
         }
 
         private fun gap(size: Float): Float = size * BarClockManager.BAR_CLOCK_GAP
@@ -449,7 +463,7 @@ internal class BarClockView(context: Context) : View(context) {
                     val wkW = if (weekday.isEmpty()) 0f else paint.measureText(weekday)
                     val wtW = weatherWidth(topSize)
                     var x = innerLeft + (innerW - rowWidth(floatArrayOf(dtW, wkW, wtW), wordStep)) / 2f + topOffsetX
-                    val baseline = rowTop - paint.fontMetrics.ascent
+                    val baseline = rowTop - run { paint.getFontMetrics(fontMetrics); fontMetrics.ascent }
                     if (date.isNotEmpty()) {
                         paint.color = dtDrawColor
                         canvas.drawText(date, x, baseline, paint)
@@ -467,7 +481,7 @@ internal class BarClockView(context: Context) : View(context) {
                     paint.textSize = lineSize
                     val wtW = weatherWidth(lineSize)
                     var x = innerLeft + (innerW - rowWidth(floatArrayOf(tmW, wtW), step)) / 2f + topOffsetX
-                    val baseline = rowTop - paint.fontMetrics.ascent
+                    val baseline = rowTop - run { paint.getFontMetrics(fontMetrics); fontMetrics.ascent }
                     // Centre the caption on the digits' ink, not on the font box: the
                     // box reserves descender space the digits never use, so centring on
                     // it left the caption sitting low under the time.
@@ -500,7 +514,7 @@ internal class BarClockView(context: Context) : View(context) {
                     paint.textSize = timeSize
                     val tmW = paint.measureText(time)
                     var x = innerLeft + (innerW - rowWidth(floatArrayOf(lnW, tmW), step)) / 2f + bottomOffsetX
-                    val timeBaseline = rowTop - paint.fontMetrics.ascent
+                    val timeBaseline = rowTop - run { paint.getFontMetrics(fontMetrics); fontMetrics.ascent }
                     if (lunar.isNotEmpty()) {
                         // Centre on each string's own ink: CJK glyphs reach below the
                         // baseline further than digits, so a digit-box centre left the
@@ -534,7 +548,7 @@ internal class BarClockView(context: Context) : View(context) {
                         rowW += wkW
                     }
                     var x = innerLeft + (innerW - rowW) / 2f + bottomOffsetX
-                    val baseline = rowTop - paint.fontMetrics.ascent
+                    val baseline = rowTop - run { paint.getFontMetrics(fontMetrics); fontMetrics.ascent }
                     if (date.isNotEmpty()) {
                         paint.color = dtDrawColor
                         canvas.drawText(date, x, baseline, paint)

@@ -207,14 +207,14 @@ internal object BarClockManager {
     }
 
     private fun updateBarClock(view: BarClockView, a: StatusAppearance, native: TextView, availableWidth: Int = native.measuredWidth) {
-        val texts = ClockTicker.barTexts(a.clockDate, a.clockWeekday, a.clockDateFormat, a.clockWeekdayFormat)
+        val texts = ClockTicker.barTexts(a.clockDate, a.clockWeekday, a.clockDateFormat, a.clockWeekdayFormat, a.clockLunar)
         val userScale = a.clockSize / Prefs.DEF_CLOCK_SIZE.toFloat()
         val ink = StatusBarIconManager.foreground(native, native.currentTextColor)
         val isDark = GlyphInk.isDarkBackground(ink)
         val weather = if (a.clockWeather) WeatherManager.data else null
         val density = native.resources.displayMetrics.density
         view.apply(
-            texts[0], texts[1], texts[2], if (a.clockLunar) texts[3] else "",
+            texts[0], texts[1], texts[2], texts[3],
             weatherCondition = weather?.condition.orEmpty(), weatherTemp = weather?.tempText().orEmpty(),
             weatherStyle = a.clockWeatherStyle, clockStyle = a.clockStyle, weight = a.clockWeight,
             ink = ink,

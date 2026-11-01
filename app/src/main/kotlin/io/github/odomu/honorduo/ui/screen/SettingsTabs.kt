@@ -149,13 +149,18 @@ internal fun LazyListScope.settingsTab(query: String, onQueryChange: (String) ->
         item(key = "settings-search-results") {
             val context = LocalContext.current
             val needle = query.trim()
-            val results = searchableSettings(context).filter { entry ->
-                settingSearchMatches(
-                    needle,
-                    stringResource(entry.titleRes),
-                    entry.summaryRes?.let(context::getString).orEmpty(),
-                    stringResource(entry.part.labelRes),
-                )
+            // Recompute only when the trimmed query changes, not on every recomposition
+            // (e.g. theme change or parent scroll). searchableSettings() allocates ~200
+            // SearchSetting objects; filtering iterates all of them with string ops.
+            val results = remember(needle) {
+                searchableSettings(context).filter { entry ->
+                    settingSearchMatches(
+                        needle,
+                        context.getString(entry.titleRes),
+                        entry.summaryRes?.let(context::getString).orEmpty(),
+                        context.getString(entry.part.labelRes),
+                    )
+                }
             }
             if (results.isEmpty()) {
                 Box(Modifier.fillMaxWidth().padding(vertical = 56.dp), contentAlignment = Alignment.Center) {

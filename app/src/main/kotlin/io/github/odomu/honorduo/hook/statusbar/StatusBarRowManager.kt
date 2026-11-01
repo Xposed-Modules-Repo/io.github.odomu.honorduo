@@ -25,6 +25,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -105,7 +106,7 @@ internal object StatusBarRowManager {
         val parent = battery.parent as? ViewGroup ?: return
         val created = Row(row, parent, battery, StatusState(battery))
         synchronized(ROWS) { ROWS.add(created) }
-        watchVisibility(row)
+        watchVisibility(row, created)
         row.post { syncRow(created, true) }
     }
 
@@ -115,6 +116,13 @@ internal object StatusBarRowManager {
                 if (ROWS[i].row === row) {
                     val r = ROWS.removeAt(i)
                     r.row.removeCallbacks(r.burnInTask)
+                    // Remove visibility listeners so they don't accumulate if the same
+                    // row is re-registered later (e.g. detach → re-attach lifecycle).
+                    r.attachListener?.let { r.row.removeOnAttachStateChangeListener(it) }
+                    r.layoutListener?.let { r.row.removeOnLayoutChangeListener(it) }
+                    r.windowVisibilityListener?.let {
+                        r.row.viewTreeObserver.removeOnWindowVisibilityChangeListener(it)
+                    }
                     resetBurnIn(r)
                 }
             }
@@ -131,14 +139,19 @@ internal object StatusBarRowManager {
      * every one of them means what the gate tracks actually moved.
      */
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    private fun watchVisibility(row: ViewGroup) {
-        row.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+    private fun watchVisibility(row: ViewGroup, r: Row) {
+        val attach = object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(v: View) = refreshShown()
-
             override fun onViewDetachedFromWindow(v: View) = refreshShown()
-        })
-        row.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> refreshShown() }
-        row.viewTreeObserver.addOnWindowVisibilityChangeListener { refreshShown() }
+        }
+        val layout = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> refreshShown() }
+        val windowVis = ViewTreeObserver.OnWindowVisibilityChangeListener { refreshShown() }
+        r.attachListener = attach
+        r.layoutListener = layout
+        r.windowVisibilityListener = windowVis
+        row.addOnAttachStateChangeListener(attach)
+        row.addOnLayoutChangeListener(layout)
+        row.viewTreeObserver.addOnWindowVisibilityChangeListener(windowVis)
     }
 
     /** True while any registered row is displayed. Main thread only. */
@@ -1044,6 +1057,12 @@ internal object StatusBarRowManager {
 
         var lastAvoidBound: Int = -1
         var burnInIndex = 0
+
+        // Visibility-change listeners registered in watchVisibility(); retained so drop() can
+        // remove them and prevent accumulation when the same row is re-registered.
+        var attachListener: View.OnAttachStateChangeListener? = null
+        var layoutListener: View.OnLayoutChangeListener? = null
+        var windowVisibilityListener: ViewTreeObserver.OnWindowVisibilityChangeListener? = null
         val burnInTask: Runnable = object : Runnable {
             override fun run() {
                 if (!ScreenStateTracker.isScreenOn) return

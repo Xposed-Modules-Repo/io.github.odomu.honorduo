@@ -163,7 +163,8 @@ internal object ClockTicker {
 
     /**
      * `[time, date, weekday, lunar]` for the module's bar clock; an entry is empty when it was
-     * not asked for.
+     * not asked for. `lunar` defaults to false so callers that don't need it skip the
+     * `ChineseCalendar` allocation entirely.
      */
     @JvmStatic
     fun barTexts(
@@ -171,13 +172,14 @@ internal object ClockTicker {
         weekday: Boolean,
         dateFormatType: Int = Prefs.DEF_CLOCK_DATE_FORMAT,
         weekdayFormatType: Int = Prefs.DEF_CLOCK_WEEKDAY_FORMAT,
+        lunar: Boolean = false,
     ): Array<String> {
         val now = Calendar.getInstance().time
         return arrayOf(
             format(now),
             if (date) formatDate(now, dateFormatType) else "",
             if (weekday) formatWeekday(now, weekdayFormatType) else "",
-            formatLunar(now),
+            if (lunar) formatLunar(now) else "",
         )
     }
 
