@@ -31,6 +31,7 @@ class AppLogProvider : ContentProvider() {
         val CONTENT_URI: Uri = Uri.parse("content://$AUTHORITY")
         const val METHOD_WRITE = "write"
         const val METHOD_CLEAR = "clear"
+
         const val EXTRA_LINE = "line"
 
         const val MAX_RETENTION_DAYS = 3

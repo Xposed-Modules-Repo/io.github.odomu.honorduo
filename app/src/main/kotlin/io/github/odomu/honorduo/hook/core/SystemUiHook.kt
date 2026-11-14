@@ -55,6 +55,10 @@ internal object SystemUiHook {
 
     private var sScreenTrackerStarted = false
 
+    /** Hooks installed at boot, kept so the settings screen can be told once a context exists. */
+    @Volatile
+    private var sHookedCount = 0
+
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     fun install(module: XposedModule, cl: ClassLoader) {
         sModule = module
@@ -69,6 +73,11 @@ internal object SystemUiHook {
         hooked += StatusBarIconHook.install(module, cl)
         hooked += NotifCenterHook.install(module, cl)
         hooked += ControlCenterHook.install(module, cl)
+        hooked += BtBatteryHook.install(module, cl)
+        hooked += CapsuleScaleHook.install(module, cl)
+        hooked += NativeSignalTweakHook.install(module, cl)
+        sHookedCount = hooked
+        ModuleConfig.publishHookCount(hooked)
         log(
             module,
             "HonorDuo installed, hooks=$hooked enabled=${ModuleConfig.get().enabled}",
@@ -84,7 +93,7 @@ internal object SystemUiHook {
         if (debugLog()) {
             log(LOG_INFO, "config changed, rows=${StatusBarRowManager.rowsCount()} enabled=${a.glyph} style=${a.style}")
         }
-        StatusBarRowManager.syncAll(a, force = true)
+        StatusBarRowManager.syncAll(a)
         StatusBarIconManager.applyIconVisibility(a)
         StatusBarIconHook.updateConfig(
             a.replaceWifiIcon,
@@ -92,6 +101,8 @@ internal object SystemUiHook {
             a.hideAlarmIcon,
             a.hideBluetoothIcon,
         )
+        SystemBarHook.applyPrivacyChipVisibility(a)
+        NativeSignalTweakHook.updateConfig(a.hideSim2, a.hideNetType)
         NotifCenterHook.onConfigChanged(a)
         ControlCenterHook.onConfigChanged(a)
         SystemBarHook.updateEffectiveScopeState()
@@ -103,6 +114,9 @@ internal object SystemUiHook {
     fun ensureScreenStateTracker(context: Context) {
         if (sScreenTrackerStarted) return
         sScreenTrackerStarted = true
+        // The install runs before the process has an app context, so the hook count could
+        // not be reported then; this is the first call that has one.
+        ModuleConfig.publishHookCount(sHookedCount)
         ScreenStateTracker.start(context)
         ScreenStateTracker.addListener { screenOn ->
             val handler = Handler(Looper.getMainLooper())
@@ -121,7 +135,7 @@ internal object SystemUiHook {
                 sRepaintPending = false
                 // Only a skipped update needs the text rebuilt; every return to the
                 // bar needs the repaint, if only for the ink the new surroundings ask for.
-                if (pending) StatusBarRowManager.syncAll(ModuleConfig.appearance(), force = false)
+                if (pending) StatusBarRowManager.syncAll(ModuleConfig.appearance())
                 invalidateHosts()
             }
         }
