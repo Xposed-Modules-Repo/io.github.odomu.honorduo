@@ -294,14 +294,23 @@ object CapsuleGeometry {
      * The capsule's ink box: the outline plus its stroke, which is what has to
      * fit inside the host view.
      *
-     * Sized against the largest stroke the slider offers rather than the
-     * default, the way [#RectGeometry.RECT_INK_W] is: fitting the extremes means no
-     * setting can push ink outside the host, where the platform clips it.
+     * Sized against the reference stroke (the 1.0.7 ceiling) rather than the slider's
+     * current maximum. Tying this to `MAX_RING_STROKE` made the design box grow when the
+     * ring's slider ceiling was raised, so the same 100% drew a visibly shorter capsule
+     * and shrank every band inside it.
      */
-    const val CAP_INK_X = CAP_LEFT - Prefs.MAX_RING_STROKE * CAP_STROKE_RATIO * 0.5f
+    private const val CAP_INK_STROKE_REF = 16f
 
+    const val CAP_INK_X = CAP_LEFT - CAP_INK_STROKE_REF * CAP_STROKE_RATIO * 0.5f
+
+    /**
+     * Whether the capsule draws Wi-Fi arcs outside its left or right cap.
+     *
+     * `a.wifi` is the switch the draw path consults; without it here the ink box reserved
+     * room for arcs nobody drew, and that strip showed up as a gap beside the glyph.
+     */
     fun capFlankWifi(a: StatusAppearance?, zone: Int, wifiLevel: Int): Boolean =
-        a != null && a.wifiInk(wifiLevel) &&
+        a != null && a.wifi && a.wifiInk(wifiLevel) &&
             a.ringZones.getOrNull(zone)?.contains(Prefs.PART_WIFI) == true
 
     @JvmStatic
@@ -320,16 +329,16 @@ object CapsuleGeometry {
      * bar for a width, so a taller box makes the capsule NARROWER - the glyph would have
      * shrunk to make room for the very band it was meant to fit.
      */
-    const val CAP_INK_Y = CAP_TOP - Prefs.MAX_RING_STROKE * CAP_STROKE_RATIO * 0.5f
+    const val CAP_INK_Y = CAP_TOP - CAP_INK_STROKE_REF * CAP_STROKE_RATIO * 0.5f
 
     // Measured against the widest the outline can be, not the one-reading width: the
     // two-piece body draws out to CAP_RIGHT_PAIR, and a box cut for the narrow shape
     // would let the host clip the right cap off.
     const val CAP_INK_W: Float =
-        (CAP_RIGHT_PAIR + Prefs.MAX_RING_STROKE * CAP_STROKE_RATIO * 0.5f) - CAP_INK_X
+        (CAP_RIGHT_PAIR + CAP_INK_STROKE_REF * CAP_STROKE_RATIO * 0.5f) - CAP_INK_X
 
     const val CAP_INK_H: Float =
-        (CAP_BOTTOM + Prefs.MAX_RING_STROKE * CAP_STROKE_RATIO * 0.5f) - CAP_INK_Y
+        (CAP_BOTTOM + CAP_INK_STROKE_REF * CAP_STROKE_RATIO * 0.5f) - CAP_INK_Y
 
 
     /**
@@ -376,6 +385,16 @@ object CapsuleGeometry {
 
     /** The bottom of what the capsule draws, band included - the mirror of [#CAP_INK_TOP]. */
     const val CAP_INK_BOTTOM = CAP_INK_Y + CAP_INK_H + CAP_BAND_H
+
+    /**
+     * The height of the box the capsule is fitted into: the outline plus both bands.
+     *
+     * The measure pass must divide by this, not by [#CAP_INK_H], or it reserves a box
+     * taller in proportion than the ink and the surplus shows as blank space beside the
+     * glyph.
+     */
+    @JvmStatic
+    fun capInkBoxH(): Float = CAP_INK_BOTTOM - CAP_INK_TOP
 
 
     /**
@@ -457,8 +476,12 @@ object CapsuleGeometry {
      * than in a constant: at the default it is 3.71 units and at the maximum 4.24.
      */
     @JvmStatic
-    fun capDotReach(stroke: Float): Float {
-        return CAP_DOT_PITCH * 1.5f + CAP_DOT_R + capDotClearance() + stroke * 0.5f
+    fun capDotReach(
+        stroke: Float,
+        halfSpan: Float = CAP_DOT_PITCH * 1.5f,
+        dotR: Float = CAP_DOT_R,
+    ): Float {
+        return stroke * 0.5f + capDotClearance() + halfSpan + dotR
     }
 
 
@@ -508,8 +531,8 @@ object CapsuleGeometry {
      * they have to give way rather than overrun.
      */
     @JvmStatic
-    fun capInteriorLeft(stroke: Float): Float {
-        return CAP_LEFT + stroke * 0.5f
+    fun capInteriorLeft(stroke: Float, left: Float = CAP_LEFT): Float {
+        return left + stroke * 0.5f
     }
 
     @JvmStatic
@@ -695,6 +718,9 @@ object CapsuleGeometry {
             Prefs.PART_TEMP -> capTextReach("45°C", stroke, roomH)
             Prefs.PART_CURRENT -> capTextReach("-1999mA", stroke, roomH)
             Prefs.PART_FPS -> capTextReach("120", stroke, roomH)
+            // The headset line is 16 units to each side of its centre; the digit can be
+            // as wide as "100". The mouth is cut for the wider of the two forms.
+            Prefs.PART_BT -> maxOf(16.5f, capTextReach("100", stroke, roomH))
             else -> 0f
         }
     }
@@ -780,7 +806,10 @@ object CapsuleGeometry {
      */
     @JvmStatic
     fun capLeftFor(right: Float, pair: Float = CAP_RIGHT_PAIR): Float {
-        return CAP_LEFT + (pair - right) * 0.5f
+        // Content growth moves the right edge only; the left cap stays put, so the extra
+        // room opens on the left, away from the battery icon. Below the pair width the
+        // shape narrows symmetrically, which is what a lone centred piece needs.
+        return if (right > pair) CAP_LEFT else CAP_LEFT + (pair - right) * 0.5f
     }
 
 
@@ -793,8 +822,8 @@ object CapsuleGeometry {
 
     /** Where the readings' usable width starts, inside the outline's inner face. */
     @JvmStatic
-    fun capTextLeft(stroke: Float): Float {
-        return capInteriorLeft(stroke) + capTextInset()
+    fun capTextLeft(stroke: Float, left: Float = CAP_LEFT): Float {
+        return capInteriorLeft(stroke, left) + capTextInset()
     }
 
     @JvmStatic
@@ -803,10 +832,16 @@ object CapsuleGeometry {
     }
 
 
-    /** The width the two readings have to share, once the gap between them is taken out. */
+    /**
+     * The width the two readings have to share, once the gap between them is taken out.
+     *
+     * `left` matters: when the content widens the outline, the left cap moves and the
+     * cells have to move with it. Measuring from the fixed reference instead left a
+     * strip of empty interior on that side.
+     */
     @JvmStatic
-    fun capReadingsWidth(stroke: Float, right: Float = CAP_RIGHT): Float {
-        return capTextRight(stroke, right) - capTextLeft(stroke) - CAP_TEXT_GAP
+    fun capReadingsWidth(stroke: Float, right: Float = CAP_RIGHT, left: Float = CAP_LEFT): Float {
+        return capTextRight(stroke, right) - capTextLeft(stroke, left) - CAP_TEXT_GAP
     }
 
 

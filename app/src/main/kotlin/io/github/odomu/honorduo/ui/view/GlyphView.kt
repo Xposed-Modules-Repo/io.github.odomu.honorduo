@@ -19,7 +19,9 @@ import io.github.odomu.honorduo.hook.tracker.BarVisibility
 import io.github.odomu.honorduo.hook.tracker.ScreenStateTracker
 import io.github.odomu.honorduo.model.ModuleConfig
 import io.github.odomu.honorduo.model.Prefs
+import io.github.odomu.honorduo.model.StatusAppearance
 import io.github.odomu.honorduo.model.StatusState
+import io.github.odomu.honorduo.ui.render.CapsuleRenderer
 import io.github.odomu.honorduo.ui.render.IconRenderer
 import io.github.odomu.honorduo.ui.render.geometry.CapsuleGeometry
 import io.github.odomu.honorduo.ui.render.geometry.IconGeometry
@@ -51,6 +53,31 @@ internal class GlyphView(context: Context) : View(context) {
      */
     var state: StatusState? = null
 
+    /** Set once the state has been refreshed for the first measure; see [onMeasure]. */
+    private var primed = false
+
+    /**
+     * How much taller the measured box is than the reference glyph, before the user's
+     * size setting.
+     *
+     * The box is the only thing allowed to grow: the ink is clamped to whatever room
+     * the box actually got, so an oversized setting cannot spill past the bar or over
+     * the components drawn beside the glyph.
+     */
+    private var boxFit = 1f
+
+    /**
+     * The status bar's own height, or 0 when the ROM has no such resource.
+     *
+     * `HwSystemIcons` is sometimes measured against the whole window, so its offered
+     * height is not a ceiling for the glyph; using it directly let an enlarged glyph
+     * grow past the bar. The bar's height is the real limit.
+     */
+    private val barHeightPx: Int by lazy {
+        val id = resources.getIdentifier("status_bar_height", "dimen", "android")
+        if (id != 0) resources.getDimensionPixelSize(id) else 0
+    }
+
     init {
         setWillNotDraw(false)
         // Confine this view's per-frame CLEAR to a layer of its own.
@@ -66,6 +93,15 @@ internal class GlyphView(context: Context) : View(context) {
         val density = resources.displayMetrics.density
         val offered = MeasureSpec.getSize(heightMeasureSpec)
         val nominal = (NOMINAL_HEIGHT_DP * density).roundToInt()
+        // A freshly mounted row has no readings yet (level -1), and a width measured from
+        // that state is narrower than the one the first draw will need: the capsule shrank
+        // and then jumped wider. One refresh here settles both on the same readings.
+        state?.let {
+            if (!primed && it.level < 0) {
+                primed = true
+                it.refresh()
+            }
+        }
         val a = ModuleConfig.appearance()
         val hasBottomStacked = !a.capsule && !a.rect && !a.dataSimOnly && (
             (a.ringZones.getOrNull(2)?.size ?: 0) > 1 ||
@@ -73,21 +109,116 @@ internal class GlyphView(context: Context) : View(context) {
         )
         // Reserve clearance for stacked signal 2 at bottom
         val extraStackH = if (hasBottomStacked) 1.5f * density else 0f
-        val wanted = if (a.capsule) {
+        val fit = a.glyphFit()
+        val grow = if (fit > 1f) fit else 1f
+        val wantedBase = if (a.capsule) {
             nominal + (2f * CapsuleGeometry.CAP_BAND_H * nominal / CapsuleGeometry.CAP_INK_H).roundToInt()
         } else {
             ((20.5f * density) + extraStackH).roundToInt()
         }
-        val height = if (offered > 0) minOf(offered, wanted) else wanted
-        val baseWidth = (height * IconGeometry.hostAspect(a, StatusState.wifiInkLevel())).roundToInt()
+        // Growing needs a bigger box or the view would clip its own drawing. The bar's
+        // height - less a small margin so the rounded strokes keep their edge - is the
+        // hard ceiling; the parent's offered height can be the whole window.
+        val wanted = (wantedBase * grow).roundToInt()
+        val barCap = if (barHeightPx > 0) (barHeightPx - 2f * density).roundToInt() else Int.MAX_VALUE
+        val offeredCap = if (offered > 0) offered else Int.MAX_VALUE
+        // The bar only caps growth; at or below 100% the box keeps its 1.0.7 size even
+        // on a ROM whose bar reads shorter than the glyph. Above 100% the ceiling is the
+        // bar itself: `HwSystemIcons` offers the icon box, and honouring that spec threw
+        // away every step of the size slider.
+        val height = if (grow > 1f) {
+            minOf(wanted, maxOf(wantedBase, barCap))
+        } else {
+            minOf(offeredCap, wanted)
+        }.coerceAtLeast(1)
+        boxFit = if (wantedBase > 0) height.toFloat() / wantedBase else 1f
+        val growth = if (a.capsule) growthFor(a) else 0f
+        val baseWidth = if (a.capsule) {
+            capsuleWidthPx(a, growth)
+        } else {
+            (height * IconGeometry.hostAspect(a, StatusState.wifiInkLevel())).roundToInt()
+        }
         // Dynamically widen view as ring spacing widens to push sibling views and avoid clipping
         val extraSpacingW = if (a.ring && a.ringSpacingX > 0) (2f * a.ringSpacingX * density).roundToInt() else 0
         val width = 1.coerceAtLeast(baseWidth + extraSpacingW)
+        // Above 100% the box itself is the answer: the parent's AT_MOST is the icon row,
+        // which is exactly the size the glyph has to leave behind to grow.
+        val measuredHeight = if (grow > 1f) {
+            height
+        } else {
+            resolveSize(height, heightMeasureSpec)
+        }
+        // The capsule's width follows from its height and its design aspect; clamping it to
+        // the icon row's AT_MOST made the fit shrink the whole glyph, so a longer capsule
+        // or a larger size looked unchanged in the bar while the preview showed the real
+        // shape. The row clips at the bar, which is the bound that matters.
+        val measuredWidth = if (a.capsule || grow > 1f) {
+            width
+        } else {
+            resolveSize(width, widthMeasureSpec)
+        }
         setMeasuredDimension(
-            resolveSize(width, widthMeasureSpec),
-            resolveSize(height, heightMeasureSpec),
+            measuredWidth,
+            measuredHeight,
         )
     }
+
+    /**
+     * Extra capsule width the two centre pieces need, in design units.
+     *
+     * Measured with the renderer's own paint and size rules, so the reserved box and the
+     * drawn outline come from the same answer.
+     */
+    private fun growthFor(a: StatusAppearance): Float {
+        val s = state ?: return 0f
+        val wifi = StatusState.wifiInkLevel()
+        val shownType = if (a.typeHideOnWifi && wifi >= 1) null else s.mobileType
+        val cap = a.capsule(s.level, s.charging, wifi, shownType, 0)
+        val measured = CapsuleRenderer.requiredCapsuleRight(a, cap, shownType)
+        return measured - a.capsuleRight()
+    }
+
+    /**
+     * Asks for a fresh measure only when the capsule's required width actually changed.
+     *
+     * Called after a state refresh: the width depends on what is placed and on the
+     * network-type label, not on the readings' values, so this almost never fires. An
+     * unconditional request here re-laid the row on every refresh and made the capsule
+     * move under the user.
+     */
+    fun refreshCapsuleWidth() {
+        if (height <= 0) return
+        val a = ModuleConfig.appearance()
+        if (!a.capsule) return
+        val s = state ?: return
+        val wifi = StatusState.wifiInkLevel()
+        val type = if (a.typeHideOnWifi && wifi >= 1) null else s.mobileType
+        // The appearance's identity is part of the key: the length, size and spacing
+        // settings all live there, and without it a slider move left the outline at the
+        // old length until some unrelated reading happened to change.
+        // The bolt animation redraws at frame rate and must not rebuild the capsule (or its
+        // strings) every frame, which is why the key exists at all.
+        val key = ((System.identityHashCode(a) * 31 + s.level) * 31 + wifi) * 31 +
+            (type?.hashCode() ?: 0) * 31 + height
+        if (key == widthKey) return
+        widthKey = key
+        val wanted = capsuleWidthPx(a, growthFor(a))
+        if (wanted != measuredWidth) requestLayout()
+    }
+
+    /**
+     * The capsule's width for the current box height, in pixels.
+     *
+     * The divisor is the box the fit uses, bands included; dividing by the outline's own
+     * height made the view 38% wider than its ink, and that surplus showed as a blank
+     * strip beside the glyph.
+     */
+    private fun capsuleWidthPx(a: StatusAppearance, growth: Float): Int =
+        (height * ((CapsuleGeometry.capInkW(a, StatusState.wifiInkLevel()) + growth) /
+            CapsuleGeometry.capInkBoxH())).roundToInt()
+
+    /** Last inputs [refreshCapsuleWidth] measured; see the guard there. */
+    private var widthKey = Int.MIN_VALUE
 
     override fun onDraw(canvas: Canvas) {
         val state = state ?: return
@@ -96,6 +227,11 @@ internal class GlyphView(context: Context) : View(context) {
         // without anybody telling this view, and every one of those changes
         // invalidates it through SystemUiHook.
         state.refresh()
+        // The capsule's width follows which pieces have ink, and that is only known after
+        // the refresh above. Asking for a measure here keeps a piece appearing or leaving
+        // from leaving the outline at the old length for a whole second; the check inside
+        // only fires when the width really differs, so a still frame costs nothing.
+        refreshCapsuleWidth()
         // The glyph owns this view's whole box, and a plain View is not cleared
         // for it between frames: the arcs' track and the unlit dots are
         // translucent, so without this every repaint would stack a copy on the
@@ -107,6 +243,14 @@ internal class GlyphView(context: Context) : View(context) {
             if (state.wifiPresent) state.wifiLevel else -1,
             state.mobileLevel, state.slotLevels, state.mobileType,
             state.foreground(), ModuleConfig.get(), false,
+            // Never ask the ink to be larger than the box that actually exists: the box
+            // is capped by the bar, and scaling past it is exactly what overflowed the
+            // bar and crowded the components beside the glyph.
+            fitOverride = run {
+                val fit = ModuleConfig.appearance().glyphFit().coerceAtLeast(0.01f)
+                val grown = boxFit.coerceAtLeast(0.01f)
+                minOf(fit, grown) / grown
+            },
         )
         // One frame asks for the next only while the bolt is actually moving: a still
         // bolt, or an unplugged one, costs nothing.

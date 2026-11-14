@@ -71,8 +71,15 @@ class StatusPreviewView @JvmOverloads constructor(
     private var foreground = 0xFFFFFFFF.toInt()
     private var backgroundColor = 0xFF1C1B1F.toInt()
 
-    /** Fraction of the shorter edge left empty around the glyph. */
-    private var inset = 0.06f
+    /**
+     * The padding the glyph keeps inside the cell's rounded corners.
+     *
+     * Sized so the largest overall-size setting still fits: the preview draws through
+     * the same transform as the bar, which multiplies by that setting, so padding for
+     * 100% alone would clip the glyph the moment the user enlarges it. Reserving the
+     * full slider range here keeps every value comparable and nothing cut off.
+     */
+    private var inset = (1f - 100f / Prefs.MAX_GLYPH_SCALE) / 2f
 
     /** Draws the out-of-ring label on its own instead of the glyph. */
     private var outTypeOnly = false
@@ -92,8 +99,6 @@ class StatusPreviewView @JvmOverloads constructor(
      */
     private var highlight: IconZones.Zone? = null
 
-    private var highlightColor = 0x66FFFFFF
-
     fun setSettings(value: ModuleSettings?) {
         settings = value ?: ModuleSettings.defaults()
         StatusState.sClockText = "00:01"
@@ -107,6 +112,13 @@ class StatusPreviewView @JvmOverloads constructor(
         // previews blank would look broken rather than switched off.
         StatusState.sFps = PREVIEW_FPS
         StatusState.sBatteryTempC = PREVIEW_TEMP_C
+        // The remaining readings have their own cells now; without samples their
+        // placement would preview as an empty slot and look like a broken editor.
+        StatusState.sCurrentUa = PREVIEW_CURRENT_UA
+        StatusState.sVoltageMv = PREVIEW_VOLTAGE_MV
+        StatusState.sBluetoothBatteryLevel = PREVIEW_BT_LEVEL
+        StatusState.sSignalDbm = PREVIEW_SIGNAL_DBM
+        StatusState.sMobileLevel = PREVIEW_MOBILE_LEVEL
         StatusState.updateBatteryHot(settings.tempThreshold)
         invalidate()
     }
@@ -263,8 +275,12 @@ class StatusPreviewView @JvmOverloads constructor(
     private fun drawZoneOutline(canvas: Canvas, density: Float) {
         val zone = highlight ?: return
         val t = zoneTransform(width, height, inset, settings) ?: return
-        guidePaint.style = Paint.Style.STROKE
-        guidePaint.color = highlightColor
+        // The zone is what the press will edit, so it has to read at a glance on both
+        // preview backgrounds: a translucent wash of the current ink plus a solid edge,
+        // instead of the old 40% white hairline that vanished on light surfaces.
+        val rgb = foreground and 0x00FFFFFF
+        val strokeAlpha = 0xE6
+        val fillAlpha = 0x1F
         guidePaint.strokeWidth = maxOf(1f, HIGHLIGHT_STROKE_DP * density)
         for (box in IconZones.boxes(zone, StatusAppearance.of(settings))) {
             // Two opposite corners is enough: the transform is a uniform scale and a
@@ -276,6 +292,11 @@ class StatusPreviewView @JvmOverloads constructor(
             guideRect.right = guidePoint[0]
             guideRect.bottom = guidePoint[1]
             val r = HIGHLIGHT_CORNER_DP * density
+            guidePaint.style = Paint.Style.FILL
+            guidePaint.color = rgb or (fillAlpha shl 24)
+            canvas.drawRoundRect(guideRect, r, r, guidePaint)
+            guidePaint.style = Paint.Style.STROKE
+            guidePaint.color = rgb or (strokeAlpha shl 24)
             canvas.drawRoundRect(guideRect, r, r, guidePaint)
         }
     }
@@ -376,10 +397,10 @@ class StatusPreviewView @JvmOverloads constructor(
         private const val CORNER_RADIUS_DP = 12f
 
         /** Stroke width of the highlight outline, in dp. */
-        private const val HIGHLIGHT_STROKE_DP = 1.5f
+        private const val HIGHLIGHT_STROKE_DP = 2.5f
 
         /** Corner radius of the highlight outline, in dp. */
-        private const val HIGHLIGHT_CORNER_DP = 3f
+        private const val HIGHLIGHT_CORNER_DP = 6f
 
         /**
          * Height of the box the status bar draws the glyph in, in dp: the battery's own
@@ -396,6 +417,11 @@ class StatusPreviewView @JvmOverloads constructor(
 
         /** The frame rate the preview draws; the status bar's own is sampled there. */
         private const val PREVIEW_FPS = 120
+        private const val PREVIEW_CURRENT_UA = 420_000
+        private const val PREVIEW_VOLTAGE_MV = 3_900
+        private const val PREVIEW_BT_LEVEL = 80
+        private const val PREVIEW_SIGNAL_DBM = -85
+        private const val PREVIEW_MOBILE_LEVEL = 4
 
         /** Sample Wi-Fi level the preview draws and hit-tests with. */
         private const val PREVIEW_WIFI_LEVEL = 3

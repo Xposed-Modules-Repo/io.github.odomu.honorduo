@@ -27,6 +27,7 @@ import io.github.odomu.honorduo.ui.render.GlyphInk.drawType
 import io.github.odomu.honorduo.ui.render.GlyphInk.isDarkBackground
 import io.github.odomu.honorduo.ui.render.GlyphInk.measureType
 import io.github.odomu.honorduo.ui.render.GlyphInk.withAlpha
+import io.github.odomu.honorduo.ui.render.OutSignalRenderer.snapArrow
 import io.github.odomu.honorduo.ui.render.geometry.RectGeometry
 import kotlin.math.max
 import kotlin.math.min
@@ -379,6 +380,24 @@ internal object OutSignalRenderer {
 
     private val ACTIVITY_DOWN = Path()
 
+    /** Scratch for [snapArrow]: x centre and half width, in device pixels. */
+    private val ARROW_SNAP = FloatArray(2)
+
+    /**
+     * Snaps an activity arrow onto whole pixels.
+     *
+     * The two arrows are 1-2px wide at status-bar sizes, so a fractional centre makes
+     * one edge antialiased and the other solid - the pair then reads as lopsided. The
+     * centre lands on a half pixel and the width on an even number of pixels, which is
+     * the combination that draws symmetrically.
+     */
+    private fun snapArrow(cx: Float, width: Float, out: FloatArray) {
+        var w = max(2f, width.roundToInt().toFloat())
+        if (w.roundToInt() % 2 != 0) w += 1f
+        out[0] = (cx - 0.5f).roundToInt() + 0.5f
+        out[1] = w * 0.5f
+    }
+
 
     /**
      * The pixel height of the reading's box at the user's [sizeDp], on a display of
@@ -394,10 +413,46 @@ internal object OutSignalRenderer {
         }
         // Two rows and their gap cost height, so the bars get a boost at the same setting.
         if (rowsStyle(a, dual)) {
-            return max(1, (sizeDp * density * 1.58f).roundToInt())
+            return safePx(sizeDp * density * 1.58f, sizeDp * density)
         }
-        return max(1, (sizeDp * density).roundToInt())
+        val px = sizeDp * density
+        if (a == null || !dual) {
+            return safePx(px, px)
+        }
+        // The view's height follows the reading's actual ink: a wider bar pushes the
+        // columns apart, and a larger dot row or margin makes the pair taller. Sizing it
+        // at the reference height instead scaled the drawing down to fit and made the
+        // bars look smaller the moment the user widened them.
+        val reference = referenceInkHeight(a)
+        if (!reference.isFinite() || reference <= 0f) {
+            return safePx(px, px)
+        }
+        return safePx(outSignalInkHeight(a, dual) * px / reference, px)
     }
+
+    /**
+     * Rounds a computed pixel size, refusing to throw on a non-finite value.
+     *
+     * A NaN or infinite height used to reach `roundToInt()` and throw inside SystemUI's
+     * own layout pass, which restarted the whole status bar; a size this module got
+     * wrong must stay a wrong size, never a crash.
+     */
+    private fun safePx(value: Float, fallback: Float): Int {
+        if (value.isFinite()) return value.roundToInt().coerceAtLeast(1)
+        val sane = if (fallback.isFinite()) fallback.roundToInt() else 0
+        return sane.coerceAtLeast(1)
+    }
+
+    /**
+     * The dot-style reading's height at the reference dot size and margin.
+     *
+     * The same sum [outSignalInkHeight] makes at 100%/100%, used as the divisor that
+     * keeps a resized reading at the height its own ink asks for.
+     */
+    private fun referenceInkHeight(a: StatusAppearance): Float =
+        RectGeometry.STACK_BAR_H[RectGeometry.STACK_COLUMNS - 1] +
+            RectGeometry.STACK_DOT_GAP +
+            RectGeometry.STACK_DOT_D * (a.outDotSize / 100f)
 
 
     /**
@@ -415,8 +470,11 @@ internal object OutSignalRenderer {
         }
         val inkW = outSignalInkWidth(a, type, type2, dual)
         val inkH = outSignalInkHeight(a, dual)
+        if (!inkH.isFinite() || inkH <= 0f) {
+            return height
+        }
         val fill = if (dual) 1f else LONE_ROW_FILL
-        return max(1, (height * fill * inkW / inkH).roundToInt())
+        return safePx(height * fill * inkW / inkH, height.toFloat())
     }
 
 
@@ -428,14 +486,14 @@ internal object OutSignalRenderer {
      */
     private fun outPitch(a: StatusAppearance?, dual: Boolean = true): Float {
         val rows = rowsStyle(a, dual)
-        return if (rows) {
+        return (if (rows) {
             // The compact style's own reference: 1.6dp bars on a 0.9dp gap across a
             // 6.2dp row, i.e. everything is a fixed fraction of the row height.
-            RectGeometry.STACK_ROW_H * (ROW_BAR + ROW_GAP)
+            RectGeometry.STACK_ROW_H * ROW_GAP
         } else {
             // The reference's own pitch: 39-unit bars on a 28-unit gap.
-            RectGeometry.STACK_PITCH
-        }
+            RectGeometry.STACK_PITCH - RectGeometry.STACK_BAR_W
+        }) * barPitchScale(a) + outBarWidth(a, dual)
     }
 
 
@@ -464,11 +522,25 @@ internal object OutSignalRenderer {
 
 
     private fun outBarWidth(a: StatusAppearance?, dual: Boolean = true): Float =
-        if (rowsStyle(a, dual)) {
-            RectGeometry.STACK_ROW_H * ROW_BAR
-        } else {
-            RectGeometry.STACK_BAR_W
-        }
+        baseBarWidth(rowsStyle(a, dual)) * barWidthScale(a)
+
+    /**
+     * Width of one bar at 100%, before the user's own width factor.
+     *
+     * The two looks have different reference bars (68 units on a row, 39 in the dot
+     * style), so the base is chosen first and then scaled once - that is what lets the
+     * dot row, the activity arrows and the pitch all multiply the same number.
+     */
+    private fun baseBarWidth(rows: Boolean): Float =
+        if (rows) RectGeometry.STACK_ROW_H * ROW_BAR else RectGeometry.STACK_BAR_W
+
+    /** The user's bar-width setting as a multiplier; 100% is the reference. */
+    private fun barWidthScale(a: StatusAppearance?): Float =
+        (a?.outBarWidth ?: 100).coerceAtLeast(1) / 100f
+
+    /** The user's bar-spacing setting as a multiplier; 100% is the reference. */
+    private fun barPitchScale(a: StatusAppearance?): Float =
+        (a?.outBarPitch ?: 100).coerceAtLeast(1) / 100f
 
 
     private fun outLabelGap(a: StatusAppearance?, dual: Boolean = true): Float =
@@ -491,10 +563,14 @@ internal object OutSignalRenderer {
 
 
     /**
-     * The gap between the primary and secondary parts of the reading, in design units.
+     * The vertical gap between the bars and their dot row.
+     *
+     * Additive on purpose: the margin's default is 0dp, and scaling the gap as
+     * `margin / default` divided by zero there - the reading's height became NaN and
+     * `roundToInt()` took SystemUI down as soon as the out-of-ring views were shown.
      */
-    private fun rowGap(a: StatusAppearance, baseInk: Float): Float =
-        RectGeometry.STACK_DOT_GAP * (a.outSignalMargin.coerceAtLeast(0) / Prefs.DEF_OUT_SIGNAL_MARGIN.toFloat())
+    private fun rowGap(a: StatusAppearance): Float =
+        RectGeometry.STACK_DOT_GAP + a.outSignalMargin.coerceIn(0, 16) * 0.5f
 
 
     // --- DOTS STYLE CONSTANTS ---
@@ -611,7 +687,7 @@ internal object OutSignalRenderer {
         val dotD = RectGeometry.STACK_DOT_D * ((a?.outDotSize ?: 100) / 100f)
         val barsH = RectGeometry.STACK_BAR_H[RectGeometry.STACK_COLUMNS - 1]
         if (!dual) return barsH
-        val gap = if (a != null) rowGap(a, barsH + dotD) else RectGeometry.STACK_DOT_GAP
+        val gap = if (a != null) rowGap(a) else RectGeometry.STACK_DOT_GAP
         return barsH + gap + dotD
     }
 
@@ -634,8 +710,9 @@ internal object OutSignalRenderer {
             val dotScale = a.outDotSize / 100f
             val baseDotD = if (columns == 5) 31f else RectGeometry.STACK_DOT_D
             val dotD = baseDotD * dotScale
-            val gap = rowGap(a, barsH + dotD)
-            barsH + gap + dotD
+            // The reference gap, not the user's margin: the caption is sized against the
+            // reading's own proportions, so moving the two parts apart must not resize it.
+            barsH + RectGeometry.STACK_DOT_GAP + dotD
         }
         // Maps 14dp setting to visual 12dp size (12/14 scale ratio) so the default setting renders the ideal size
         val scaleFactor = a.outTypeSize.coerceAtLeast(1) / Prefs.DEF_OUT_TYPE_SIZE_DP.toFloat()
@@ -743,30 +820,28 @@ internal object OutSignalRenderer {
         c: Canvas, cx: Float, top: Float, bottom: Float, scale: Float,
         barWDesign: Float, fg: Int, inactive: Int, activeIn: Boolean, activeOut: Boolean,
     ) {
-        val w = barWDesign * DOTS_ACTIVITY_ARROW_W * scale
+        snapArrow(cx, barWDesign * DOTS_ACTIVITY_ARROW_W * scale, ARROW_SNAP)
+        val snappedCx = ARROW_SNAP[0]
+        val halfW = ARROW_SNAP[1]
         val pairH = bottom - top
-        val gap = pairH * DOTS_ACTIVITY_GAP_SHARE
-        val h = max(0f, (pairH - gap) * 0.5f)
-        val halfW = w / 2f
+        val h = max(1f, ((pairH - pairH * DOTS_ACTIVITY_GAP_SHARE) * 0.5f).roundToInt().toFloat())
+        val topY = top.roundToInt().toFloat()
+        val bottomY = bottom.roundToInt().toFloat()
+        val upBottom = topY + h
+        val downTop = bottomY - h
 
-        // Up arrow: top at `top` (aligned with top of Bar 1)
-        val upTop = top
-        val upBottom = upTop + h
         ACTIVITY_UP.reset()
-        ACTIVITY_UP.moveTo(cx, upTop)
-        ACTIVITY_UP.lineTo(cx - halfW, upBottom)
-        ACTIVITY_UP.lineTo(cx + halfW, upBottom)
+        ACTIVITY_UP.moveTo(snappedCx, topY)
+        ACTIVITY_UP.lineTo(snappedCx - halfW, upBottom)
+        ACTIVITY_UP.lineTo(snappedCx + halfW, upBottom)
         ACTIVITY_UP.close()
         FILL.color = if (activeOut) fg else inactive
         c.drawPath(ACTIVITY_UP, FILL)
 
-        // Down arrow: tip lands on `bottom` (aligned with bottom of Dot 1)
-        val downTop = bottom - h
-        val downTip = bottom + 0.5f
         ACTIVITY_DOWN.reset()
-        ACTIVITY_DOWN.moveTo(cx, downTip)
-        ACTIVITY_DOWN.lineTo(cx - halfW, downTop)
-        ACTIVITY_DOWN.lineTo(cx + halfW, downTop)
+        ACTIVITY_DOWN.moveTo(snappedCx, bottomY)
+        ACTIVITY_DOWN.lineTo(snappedCx - halfW, downTop)
+        ACTIVITY_DOWN.lineTo(snappedCx + halfW, downTop)
         ACTIVITY_DOWN.close()
         FILL.color = if (activeIn) fg else inactive
         c.drawPath(ACTIVITY_DOWN, FILL)
@@ -781,30 +856,29 @@ internal object OutSignalRenderer {
         c: Canvas, cx: Float, baseline: Float, bar1H: Float, scale: Float,
         barWDesign: Float, fg: Int, inactive: Int, activeIn: Boolean, activeOut: Boolean,
     ) {
-        val w = barWDesign * ROWS_ACTIVITY_ARROW_W * 1.15f * scale
-        val pairH = 66f * scale
-        val gap = pairH * ROWS_ACTIVITY_GAP_SHARE
-        val h = max(0f, (pairH - gap) * 0.5f)
-        val halfW = w / 2f
+        snapArrow(cx, barWDesign * ROWS_ACTIVITY_ARROW_W * ROWS_ACTIVITY_ARROW_W * scale, ARROW_SNAP)
+        val snappedCx = ARROW_SNAP[0]
+        val halfW = ARROW_SNAP[1]
+        val pairH = scale * 66f
+        val gap = ROWS_ACTIVITY_GAP_SHARE * pairH
+        val h = max(1f, ((pairH - gap) * 0.5f).roundToInt().toFloat())
+        val baseY = baseline.roundToInt().toFloat()
+        val downTop = baseY - h
+        val upBase = downTop - gap.roundToInt()
+        val upTop = upBase - h
 
-        // Down arrow: bottom tip lands on baseline
-        val downTip = baseline + 0.5f
-        val downTop = baseline - h
         ACTIVITY_DOWN.reset()
-        ACTIVITY_DOWN.moveTo(cx, downTip)
-        ACTIVITY_DOWN.lineTo(cx - halfW, downTop)
-        ACTIVITY_DOWN.lineTo(cx + halfW, downTop)
+        ACTIVITY_DOWN.moveTo(snappedCx, baseY)
+        ACTIVITY_DOWN.lineTo(snappedCx - halfW, downTop)
+        ACTIVITY_DOWN.lineTo(snappedCx + halfW, downTop)
         ACTIVITY_DOWN.close()
         FILL.color = if (activeIn) fg else inactive
         c.drawPath(ACTIVITY_DOWN, FILL)
 
-        // Up arrow: above down arrow
-        val upBottom = downTop - gap
-        val upTop = upBottom - h
         ACTIVITY_UP.reset()
-        ACTIVITY_UP.moveTo(cx, upTop)
-        ACTIVITY_UP.lineTo(cx - halfW, upBottom)
-        ACTIVITY_UP.lineTo(cx + halfW, upBottom)
+        ACTIVITY_UP.moveTo(snappedCx, upTop)
+        ACTIVITY_UP.lineTo(snappedCx - halfW, upBase)
+        ACTIVITY_UP.lineTo(snappedCx + halfW, upBase)
         ACTIVITY_UP.close()
         FILL.color = if (activeOut) fg else inactive
         c.drawPath(ACTIVITY_UP, FILL)
@@ -854,7 +928,7 @@ internal object OutSignalRenderer {
         val baseDotD = if (columns == 5) 31f else RectGeometry.STACK_DOT_D
         val dotD = baseDotD * dotScale
         val barsH = barHeights[columns - 1]
-        val gap = if (dotRow) rowGap(a, barsH + dotD) else 0f
+        val gap = if (dotRow) rowGap(a) else 0f
         val inkH = if (dotRow) barsH + gap + dotD else barsH
         val fitHeight = height * (if (dotRow) 1f else LONE_ROW_FILL)
         val scale = min(width / inkW, fitHeight / inkH)

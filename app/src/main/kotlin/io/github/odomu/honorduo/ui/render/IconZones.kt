@@ -152,13 +152,14 @@ object IconZones {
             // A flank holding the Wi-Fi arcs draws *outside* the ring's ink box, so the host
             // carries that width as margin - and the tap that selects that flank has to
             // reach the margin too, or tapping the arcs the user placed lands on nothing.
-            val extra = if (a.ring) RingGeometry.ringFlankWifiExtra(a) else 0f
+            val leftExtra = if (a.ring) RingGeometry.ringFlankWifiExtra(a, true) else 0f
+            val rightExtra = if (a.ring) RingGeometry.ringFlankWifiExtra(a, false) else 0f
             val pad = if (a.ring) RingGeometry.ringInkPad(a) else 0f
             // Mutated in place rather than copied: `base` was built for this call only, and
             // the settings preview asks for these boxes on every frame of a highlighted flank.
             when (zone) {
-                Zone.LEFT -> for (box in base) box[0] -= extra
-                Zone.RIGHT -> for (box in base) box[2] += extra
+                Zone.LEFT -> for (box in base) box[0] -= leftExtra
+                Zone.RIGHT -> for (box in base) box[2] += rightExtra
                 // A mouth's icon is lifted past the reference box, so the band that holds it
                 // has to reach the margin the box grew into.
                 Zone.TOP -> for (box in base) box[1] -= pad
@@ -404,16 +405,14 @@ object IconZones {
     /**
      * Whether `part` may be placed in `zone`.
      *
-     * Only the ring refuses a placement; the capsule and the rectangle have no middle
-     * band to get wrong.
+     * The ring and the capsule share one flank rule: a side band only knows how to
+     * draw a dot row or the Wi-Fi arcs. Readings stay in the top, middle or bottom
+     * bands; the rectangle has no flanks of its own and keeps its solver.
      */
     @JvmStatic
     fun accepts(zone: Zone, part: Part?, current: ModuleSettings?): Boolean {
         if (current == null || part == null) return true
-        // The capsule's flanks are its two round ends, which only know how to draw a dot row
-        // or the arcs; the ring cuts a mouth for anything. Refusing here keeps the picker
-        // from offering a placement that would draw nothing.
-        if (current.trioStyle == Prefs.STYLE_CAPSULE &&
+        if (current.trioStyle != Prefs.STYLE_RECT &&
             (zone == Zone.LEFT || zone == Zone.RIGHT) &&
             !isSignalRow(part) && part != Part.WIFI
         ) {
@@ -515,6 +514,7 @@ object IconZones {
             val cleared = ModuleSettings.copyZones(current.ringZones)
             cleared[zone] = IntArray(0)
             next.ringZones = cleared
+            restoreAutoEnabled(next)
             return next
         }
         val lists = ArrayList<ArrayList<Int>>(Prefs.ZONE_COUNT)
@@ -529,44 +529,101 @@ object IconZones {
         next.mergeIcons = true
         // A placed piece needs its own switch on, or the zone would reserve space it then
         // draws nothing in.
-        val hasWifiNow = next.ringZones.any { it.contains(Prefs.PART_WIFI) }
-        val hasValueNow = next.ringZones.any { it.contains(Prefs.PART_VALUE) }
-        val hasBoltNow = next.ringZones.any { it.contains(Prefs.PART_BOLT) }
-        val hasMobileNow = next.ringZones.any { it.contains(Prefs.PART_MOBILE) || it.contains(Prefs.PART_SIM_1) || it.contains(Prefs.PART_SIM_2) }
-        next.showWifi = hasWifiNow
-        next.showValue = hasValueNow
-        next.showBolt = hasBoltNow
-        if (hasMobileNow) {
-            next.showMobile = true
-            if (want == Part.SIM_1 || want == Part.SIM_2 || want == Part.MOBILE) {
-                next.signalMode = Prefs.SIGNAL_IN_RING
+        // Only ever switch the piece being placed ON, and only record it if it was off: a
+        // placement must not turn another component's switch back on (or off) behind the
+        // user's back, and removal has to be able to put this one back.
+        enableForPlacement(next, id)
+        if (want == Part.SIM_1 || want == Part.SIM_2 || want == Part.MOBILE) {
+            next.signalMode = Prefs.SIGNAL_IN_RING
+        }
+        restoreAutoEnabled(next)
+        return next
+    }
+
+    /** The ids this flow switched on, parsed from their stored list. */
+    private fun autoIds(s: ModuleSettings): MutableSet<Int> =
+        s.autoEnabledParts.split(',').mapNotNull { it.trim().toIntOrNull() }.toMutableSet()
+
+    private fun recordAuto(s: ModuleSettings, part: Int) {
+        val ids = autoIds(s)
+        ids.add(part)
+        s.autoEnabledParts = ids.joinToString(",")
+    }
+
+    /**
+     * Turns a placed piece's own switch on, remembering the ones that were off.
+     *
+     * A placed piece needs its switch on or its zone reserves space it draws nothing in.
+     * Recording the flip is what lets [restoreAutoEnabled] undo it later; a switch the user
+     * had already turned on is never recorded, so removal leaves it alone.
+     */
+    private fun enableForPlacement(s: ModuleSettings, part: Int) {
+        when (part) {
+            Prefs.PART_WIFI -> if (!s.showWifi) { s.showWifi = true; recordAuto(s, part) }
+            Prefs.PART_VALUE -> if (!s.showValue) { s.showValue = true; recordAuto(s, part) }
+            Prefs.PART_BOLT -> if (!s.showBolt) { s.showBolt = true; recordAuto(s, part) }
+            Prefs.PART_MOBILE -> if (!s.showMobile) { s.showMobile = true; recordAuto(s, part) }
+            Prefs.PART_SIM_1 -> if (!s.showSim1) { s.showSim1 = true; recordAuto(s, part) }
+            Prefs.PART_SIM_2 -> if (!s.showSim2) { s.showSim2 = true; recordAuto(s, part) }
+            Prefs.PART_TYPE -> if (s.mobileTypeMode != Prefs.MOBILE_TYPE_IN_RING) {
+                s.mobileTypeMode = Prefs.MOBILE_TYPE_IN_RING
+                recordAuto(s, part)
+            }
+            Prefs.PART_FPS -> if (!s.perfFps) { s.perfFps = true; recordAuto(s, part) }
+            Prefs.PART_CURRENT -> if (!s.perfCurrent) { s.perfCurrent = true; recordAuto(s, part) }
+            Prefs.PART_POWER -> if (!s.perfPower) { s.perfPower = true; recordAuto(s, part) }
+            Prefs.PART_TEMP -> if (!s.perfTemp) { s.perfTemp = true; recordAuto(s, part) }
+            Prefs.PART_RUNNING -> if (!s.perfRunning) { s.perfRunning = true; recordAuto(s, part) }
+            Prefs.PART_VOLTAGE -> if (!s.perfVoltage) { s.perfVoltage = true; recordAuto(s, part) }
+            Prefs.PART_SIGNAL -> if (!s.perfSignal) { s.perfSignal = true; recordAuto(s, part) }
+            Prefs.PART_BT -> if (s.btBatteryMode == Prefs.BT_BATTERY_OFF) {
+                s.btBatteryMode = Prefs.BT_BATTERY_ARC
+                recordAuto(s, part)
+            }
+            else -> Unit
+        }
+    }
+
+    /**
+     * Puts back the switches this flow turned on for pieces that have left every zone.
+     *
+     * Called after any edit that can remove a placement. A piece still placed somewhere
+     * keeps its switch and stays in the record.
+     */
+    @JvmStatic
+    fun restoreAutoEnabled(s: ModuleSettings) {
+        val ids = autoIds(s)
+        if (ids.isEmpty()) return
+        val keep = mutableSetOf<Int>()
+        for (id in ids) {
+            if (s.ringZones.any { it.contains(id) }) {
+                keep.add(id)
+                continue
+            }
+            when (id) {
+                Prefs.PART_WIFI -> s.showWifi = false
+                Prefs.PART_VALUE -> s.showValue = false
+                Prefs.PART_BOLT -> s.showBolt = false
+                Prefs.PART_MOBILE -> s.showMobile = false
+                Prefs.PART_SIM_1 -> s.showSim1 = false
+                Prefs.PART_SIM_2 -> s.showSim2 = false
+                Prefs.PART_TYPE -> if (s.mobileTypeMode == Prefs.MOBILE_TYPE_IN_RING) {
+                    s.mobileTypeMode = Prefs.MOBILE_TYPE_OFF
+                }
+                Prefs.PART_FPS -> s.perfFps = false
+                Prefs.PART_CURRENT -> s.perfCurrent = false
+                Prefs.PART_POWER -> s.perfPower = false
+                Prefs.PART_TEMP -> s.perfTemp = false
+                Prefs.PART_RUNNING -> s.perfRunning = false
+                Prefs.PART_VOLTAGE -> s.perfVoltage = false
+                Prefs.PART_SIGNAL -> s.perfSignal = false
+                Prefs.PART_BT -> if (s.btBatteryMode == Prefs.BT_BATTERY_ARC) {
+                    s.btBatteryMode = Prefs.BT_BATTERY_OFF
+                }
+                else -> Unit
             }
         }
-        if (want == Part.SIM_1 || next.ringZones.any { it.contains(Prefs.PART_SIM_1) }) {
-            next.showSim1 = true
-        }
-        if (want == Part.SIM_2 || next.ringZones.any { it.contains(Prefs.PART_SIM_2) }) {
-            next.showSim2 = true
-        }
-        if (want == Part.TYPE || next.ringZones.any { it.contains(Prefs.PART_TYPE) }) {
-            next.mobileTypeMode = Prefs.MOBILE_TYPE_IN_RING
-        }
-        if (want == Part.FPS || next.ringZones.any { it.contains(Prefs.PART_FPS) }) {
-            next.perfFps = true
-        }
-        if (want == Part.CURRENT || next.ringZones.any { it.contains(Prefs.PART_CURRENT) }) {
-            next.perfCurrent = true
-        }
-        if (want == Part.POWER || next.ringZones.any { it.contains(Prefs.PART_POWER) }) {
-            next.perfPower = true
-        }
-        if (want == Part.TEMP || next.ringZones.any { it.contains(Prefs.PART_TEMP) }) {
-            next.perfTemp = true
-        }
-        if (want == Part.RUNNING || next.ringZones.any { it.contains(Prefs.PART_RUNNING) }) {
-            next.perfRunning = true
-        }
-        return next
+        s.autoEnabledParts = keep.joinToString(",")
     }
 
     /**
@@ -584,9 +641,9 @@ object IconZones {
         val zones = ModuleSettings.copyZones(current.ringZones)
         zones[zone] = list.filterIndexed { i, _ -> i != index }.toIntArray()
         next.ringZones = zones
-        next.showWifi = zones.any { it.contains(Prefs.PART_WIFI) }
-        next.showValue = zones.any { it.contains(Prefs.PART_VALUE) }
-        next.showBolt = zones.any { it.contains(Prefs.PART_BOLT) }
+        // Only the switches this flow turned on are put back; a reading the user had
+        // switched on before placing it keeps its out-of-ring display after removal.
+        restoreAutoEnabled(next)
         return next
     }
 
@@ -622,14 +679,13 @@ object IconZones {
     @JvmStatic
     fun placementChoices(zone: Zone, current: ModuleSettings?, sims: Int): List<Part> =
         if (hasSlots(current)) {
-            ringChoices(zone)
+            // The same rule the placement solver uses: the capsule's round ends only hold
+            // a dot row or the arcs, and the ring refuses a signal row in the centre.
+            // Filtering here keeps unsupported pieces out of the picker entirely.
+            placeableParts().filter { accepts(zone, it, current) }
         } else {
             choices(zone, current!!.trioStyle == Prefs.STYLE_RECT, current, sims)
         }
-
-    /** [placeableParts] minus the ones the ring refuses in `zone`. */
-    @JvmStatic
-    fun ringChoices(zone: Zone): List<Part> = placeableParts().filter { ringAccepts(zone, it) }
 
     /** Every piece the ring may hold, in enum order, minus the retired aggregate meter. */
     @JvmStatic

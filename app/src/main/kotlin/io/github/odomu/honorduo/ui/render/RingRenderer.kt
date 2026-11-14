@@ -87,6 +87,20 @@ internal object RingRenderer {
 
     private const val DUAL_SIGNAL_HALF_SPAN_RAD = 0.42760567f
 
+    /**
+     * Flat stacked rows, taken from CombinedStatus's combined-icon geometry.
+     *
+     * Its 120-box puts the four dots at x = 34, 51, 69, 86 (centre 60) and the two rows
+     * of the top and bottom readings at y = 11/28 and 92/109. The x values become
+     * `-26..26` around this ring's centre; the y values are absolute design units, so
+     * each zone subtracts its own centre line.
+     */
+    private const val FLAT_HALF_WIDTH = 26f
+    private const val FLAT_TOP_OUTER_Y = 11f
+    private const val FLAT_TOP_INNER_Y = 28f
+    private const val FLAT_BOTTOM_OUTER_Y = 109f
+    private const val FLAT_BOTTOM_INNER_Y = 92f
+
 
     /** One point on the battery arc, rewritten per frame; never kept. */
     private val RING_POINT = FloatArray(2)
@@ -182,9 +196,13 @@ internal object RingRenderer {
                     c.scale(scale, scale)
                     c.translate(-IconGeometry.BOLT_CX_REF, -IconGeometry.BOLT_INK_CY)
                     drawBoltShape(c, if (quickCharging) IconGeometry.QUICK_CHARGE else fg, a)
-                } else if (hasDotInZone || part == Prefs.PART_MOBILE || part == Prefs.PART_SIM_1 || part == Prefs.PART_SIM_2) {
+                } else if (hasDotInZone || part == Prefs.PART_MOBILE || part == Prefs.PART_SIM_1 || part == Prefs.PART_SIM_2 || part == Prefs.PART_BT) {
                     val btLevel = StatusState.sBluetoothBatteryLevel
-                    val btActive = z == 2 && a.btBatteryMode > 0 && btLevel in 0..100
+                    // Only when the headset is actually placed in this arrangement, and is
+                    // the piece that wins its chain. A stale zone list made the line appear
+                    // while the reading was set to the out-of-ring strip.
+                    val btActive = a.placed(Prefs.PART_BT) && part == Prefs.PART_BT &&
+                        (z == 0 || z == 2) && a.btBatteryMode > 0 && btLevel in 0..100
                     if (btActive) {
                         if (a.btBatteryMode == Prefs.BT_BATTERY_DIGIT) {
                             TEXT.textSize = 22f
@@ -196,10 +214,12 @@ internal object RingRenderer {
                             val rho = IconGeometry.B_R
                             ARC.set(-rho, -rho, rho, rho)
                             STROKE.style = Paint.Style.STROKE
-                            STROKE.strokeWidth = 6f
+                            STROKE.strokeWidth = maxOf(8f, a.ringStroke * 0.55f)
                             STROKE.strokeCap = Paint.Cap.ROUND
                             STROKE.color = withAlpha(fg, a.trackAlpha)
-                            val startDeg = 65f
+                            // The line sits in the opening it was placed in: 6 o'clock
+                            // for the bottom zone, 12 o'clock mirrored for the top.
+                            val startDeg = if (z == 0) 245f else 65f
                             val sweepDeg = 50f
                             c.drawArc(ARC, startDeg, sweepDeg, false, STROKE)
                             if (btLevel > 0) {
@@ -208,13 +228,13 @@ internal object RingRenderer {
                                 c.drawArc(ARC, startDeg + sweepDeg - progressDeg, progressDeg, false, STROKE)
                             }
                         }
-                    } else {
+                    } else if (hasDotInZone || part == Prefs.PART_MOBILE || part == Prefs.PART_SIM_1 || part == Prefs.PART_SIM_2) {
                     val columns = a.signalColumns.coerceIn(4, 5)
                     val baseDotR = RingGeometry.arcRowDotR(z, a.ringStroke, width, a.dotScaleFactor())
 
                     val dataLevel = StatusState.dataSimSignalLevel()
-                    val sim1Level = if (levels != null && levels.isNotEmpty() && levels[0] >= 0) levels[0] else dataLevel
-                    val sim2Level = if (levels != null && levels.size > 1 && levels[1] >= 0) levels[1] else dataLevel
+                    val sim1Level = slotLevel(0, levels, dataLevel)
+                    val sim2Level = slotLevel(1, levels, dataLevel)
 
                     val isStackedDual = !a.dataSimOnly && chain != null && (
                         (chain.contains(Prefs.PART_SIM_1) && chain.contains(Prefs.PART_SIM_2)) ||
@@ -237,29 +257,51 @@ internal object RingRenderer {
                         val active1 = if (l1 < 0) 0 else levelMapped(l1, columns)
                         val active2 = if (l2 < 0) 0 else levelMapped(l2, columns)
 
-                        val inward = 3.8f
-                        val r1 = rhoMid - inward
-                        val dr = dotR * 2.65f
-                        val r2 = r1 + dr
-                        val halfSpanAngle = DUAL_SIGNAL_HALF_SPAN_RAD
+                        val flat = a.ringStackStyle == Prefs.RING_STACK_FLAT &&
+                            (z == IconZones.Zone.TOP.ordinal || z == IconZones.Zone.BOTTOM.ordinal)
+                        if (flat) {
+                            // Two horizontal rows, the outer one nearest the ring's top or
+                            // bottom edge; x spread over CombinedStatus's four-dot span so a
+                            // five-column setting interpolates instead of moving the ends.
+                            val top = z == IconZones.Zone.TOP.ordinal
+                            // Subtract the zone's real centreline, not ZONE_CY: the ring
+                            // spacing and ink pad move the zone, and the flat rows have to
+                            // move with it the way the arc rows do.
+                            val yOuter = (if (top) FLAT_TOP_OUTER_Y else FLAT_BOTTOM_OUTER_Y) - cy
+                            val yInner = (if (top) FLAT_TOP_INNER_Y else FLAT_BOTTOM_INNER_Y) - cy
+                            for (dot in 0 until columns) {
+                                val t = if (columns > 1) dot.toFloat() / (columns - 1) else 0.5f
+                                val x = -FLAT_HALF_WIDTH + 2f * FLAT_HALF_WIDTH * t
+                                FILL.color = if (dot < active1) fg else inactive
+                                c.drawCircle(x, yOuter, dotR, FILL)
+                                FILL.color = if (dot < active2) fg else inactive
+                                c.drawCircle(x, yInner, dotR, FILL)
+                            }
+                        } else {
+                            val inward = 3.8f
+                            val r1 = rhoMid - inward
+                            val dr = dotR * 2.65f
+                            val r2 = r1 + dr
+                            val halfSpanAngle = DUAL_SIGNAL_HALF_SPAN_RAD
 
-                        // Row 1: Order 1 (shifted inward for comfortable spacing)
-                        for (dot in 0 until columns) {
-                            val t = (dot - halfDiv) / halfDiv
-                            val angle = t * halfSpanAngle
-                            val x = r1 * sin(angle)
-                            val y = (IconGeometry.B_CY + sign * r1 * cos(angle)) - RingGeometry.ZONE_CY[z]
-                            FILL.color = if (dot < active1) fg else inactive
-                            c.drawCircle(x, y, dotR, FILL)
-                        }
-                        // Row 2: Order 2 (parallel outside row 1)
-                        for (dot in 0 until columns) {
-                            val t = (dot - halfDiv) / halfDiv
-                            val angle = t * halfSpanAngle
-                            val x = r2 * sin(angle)
-                            val y = (IconGeometry.B_CY + sign * r2 * cos(angle)) - RingGeometry.ZONE_CY[z]
-                            FILL.color = if (dot < active2) fg else inactive
-                            c.drawCircle(x, y, dotR, FILL)
+                            // Row 1: Order 1 (shifted inward for comfortable spacing)
+                            for (dot in 0 until columns) {
+                                val t = (dot - halfDiv) / halfDiv
+                                val angle = t * halfSpanAngle
+                                val x = r1 * sin(angle)
+                                val y = (IconGeometry.B_CY + sign * r1 * cos(angle)) - RingGeometry.ZONE_CY[z]
+                                FILL.color = if (dot < active1) fg else inactive
+                                c.drawCircle(x, y, dotR, FILL)
+                            }
+                            // Row 2: Order 2 (parallel outside row 1)
+                            for (dot in 0 until columns) {
+                                val t = (dot - halfDiv) / halfDiv
+                                val angle = t * halfSpanAngle
+                                val x = r2 * sin(angle)
+                                val y = (IconGeometry.B_CY + sign * r2 * cos(angle)) - RingGeometry.ZONE_CY[z]
+                                FILL.color = if (dot < active2) fg else inactive
+                                c.drawCircle(x, y, dotR, FILL)
+                            }
                         }
                     } else {
                         val rowLevel = when (part) {
@@ -292,8 +334,8 @@ internal object RingRenderer {
         if (hasLeftDots || hasRightDots) {
             val columns = a.signalColumns.coerceIn(4, 5)
             val dataLevel = StatusState.dataSimSignalLevel()
-            val sim1Level = if (levels != null && levels.isNotEmpty() && levels[0] >= 0) levels[0] else dataLevel
-            val sim2Level = if (levels != null && levels.size > 1 && levels[1] >= 0) levels[1] else dataLevel
+            val sim1Level = slotLevel(0, levels, dataLevel)
+            val sim2Level = slotLevel(1, levels, dataLevel)
             val dotR = RingGeometry.flankDotR(columns, a.dotScaleFactor())
             val inactive = withAlpha(fg, a.trackAlpha)
             val rho = IconGeometry.B_R
@@ -399,6 +441,10 @@ internal object RingRenderer {
             Prefs.PART_TEMP -> tempText()
             Prefs.PART_CURRENT -> currentText(a)
             Prefs.PART_FPS -> fpsText()
+            Prefs.PART_VOLTAGE -> StatusState.voltageText()
+            Prefs.PART_SIGNAL -> StatusState.signalText()
+            Prefs.PART_BT -> StatusState.sBluetoothBatteryLevel
+                .takeIf { it in 0..100 }?.let { btLevelText(it) }
             else -> StatusState.sClockText
         }
         if (text.isNullOrEmpty()) return
@@ -407,6 +453,7 @@ internal object RingRenderer {
             Prefs.PART_TYPE -> a.typeWeight
             Prefs.PART_POWER, Prefs.PART_RUNNING,
             Prefs.PART_TEMP, Prefs.PART_CURRENT, Prefs.PART_FPS,
+            Prefs.PART_VOLTAGE, Prefs.PART_SIGNAL, Prefs.PART_BT,
             -> a.perfTypeWeight()
             else -> a.clockWeight
         }
@@ -415,6 +462,7 @@ internal object RingRenderer {
             Prefs.PART_TYPE -> maxOf(a.typeSize.toFloat(), 46f)
             Prefs.PART_POWER, Prefs.PART_RUNNING,
             Prefs.PART_TEMP, Prefs.PART_CURRENT, Prefs.PART_FPS,
+            Prefs.PART_VOLTAGE, Prefs.PART_SIGNAL, Prefs.PART_BT,
             -> maxOf(a.perfReadingSize().toFloat(), 46f)
             else -> maxOf(a.clockSize.toFloat(), 46f)
         }
@@ -614,8 +662,9 @@ internal object RingRenderer {
             return
         }
         // The split path only describes a mouth at 12 o'clock; a bottom mouth or a flank cut
-        // needs the segment walk.
-        if (!openLeft && !openRight && sweep >= 360f) {
+        // needs the segment walk. Fills starting at zero take the compensated walk below:
+        // their perceived length includes the round caps, the flows that start later do not.
+        if (!openLeft && !openRight && sweep >= 360f && from > 0f) {
             val mouthStart = clamp01(gapStart)
             val mouthEnd = clamp01(gapEnd)
             // Path length that actually carries ink; the level is spread over it.
@@ -655,6 +704,31 @@ internal object RingRenderer {
         var totalDrawn = 0f
         for (i in 0 until segCount) totalDrawn += SEGMENTS[i * 2 + 1]
         if (totalDrawn <= 0f) return
+
+        if (from == 0f) {
+            // A ROUND cap adds half a stroke at each end, so the ink's visual length is
+            // `sweep + cap`. The level is a share of the *visual* track - otherwise a low
+            // battery reads bigger than it is - and each segment's sweep is what is left
+            // after subtracting the caps. CombinedStatus's ring does the same, and a
+            // per-segment share keeps a mouth or flank cut from eating into the level.
+            val capDeg = capCompensationDeg()
+            var visualTotal = 0f
+            for (i in 0 until segCount) visualTotal += SEGMENTS[i * 2 + 1] + capDeg
+            var remaining = to * visualTotal
+            for (i in 0 until segCount) {
+                if (remaining <= 0f) break
+                val segStartDeg = SEGMENTS[i * 2]
+                val segSweepDeg = SEGMENTS[i * 2 + 1]
+                val segVisual = segSweepDeg + capDeg
+                val drawnVisual = min(remaining, segVisual)
+                if (drawnVisual > 0f) {
+                    val sweepDeg = (drawnVisual - capDeg).coerceIn(1f, segSweepDeg)
+                    arc(c, IconGeometry.B_CX, IconGeometry.B_CY, IconGeometry.B_R, segStartDeg, sweepDeg)
+                }
+                remaining -= drawnVisual
+            }
+            return
+        }
 
         val startDrawn = from * totalDrawn
         val endDrawn = to * totalDrawn
@@ -780,6 +854,24 @@ internal object RingRenderer {
     ) {
         arc(c, cx, cy, r, start + from * sweep, (to - from) * sweep)
     }
+
+    /** Degrees the two ROUND caps add to an arc's visual length. */
+    private fun capCompensationDeg(): Float =
+        Math.toDegrees((STROKE.strokeWidth / IconGeometry.B_R).toDouble()).toFloat()
+
+    /**
+     * One card's level, with a disabled card drawn as an empty row.
+     *
+     * `-2` is the "present but not in service" marker: [levelMapped] turns it into zero
+     * lit dots, so the row stays as a grey placeholder instead of borrowing the data
+     * SIM's reading - which is what made a switched-off card look active.
+     */
+    private fun slotLevel(slot: Int, levels: IntArray?, dataLevel: Int): Int =
+        if (!StatusState.slotEnabled(slot)) {
+            -2
+        } else {
+            levels?.getOrNull(slot)?.takeIf { it >= 0 } ?: dataLevel
+        }
 
 
 

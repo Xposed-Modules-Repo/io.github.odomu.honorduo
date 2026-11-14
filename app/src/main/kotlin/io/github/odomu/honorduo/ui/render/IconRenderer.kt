@@ -163,6 +163,7 @@ internal object IconRenderer {
         quickCharging: Boolean, powerSave: Boolean, low: Boolean,
         wifiLevel: Int, mobileLevel: Int, slotLevels: IntArray?, mobileType: String?,
         fg: Int, cfg: ModuleSettings?, clearWhenDone: Boolean,
+        fitOverride: Float = -1f,
     ) {
         if (w <= 0 || h <= 0 || cfg == null) {
             return
@@ -181,10 +182,34 @@ internal object IconRenderer {
         // place: every arrangement already treats "no type" as "draw none of it", so the
         // ring, the rectangle and the capsule all obey without knowing this setting.
         val shownType = if (appearance.typeHideOnWifi && wifiLevel >= 1) null else mobileType
+        // A slot with no reading counts as absent, so a single-SIM device - or a poll that
+        // has not answered yet - is not mistaken for a second SIM.
+        val slots: IntArray? =
+            if (slotLevels != null && slotLevels.size >= StatusState.SIM_SLOTS) slotLevels else null
+        // Only the two real slots count; a longer array is not a third card.
+        val sims = if (slots == null) {
+            0
+        } else {
+            (if (slots[0] >= 0) 1 else 0) + (if (slots[1] >= 0) 1 else 0)
+        }
+        // Resolved once: the width and the drawing must agree, and building it twice per
+        // frame is two allocations plus two passes over the zone lists for nothing.
+        val cap = if (appearance.capsule) {
+            appearance.capsule(level, charging, wifiLevel, shownType, sims)
+        } else {
+            null
+        }
+        // Two centre pieces can need more than the stored pair width. The answer depends on
+        // which pieces have ink and how they are sized, never on the reading's current text.
+        val capsuleGrowth = if (cap != null) {
+            CapsuleRenderer.requiredCapsuleRight(appearance, cap, shownType) - appearance.capsuleRight()
+        } else {
+            0f
+        }
         animSpeed = appearance.boltSpeedFactor()
         boltMoving = appearance.animatesOutline(charging, level)
         // The transform is asked for rather than worked out here, because the settings screen's tappable zones have to land on the very pixels this drawing lands on.
-        if (!designTransform(w, h, appearance, DRAW_TRANSFORM, wifiLevel)) {
+        if (!designTransform(w, h, appearance, DRAW_TRANSFORM, wifiLevel, fitOverride, capsuleGrowth)) {
             return
         }
         val scale = DRAW_TRANSFORM[0]
@@ -202,24 +227,13 @@ internal object IconRenderer {
 
         val role = roleColor(appearance, level, charging, powerSave, low, fg)
 
-        // A slot with no reading counts as absent, so a single-SIM device - or a
-        // poll that has not answered yet - is not mistaken for a second SIM.
-        val slots: IntArray? =
-            if (slotLevels != null && slotLevels.size >= StatusState.SIM_SLOTS) slotLevels else null
-        // Only the two real slots count; a longer array is not a third card.
-        val sims = if (slots == null) {
-            0
-        } else {
-            (if (slots[0] >= 0) 1 else 0) + (if (slots[1] >= 0) 1 else 0)
-        }
-
         canvas.withTranslation(DRAW_TRANSFORM[1], DRAW_TRANSFORM[2]) {
             canvas.scale(scale, scale)
 
             when {
                 capsule -> drawCapsuleLayout(
-                    canvas, level, charging, quickCharging, wifiLevel, mobileLevel, shownType,
-                    slots, sims, role, fg, appearance,
+                    canvas, cap!!, level, charging, quickCharging, wifiLevel, mobileLevel,
+                    shownType, slots, sims, role, fg, appearance,
                 )
 
                 rect -> drawRectLayout(
@@ -471,23 +485,30 @@ internal object IconRenderer {
      * Distinct from the boolean overload above because the capsule is a third ink box
      * rather than a variant of one of the other two.
      */
-    fun inkScale(w: Int, h: Int, appearance: StatusAppearance?, wifiLevel: Int): Float {
+    fun inkScale(
+        w: Int, h: Int, appearance: StatusAppearance?, wifiLevel: Int,
+        capsuleGrowth: Float = 0f,
+    ): Float {
         if (appearance?.rect == true) {
             return inkScale(w, h, RectGeometry.RECT_INK_W, RectGeometry.RECT_INK_H)
         }
         if (appearance?.capsule == true) {
             // The banded box: the capsule plus the strip either opening draws in. Its width
-            // follows the user's extra run, which is why this takes the frame's answer
-            // rather than the stored style id.
+            // follows the user's extra run and the measured centre content, which is why
+            // this takes the frame's answer rather than the stored style id.
             return inkScale(
-                w, h, CapsuleGeometry.capInkW(appearance, wifiLevel),
+                w, h, CapsuleGeometry.capInkW(appearance, wifiLevel) + capsuleGrowth,
                 CapsuleGeometry.CAP_INK_BOTTOM - CapsuleGeometry.CAP_INK_TOP,
             )
         }
         if (appearance?.ring == true) {
             val extraW = maxOf(0f, appearance.ringSpacingX.toFloat() * 2f)
+            val flankExtra = RingGeometry.ringFlankWifiExtra(appearance, true) +
+                RingGeometry.ringFlankWifiExtra(appearance, false)
             return inkScale(
-                w, h, IconGeometry.INK_W + extraW, RingGeometry.ringInkH(appearance),
+                w, h,
+                2f * IconGeometry.ringInkHalf(appearance) + extraW + flankExtra,
+                RingGeometry.ringInkH(appearance),
             )
         }
         return inkScale(w, h)
@@ -523,20 +544,27 @@ internal object IconRenderer {
      * @return false when there is nothing to draw into, with [out] left alone so a
      *   caller cannot accidentally use a stale transform
      */
-    fun designTransform(w: Int, h: Int, appearance: StatusAppearance?, out: FloatArray?, wifiLevel: Int): Boolean {
+    fun designTransform(
+        w: Int, h: Int, appearance: StatusAppearance?, out: FloatArray?, wifiLevel: Int,
+        fitOverride: Float = -1f, capsuleGrowth: Float = 0f,
+    ): Boolean {
         if (w <= 0 || h <= 0 || appearance == null || out == null || out.size < 3) {
             return false
         }
         val rect = appearance.rect
         // The overall-size setting is applied to the fit rather than to the design units.
-        val scale = inkScale(w, h, appearance, wifiLevel) * appearance.glyphFit()
+        // A host that grows its own box to carry the setting passes `1f` here instead:
+        // the box has already applied it, and multiplying again would square it.
+        val fit = if (fitOverride > 0f) fitOverride else appearance.glyphFit()
+        val scale = inkScale(w, h, appearance, wifiLevel, capsuleGrowth) * fit
         if (scale <= 0f) {
             return false
         }
         out[0] = scale
         if (appearance.capsule) {
             val boxH = CapsuleGeometry.CAP_INK_BOTTOM - CapsuleGeometry.CAP_INK_TOP
-            out[1] = (w - CapsuleGeometry.capInkW(appearance, wifiLevel) * scale) / 2f - CapsuleGeometry.capInkX(appearance, wifiLevel) * scale
+            val boxW = CapsuleGeometry.capInkW(appearance, wifiLevel) + capsuleGrowth
+            out[1] = (w - boxW * scale) / 2f - CapsuleGeometry.capInkX(appearance, wifiLevel) * scale
             out[2] = (h - boxH * scale) / 2f - CapsuleGeometry.CAP_INK_TOP * scale
         } else if (rect) {
             out[1] = (w - RectGeometry.RECT_INK_W * scale) / 2f - RectGeometry.RECT_INK_X * scale
@@ -547,7 +575,12 @@ internal object IconRenderer {
             val stackShiftY = if (hasBottomStacked) 2.0f * scale else 0f
             val inkH = RingGeometry.ringInkH(appearance)
             val inkTop = RingGeometry.ringInkTop(appearance)
-            out[1] = (w - IconGeometry.INK_W * scale) / 2f - IconGeometry.INK_X * scale
+            val half = IconGeometry.ringInkHalf(appearance)
+            val leftExtra = RingGeometry.ringFlankWifiExtra(appearance, true)
+            val rightExtra = RingGeometry.ringFlankWifiExtra(appearance, false)
+            val total = 2f * half + leftExtra + rightExtra
+            out[1] = (w - total * scale) / 2f + leftExtra * scale -
+                (IconGeometry.B_CX - half) * scale
             out[2] = (h - inkH * scale) / 2f - inkTop * scale - stackShiftY
         }
         return true

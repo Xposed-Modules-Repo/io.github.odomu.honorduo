@@ -192,23 +192,38 @@ object IconGeometry {
     //     row appeared, because the arc has an opening at the bottom and its ink sits above
     //     the ring's centre.
     //
-    // Half-extent 59.5 is the reach of the outermost ink from the ring's centre: the cap of
-    // the thickest stroke above (61.487 - 1.99 = 59.50) and the bottom bead row below
-    // (120.99 - 61.487 = 59.50). Those two are equal, which is what makes the box symmetric
-    // and the ring exactly centred.
+    // Half-extent is the reach of the outermost ink from the ring's centre: the cap of
+    // the thickest stroke above and the bottom bead row below. Those two are equal,
+    // which is what makes the box symmetric and the ring exactly centred.
     //
-    // The bead rows ARE included, at the thickest stroke the slider allows. Excluding them
-    // was tried and is wrong: a placed bottom row reaches y 118 while a ring-only box stopped
-    // at 104, so at 100% size the host clipped the row - the visible symptom being a bottom
-    // edge that "does not show completely".
+    // 59.5 is the size the glyph was authored in, and it is what 100% draws. A stroke
+    // heavier than the reference reaches past it, so [ringInkHalf] grows the box for
+    // *that* frame only: sizing the constant to the slider's ceiling shrank the glyph
+    // for every install that never moved the slider.
+    private const val INK_HALF = 59.5f
 
-    const val INK_X = B_CX - 59.5f
+    const val INK_X = B_CX - INK_HALF
 
-    const val INK_Y = B_CY - 59.5f
+    const val INK_Y = B_CY - INK_HALF
 
-    const val INK_W = 119f
+    const val INK_W = INK_HALF * 2f
 
-    const val INK_H = 119f
+    const val INK_H = INK_HALF * 2f
+
+    /**
+     * The ring's half-extent for the stroke this frame draws.
+     *
+     * The arc is the only piece whose ink grows with a slider, so the box follows the
+     * stroke in use instead of reserving the maximum for everybody. Beads stay capped
+     * by [RingGeometry.maxBeadR], which is the base box's own limit.
+     */
+    @JvmStatic
+    fun ringInkHalf(a: StatusAppearance?): Float {
+        if (a == null) return INK_HALF
+        val drawn = a.ringStroke
+            .coerceIn(Prefs.MIN_RING_STROKE, Prefs.MAX_RING_STROKE) * RingGeometry.RING_STROKE_RATIO
+        return maxOf(INK_HALF, B_R + drawn * 0.5f + 0.5f)
+    }
 
 
     /**
@@ -341,7 +356,9 @@ object IconGeometry {
             )
         }
         // 2. Big enough for the outermost ink, recomputed the way the drawing places it.
-        val capPad = Prefs.MAX_RING_STROKE * 0.5f
+        // The stroke is drawn through RING_STROKE_RATIO, so the ceiling is the same
+        // per-frame box [ringInkHalf] derives at the slider's maximum.
+        val capPad = Prefs.MAX_RING_STROKE * RingGeometry.RING_STROKE_RATIO * 0.5f
         var reach = 0f
         for (i in 0..360) {
             val angle = Math.toRadians(B_START + (i / 360.0) * B_SWEEP)
@@ -383,7 +400,7 @@ object IconGeometry {
                 )
             }
         }
-        val half = INK_W / 2f
+        val half = maxOf(INK_HALF, B_R + capPad + 0.5f)
         if (reach > half + 0.01f) {
             throw AssertionError(
                 "ink box too small: outermost ink reaches " + reach
@@ -421,7 +438,9 @@ object IconGeometry {
         // host is asked for that width. The scale stays height-driven, so the glyph keeps its
         // size and the extra width becomes margin, instead of the arcs being clipped at the
         // view's edge as they were.
-        return (INK_W + 2f * RingGeometry.ringFlankWifiExtra(a)) / RingGeometry.ringInkH(a)
+        val flankExtra = RingGeometry.ringFlankWifiExtra(a, true) +
+            RingGeometry.ringFlankWifiExtra(a, false)
+        return (2f * ringInkHalf(a) + flankExtra) / RingGeometry.ringInkH(a)
     }
 
     init {

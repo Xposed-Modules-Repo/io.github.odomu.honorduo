@@ -417,16 +417,15 @@ object RingGeometry {
      * [hostAspect] asks for, and therefore what stops the host clipping them.
      */
     @JvmStatic
-    fun ringFlankWifiExtra(a: StatusAppearance?): Float {
+    fun ringFlankWifiExtra(a: StatusAppearance?, left: Boolean): Float {
         if (a == null || !a.ring) return 0f
-        val left = a.ringZones.getOrNull(Prefs.ZONE_LEFT)?.contains(Prefs.PART_WIFI) == true
-        val right = a.ringZones.getOrNull(Prefs.ZONE_RIGHT)?.contains(Prefs.PART_WIFI) == true
-        if (!left && !right) return 0f
+        val zone = if (left) Prefs.ZONE_LEFT else Prefs.ZONE_RIGHT
+        if (a.ringZones.getOrNull(zone)?.contains(Prefs.PART_WIFI) != true) return 0f
         val stroke = a.ringStroke * RING_STROKE_RATIO
         val reach = flankWifiOuterR(stroke, IconGeometry.B_R) + flankWifiStroke(stroke) * 0.5f
         // One unit of slack for the antialiased edge, or the outermost arc's fringe is cut
         // by the view it asked for.
-        return maxOf(0f, reach + 1f - IconGeometry.INK_W * 0.5f)
+        return maxOf(0f, reach + 1f - IconGeometry.ringInkHalf(a))
     }
 
 
@@ -508,9 +507,9 @@ object RingGeometry {
     private fun isNotchIcon(id: Int): Boolean = id == Prefs.PART_WIFI || id == Prefs.PART_BOLT
 
 
-    /** The ring's ink height for this frame: the reference box plus [ringInkPad] on both sides. */
+    /** The ring's ink height for this frame: its stroke box plus [ringInkPad] on both sides. */
     @JvmStatic
-    fun ringInkH(a: StatusAppearance?): Float = IconGeometry.INK_H + 2f * ringInkPad(a)
+    fun ringInkH(a: StatusAppearance?): Float = 2f * IconGeometry.ringInkHalf(a) + 2f * ringInkPad(a)
 
 
     /** The top of the ring's ink box, in design units (negative when it grew). */
