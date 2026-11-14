@@ -14,7 +14,7 @@
     <string name="tab_layout">排布</string>
     <string name="tab_settings">设置</string>
     <string name="section_appearance">基础外观</string>
-    <string name="card_appearance_summary">图标整体尺寸、胶囊内边距、胶囊长度及位置微调</string>
+    <string name="card_appearance_summary">整体尺寸、胶囊内边距、胶囊长度及位置微调</string>
     <string name="card_battery_title">电池电量</string>
     <string name="card_battery_summary">电量数字、百分比、充电显示、电量字号字重、低电量阈值与状态颜色</string>
         <string name="card_wifi_title">无线网络</string>
@@ -28,7 +28,6 @@
     <string name="card_clock_title">时钟日期</string>
     <string name="card_clock_summary">时钟秒数、4种日期格式、农历、星期格式与时间偏移微调</string>
 
-    <string name="drawing_quick_edit_title">快捷编辑</string>
     <string name="drawing_order_title">环内排序</string>
 
     <string name="drawing_priority_empty_summary">这一处还没有组件，点下面的「添加组件」</string>
@@ -64,6 +63,9 @@
     <string name="stack_style_title">堆叠风格</string>
     <string name="stack_style_dots">圆点副卡</string>
     <string name="stack_style_rows">双排柱</string>
+    <string name="ring_stack_style_title">环内信号排布</string>
+    <string name="ring_stack_arc">弧状</string>
+    <string name="ring_stack_flat">平放</string>
     <string name="signal_columns_title">信号数量</string>
     <string name="signal_columns_summary">选择 4 信号或 5 信号显示</string>
     <string name="signal_columns_4">4信号</string>
@@ -72,8 +74,8 @@
     <string name="out_dot_size_summary">默认 100%，与信号条同宽；可调 40–180。</string>
     <string name="out_signal_size_title">堆叠信号大小</string>
     <string name="out_signal_size_summary">默认 16dp，可调 6–20dp。</string>
-    <string name="out_signal_margin_title">读数间距</string>
-    <string name="out_signal_margin_summary">默认 2px，可调 0–16px；作用于主卡与副卡两行之间的距离。</string>
+    <string name="out_signal_margin_title">环外间距</string>
+    <string name="out_signal_margin_summary">统一控制环外组件之间的左右间距，默认 0dp，可调 0–16dp。</string>
     <string name="ring_position_sim_1">卡一信号点的位置</string>
     <string name="ring_position_sim_2">卡二信号点的位置</string>
     <string name="ring_position_value">电量数字的位置</string>
@@ -101,7 +103,6 @@
     <string name="drawing_part_appearance">外观</string>
     <string name="drawing_part_battery">电池</string>
     <string name="drawing_part_readouts">读数值</string>
-    <string name="drawing_part_ring">环内组件</string>
     <string name="drawing_preview_hidden">预览已隐藏</string>
     <string name="drawing_readout_sample_summary">环外读数组的示例，实际内容随状态变化。</string>
     <string name="drawing_theme_dark">深色</string>
@@ -115,8 +116,6 @@
     <string name="drawing_feedback_bolt">已将%1$s设在%2$s；切换到“充电”或“快充”预览查看。</string>
     <string name="drawing_feedback_wifi">%1$s已设在%2$s；当前预览没有 Wi-Fi，切换到“正常”预览查看。</string>
     <string name="drawing_feedback_other">%1$s已设在%2$s；当前预览显示%3$s。切换预览状态查看。</string>
-    <string name="drawing_pick_impossible">%1$s放不下这个组件。</string>
-    <string name="drawing_pick_signal_in_centre">%1$s不能放在中部：中部是环内读数的地方，信号点只能放在上下两个缺口。</string>
     <string name="drawing_hint_top">上部</string>
     <string name="drawing_hint_centre">中部</string>
     <string name="drawing_hint_bottom">下部</string>
@@ -179,13 +178,11 @@
     <string name="bolt_scale_title">充电闪电大小</string>
     <string name="bolt_scale_summary" formatted="false">默认 100%，可调 60–160%。</string>
     <string name="show_bolt_summary">充电时环内改为闪电图标。</string>
-    <string name="bolt_anim_title">充电动画</string>
     <string name="bolt_anim_enabled_title">启用充电动画</string>
     <string name="bolt_anim_style_title">动画风格</string>
     <string name="bolt_speed_title">动画速度</string>
     <string name="bolt_speed_summary" formatted="false">默认 100%，可调 50–200%。只在开启充电动画后出现。</string>
     <string name="bolt_anim_summary">圆环、胶囊与矩形里的闪电按所选样式循环播放，充满电或拔掉充电器即停；快充时速度快一倍。默认关闭。</string>
-    <string name="bolt_anim_off">关闭</string>
     <string name="bolt_anim_pulse">呼吸</string>
     <string name="bolt_anim_flow">流光</string>
     <string name="bolt_anim_spark">电火花</string>
@@ -196,8 +193,6 @@
     <string name="type_hide_on_wifi_summary">Wi-Fi 已连接时隐藏，断开或切到流量后自动恢复。</string>
     <string name="show_mobile_type_title">网络类型</string>
     <string name="show_mobile_type_summary">3G/4G/5G 等文字，可放在环内或环外。</string>
-    <string name="mobile_type_off">关闭</string>
-    <string name="mobile_type_inside">环内</string>
     <string name="mobile_type_outside">环外</string>
     <string name="show_out_type_title">显示环外网络类型</string>
     <string name="show_out_type_summary">关闭后不在状态栏环外及堆叠信号上显示 5G/4G 等网络制式。</string>
@@ -210,15 +205,11 @@
     <string name="shade_lunar_title">显示农历</string>
     <string name="shade_lunar_summary">在通知面板（左侧下拉）日期行后追加农历，不影响原日期显示。</string>
     <string name="shade_weather_title">显示天气</string>
-    <string name="shade_weather_summary">在通知面板（左侧下拉）中显示当前实时天气，支持位置与显示效果定制。</string>
-    <string name="shade_weather_position_title">天气位置</string>
-    <string name="shade_weather_position_date">时间后面追加</string>
-    <string name="shade_weather_position_traffic">流量行显示</string>
-    <string name="shade_weather_style_title">天气样式</string>
     <string name="shade_weather_click_title">点击效果</string>
     <string name="shade_weather_click_disabled">无响应</string>
     <string name="shade_weather_click_open_app">打开天气APP</string>
     <string name="shade_weather_click_native">保持原生操作</string>
+    <string name="shade_weather_summary">在通知面板（左侧下拉）中显示当前实时天气，支持位置与显示效果定制。</string>
 
 
 
@@ -242,8 +233,8 @@
     <string name="current_positive_title">始终显示正值</string>
     <string name="current_positive_summary">关闭后按系统原始方向显示，放电为负值。</string>
 
-    <string name="glyph_scale_title">图标整体尺寸</string>
-    <string name="glyph_scale_summary" formatted="false">默认 100%，可调 60–100%。</string>
+    <string name="glyph_scale_title">整体尺寸</string>
+    <string name="glyph_scale_summary" formatted="false">100% 为字形原始大小，可调 60–130%；缩小时留出空白，放大到状态栏可用高度为止，超过后不再变大。</string>
 
     <string name="perf_scale_title">读数整体尺寸</string>
     <string name="perf_scale_summary" formatted="false">默认 100%，可调 60–150%；作用于模块绘制的全部读数文字。</string>
@@ -281,16 +272,14 @@
     <string name="color_reset_dialog_summary">确定将所有自定义颜色恢复为默认预设吗？当前配置将被覆盖。</string>
     <string name="color_reset_confirm">恢复</string>
     <string name="reset_setting_title">恢复默认</string>
-    <string name="reset_setting_confirm">确认将“%1$s”恢复为默认值？</string>
-    <string name="confirm">确认</string>
 
     <string name="low_threshold_title">低电量阈值</string>
     <string name="low_threshold_summary" formatted="false">默认 20%，可调 5–50%。</string>
 
     <string name="stroke_title">环线粗细</string>
-    <string name="stroke_summary">默认 14dp，可调 4–16dp。</string>
+    <string name="stroke_summary">圆环轮廓的线宽，胶囊轮廓按比例跟随；默认 14dp，可调 4–20dp。</string>
     <string name="stroke_title_rect">电量条粗细</string>
-    <string name="stroke_summary_rect">默认 14dp，可调 4–16dp。</string>
+    <string name="stroke_summary_rect">电量条的厚度，胶囊轮廓按比例跟随；默认 14dp，可调 4–20dp。</string>
 
     <string name="wifi_scale_title">Wi-Fi 弧尺寸</string>
     <string name="wifi_scale_summary">默认 100%，可调 60–160%。在各自样式的适配空间内放大。</string>
@@ -337,9 +326,15 @@
     <string name="hide_hd_vowifi_summary">使用 Wi‑Fi 通话时，状态栏不再显示 HD 标记</string>
     <string name="hide_alarm_icon_title">隐藏闹钟</string>
     <string name="hide_alarm_icon_summary">不在状态栏显示闹钟图标；闹钟本身仍会正常响铃。</string>
-    <string name="hide_bluetooth_icon_title">隐藏蓝牙</string>
+    <string name="hide_bluetooth_icon_title">隐藏蓝牙图标</string>
+    <string name="hide_privacy_chip_title">隐藏隐私指示</string>
+    <string name="hide_privacy_chip_summary">不显示状态栏右侧的绿色圆点（相机或麦克风正在使用时）。默认关闭；开启后无法再从状态栏判断是否有应用在录音或录像。</string>
+    <string name="hide_sim2_title">隐藏原生副卡图标</string>
+    <string name="hide_sim2_summary">双卡时不再显示系统自带的卡二信号图标；只有卡二在用的设备不受影响。</string>
+    <string name="hide_net_type_title">隐藏原生网络类型</string>
+    <string name="hide_net_type_summary">状态栏不再显示系统自带的 5G/4G 标签；模块自己绘制的网络类型不受影响。</string>
     <string name="hide_bluetooth_icon_summary">不在状态栏显示蓝牙图标；蓝牙连接与音频不受影响。</string>
-    <string name="clock_weather_style_title">天气显示风格</string>
+    <string name="weather_style_title">天气显示风格</string>
     <string name="weather_style_text">纯文本</string>
     <string name="weather_style_icon">矢量图标</string>
     <string name="weather_style_icon_text">矢量+文本</string>
@@ -372,12 +367,6 @@
     <string name="out_type_size_title">环外网络类型字号</string>
     <string name="out_type_size_summary">默认 14dp，可调 8–26dp；只作用于网络类型。</string>
 
-    <string name="out_type_margin_left_title">环外网络类型左边距</string>
-    <string name="out_type_margin_left_summary">默认 2dp，可调 0–16dp。</string>
-
-    <string name="out_type_margin_right_title">环外网络类型右边距</string>
-    <string name="out_type_margin_right_summary">默认 2dp，可调 0–16dp。</string>
-
     <string name="type_suffix_scale_title">5GA 中 A 的比例</string>
     <string name="type_suffix_scale_summary" formatted="false">默认 65%，可调 50–100%。</string>
 
@@ -387,7 +376,6 @@
     <string name="track_alpha_title">底纹浓度</string>
     <string name="track_alpha_summary">默认 56，可调 0–255。</string>
 
-    <string name="nav_section">界面</string>
     <string name="nav_style_title">底栏样式</string>
     <string name="nav_style_docked">标准底栏</string>
     <string name="nav_style_floating">悬浮底栏</string>
@@ -400,8 +388,6 @@
     <string name="language_system">跟随系统</string>
     <string name="language_zh">简体中文</string>
     <string name="language_en">English</string>
-    <string name="debug_title">调试日志</string>
-    <string name="debug_summary">把详细过程写入 LSPosed 日志，排查问题时开启。</string>
 
     <string name="about_activated">已激活</string>
     <string name="about_inactive">未激活</string>
@@ -423,7 +409,6 @@
     <string name="info_android_version">Android 版本</string>
     <string name="info_system_fingerprint">系统指纹</string>
 
-    <string name="backup_and_restore_title">备份与恢复</string>
     <string name="backup_export_title">导出备份设置</string>
     <string name="backup_export_summary">将当前模块完整配置导出为 JSON 文件</string>
     <string name="backup_import_title">导入备份设置</string>
@@ -434,30 +419,16 @@
 
     <string name="log_viewer_title">日志查看</string>
     <string name="log_viewer_summary">查看模块日志输出与捕获信息</string>
-    <string name="log_level_title">日志级别</string>
-    <string name="log_level_summary">设置模块运行时日志记录详尽程度，默认关闭</string>
-    <string name="log_level_off">关闭</string>
-    <string name="log_level_error">错误 (Error)</string>
-    <string name="log_level_warn">警告 (Warn)</string>
-    <string name="log_level_info">信息 (Info)</string>
-    <string name="log_level_debug">调试 (Debug)</string>
     <string name="log_empty">暂无相关日志记录</string>
     <string name="log_clear">清空日志</string>
-    <string name="log_refresh">刷新日志</string>
     <string name="logs_title">日志</string>
     <string name="log_all">全部</string>
-    <string name="log_debug">调试</string>
-    <string name="log_info">信息</string>
-    <string name="log_warn">警告</string>
-    <string name="log_error">错误</string>
     <string name="scroll_to_top">滚动到顶部</string>
     <string name="scroll_to_bottom">滚动到底部</string>
     <string name="export_log">导出日志</string>
     <string name="log_clear_confirm">确定清空当前日志缓冲区吗？此操作无法撤销。</string>
-    <string name="log_clear_success">日志已清空</string>
     <string name="log_export_copied">分享日志文件</string>
     <string name="log_no_search_results">未找到匹配日志</string>
-    <string name="log_read_failed">读取模块日志失败：%1$s</string>
     <string name="log_record_on">记录全部日志</string>
     <string name="log_record_off">停止记录全部日志</string>
     <string name="hide_icon_confirm_title">隐藏桌面图标</string>
@@ -467,16 +438,11 @@
     <string name="log_menu_parsed_view">解析视图</string>
     <string name="log_menu_wrap_text">自动换行</string>
     <string name="log_menu_clear_now">立即清空日志</string>
-    <string name="log_record_summary">开启后打开调试日志，记录所有级别的模块日志</string>
-    <string name="log_record_started">已开始记录全部日志</string>
-    <string name="log_record_stopped">已停止记录全部日志</string>
     <string name="log_level_label_error">错误</string>
     <string name="log_level_label_warn">警告</string>
     <string name="log_level_label_info">信息</string>
     <string name="log_not_recording">未启用日志记录，点击上方录制按钮开启</string>
     <string name="log_level_label_debug">调试</string>
-    <string name="search">搜索</string>
-    <string name="logs_empty">暂无日志记录</string>
     <string name="update_dont_remind">不再提示此版本</string>
     <string name="view_repository_title">查看仓库</string>
     <string name="view_repository_summary">访问 GitHub 开源仓库主页与源码</string>
@@ -485,7 +451,6 @@
     <string name="info_unknown">未知</string>
 
     <string name="update_title">检查更新</string>
-    <string name="update_summary_idle">从 GitHub Releases 获取最新版本。</string>
     <string name="release_notes_title">更新日志</string>
     <string name="release_notes_summary">查看详细版本更新说明与功能变动</string>
     <string name="release_notes_loading">正在加载最新更新文档…</string>
@@ -493,27 +458,14 @@
     <string name="update_checking">正在检查…</string>
     <string name="update_uptodate">已是最新版本 %1$s</string>
     <string name="update_available">发现新版本 %1$s</string>
-    <string name="update_dialog_title">发现新版本 %1$s</string>
     <string name="update_dialog_summary">当前版本 %1$s · 安装包 %2$s</string>
-    <string name="update_dialog_notes_title">更新内容</string>
-    <string name="update_dialog_no_notes">这一版没有写更新说明。</string>
     <string name="update_dialog_later">以后再说</string>
-    <string name="update_available_summary">当前版本 %1$s · %2$s</string>
     <string name="update_download">下载更新</string>
     <string name="update_downloading">正在下载 %1$d%%</string>
-    <string name="update_ready">新版本已下载完成。</string>
     <string name="update_download_completed">下载完成，正在跳转安装…</string>
-    <string name="update_ready_summary">系统会弹出安装确认，确认后生效。</string>
-    <string name="update_install">安装</string>
-    <string name="update_retry">重试</string>
-    <string name="update_failed">检查更新失败</string>
-    <string name="update_unconfigured">此版本未配置更新源</string>
     <string name="update_no_release">作者尚未发布任何正式版本</string>
     <string name="update_permission_needed">需要先允许本应用安装应用，已为你打开对应设置。</string>
     <string name="update_install_failed">系统里找不到能处理安装的应用。</string>
-    <string name="update_release_page">打开发布页面</string>
-    <string name="update_repo">查看仓库</string>
-    <string name="update_repo_summary">在 GitHub 上查看源码与说明。</string>
 
     <string name="restart_title">重启系统界面</string>
     <string name="restart_summary">重启系统界面会重新加载模块，用于刚安装模块或系统界面状态异常时。此操作需要 root 授权，系统界面会短暂消失并自动恢复，不会影响正在运行的应用。</string>
@@ -550,15 +502,14 @@
     <string name="ring_spacing_y_summary">调整圆环顶部和底部内容与中间内容的垂直间距，正值向外扩大，负值向内紧凑。</string>
 
     <string name="effective_scope_title">模块生效范围</string>
-    <string name="effective_scope_summary">勾选的位置显示模块效果，未勾选的位置显示系统原生图标，至少保留一项；下拉面板展开时按控制中心或通知面板判断，锁屏只在面板收起时判断。</string>
     <string name="scope_all">所有位置</string>
     <string name="scope_option_cc">控制中心</string>
     <string name="scope_option_shade">通知面板</string>
     <string name="scope_option_keyguard">锁屏界面</string>
     <string name="scope_list_separator">、</string>
 
-    <string name="capsule_no_scale_title">胶囊缩放</string>
-    <string name="capsule_no_scale_summary">通知上岛常驻时保持状态栏图标原始大小，默认关闭</string>
+    <string name="capsule_no_scale_title">胶囊常驻不缩放</string>
+    <string name="capsule_no_scale_summary">通知上岛常驻时系统会把整条状态栏缩小；开启后图标保持原始大小，胶囊不变。默认关闭。</string>
     <string name="cc_slider_long_press_title">长按音量条切换输出设备</string>
     <string name="cc_slider_long_press_summary">在控制中心长按音量条，弹出系统音频输出设备列表</string>
     <string name="shade_hide_charge_notif_title">隐藏充电通知</string>
@@ -568,16 +519,12 @@
     <string name="shade_hide_adb_notif_title">隐藏 USB 调试通知</string>
     <string name="shade_hide_adb_notif_summary">隐藏「已连接 USB 调试」系统通知</string>
     <string name="bt_battery_title">蓝牙电量</string>
-    <string name="bt_battery_summary">蓝牙耳机连接时，将剩余电量显示在三合一字形内</string>
-    <string name="bt_battery_off">关闭</string>
-    <string name="bt_battery_arc">圆弧</string>
+    <string name="bt_battery_summary">蓝牙耳机连接时显示剩余电量；放入圆环/胶囊时可按下方样式画线条或数字，环外固定显示数字。</string>
+    <string name="bt_battery_style_title">显示样式</string>
+    <string name="bt_battery_arc">线条</string>
     <string name="bt_battery_digit">数字</string>
 
 
-    <string name="group_update">更新</string>
-    <string name="group_launcher_icon">桌面图标</string>
-    <string name="group_debug">调试</string>
-    <string name="group_font">字体</string>
     <string name="replace_wifi_icon_title">替换 WiFi 图标</string>
     <string name="replace_wifi_icon_summary">状态栏 WiFi 图标换成内置风格（支持 WiFi 5 / 6 / 7 等）</string>
     <string name="replace_status_icon_title">替换状态图标</string>
@@ -594,4 +541,9 @@
     <string name="settings_search_hint">快捷搜索设置</string>
     <string name="settings_search_empty">没有找到匹配的设置</string>
     <string name="settings_search_clear">清空搜索</string>
+
+    <string name="out_bar_width_title">信号条粗细</string>
+    <string name="out_bar_width_summary">默认 100% 为原始粗细；40–200，越粗信号条越宽。</string>
+    <string name="out_bar_pitch_title">信号点间距</string>
+    <string name="out_bar_pitch_summary">默认 100% 为原始间距；60–200，同时作用于信号点之间的空隙。</string>
 </resources>

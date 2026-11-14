@@ -155,6 +155,36 @@ object Prefs {
     const val KEY_HIDE_BLUETOOTH_ICON = "hide_bluetooth_icon"
     const val DEF_HIDE_BLUETOOTH_ICON = false
 
+    /**
+     * Hides the privacy chip: the green camera/microphone dot at the right of the bar.
+     *
+     * Off by default - it is the only system signal that an app is recording - and the
+     * chip is hidden, never destroyed, so switching the option off gives it back.
+     */
+    const val KEY_HIDE_PRIVACY_CHIP = "hide_privacy_chip"
+    const val DEF_HIDE_PRIVACY_CHIP = false
+
+    /**
+     * Hides the native secondary-SIM signal icon while both cards are present.
+     *
+     * The host rebuilds its per-card icons from `MobileDataControllerImpl.updateSubs`;
+     * the switch removes the slot-1 subscription from that list, so the icon is never
+     * built rather than hidden after the fact. A device with only the secondary card
+     * present keeps it - there would be nothing left to show.
+     */
+    const val KEY_HIDE_SIM2 = "hide_sim2"
+    const val DEF_HIDE_SIM2 = false
+
+    /**
+     * Hides the native network-type label ("5G" / "4G") beside the signal bars.
+     *
+     * Independent of the module's own type drawing: some arrangements keep the label in
+     * the ring, others hand it back, and this switch only decides whether the host's
+     * label is allowed to appear at all.
+     */
+    const val KEY_HIDE_NET_TYPE = "hide_net_type"
+    const val DEF_HIDE_NET_TYPE = false
+
 
     /**
      * Size of the Wi-Fi arcs, as a percentage of the size the arrangement fits them to.
@@ -555,7 +585,12 @@ object Prefs {
     const val KEY_CAP_GAP = "cap_gap"
     const val DEF_CAP_GAP = 100
     const val MIN_CAP_GAP = 0
-    const val MAX_CAP_GAP = 300
+
+    /**
+     * 100% is the reference inset: the padding never grows past the width the outline
+     * reserves for it, so the slider cannot make the capsule wider.
+     */
+    const val MAX_CAP_GAP = 100
 
     /**
      * Appends a percent sign to the in-glyph battery number - "85%" rather than "85".
@@ -750,6 +785,24 @@ object Prefs {
     /** Style ids are a contiguous 0..[WEATHER_STYLE_SYMBOL_TEXT] range. */
     const val WEATHER_STYLE_COUNT = 5
 
+    /**
+     * The styles the notification shade can draw.
+     *
+     * Its date line is text, so the two vector styles are clock-only; a stored vector id
+     * is read as its symbol counterpart instead of being offered and then drawn as
+     * something else.
+     */
+    val SHADE_WEATHER_STYLES = intArrayOf(
+        WEATHER_STYLE_TEXT, WEATHER_STYLE_SYMBOL, WEATHER_STYLE_SYMBOL_TEXT,
+    )
+
+    /** The shade's equivalent of a stored style; vector ids collapse to their symbols. */
+    fun normalizeShadeWeatherStyle(style: Int): Int = when (style) {
+        WEATHER_STYLE_ICON -> WEATHER_STYLE_SYMBOL
+        WEATHER_STYLE_ICON_TEXT -> WEATHER_STYLE_SYMBOL_TEXT
+        else -> style
+    }
+
     const val CLOCK_STYLE_CLASSIC = 0
     const val CLOCK_STYLE_BALANCED = 1
     const val CLOCK_DATE_SLASH_MD = 0
@@ -811,6 +864,16 @@ object Prefs {
     const val KEY_OUT_DOT_SIZE = "out_dot_size_pct"
 
     /**
+     * Width and spacing of the out-of-ring signal bars, in percent of the reference.
+     *
+     * Separate from [KEY_OUT_DOT_SIZE] because they scale the reading's *bars*: the
+     * dot row multiplies these factors too, so one pair of sliders moves the whole
+     * picture without needing a knob per style.
+     */
+    const val KEY_OUT_BAR_WIDTH = "out_bar_width_pct"
+    const val KEY_OUT_BAR_PITCH = "out_bar_pitch_pct"
+
+    /**
      * How the stacked out-of-ring reading draws the second card.
      *
      * [STACK_STYLE_DOTS] is the reference look: four bars for the primary card and a
@@ -833,6 +896,20 @@ object Prefs {
 
     const val STACK_STYLE_DOTS = 0
     const val STACK_STYLE_ROWS = 1
+
+    /**
+     * How the ring draws its two stacked signal rows.
+     *
+     * [RING_STACK_ARC] follows the ring's own curve - the two rows are concentric arcs,
+     * the shape the glyph was built around. [RING_STACK_FLAT] lays them out as two
+     * horizontal rows inside the ring, the look CombinedStatus uses for its combined
+     * and capsule icons: dots on a straight baseline read as a "reading" rather than as
+     * part of the outline.
+     */
+    const val KEY_RING_STACK_STYLE = "ring_stack_style"
+
+    const val RING_STACK_ARC = 0
+    const val RING_STACK_FLAT = 1
 
     /**
      * How the charging bolt moves, in the ring and the capsule.
@@ -867,7 +944,31 @@ object Prefs {
      */
     const val KEY_BOLT_SPEED = "bolt_speed"
 
+    /**
+     * Unified left/right gap for out-of-ring components.
+     *
+     * The key is unchanged from the earlier per-reading margin; only the default moved
+     * to 0dp. Existing devices that already stored a larger value keep it until the
+     * slider is moved.
+     */
     const val KEY_OUT_SIGNAL_MARGIN = "out_signal_margin_dp"
+
+    /**
+     * Part ids the placement flow switched on by itself, as a comma-separated list.
+     *
+     * A piece placed in a zone needs its own switch on, but only until it leaves the
+     * layout again: without this record, removing a reading the user had turned off left
+     * it switched on, and it reappeared outside the glyph as an out-of-ring component.
+     */
+    const val KEY_AUTO_ENABLED_PARTS = "auto_enabled_parts"
+
+    /**
+     * How many hooks the module installed in this SystemUI, written by the module itself.
+     *
+     * Diagnostic only: the settings screen shows it, and a number the module reports
+     * cannot drift from what it actually hooked the way a constant in the app would.
+     */
+    const val KEY_HOOK_COUNT = "hook_count"
 
     /** Hides the power button in the control center's header. */
     const val KEY_SHADE_HIDE_POWER = "shade_hide_cc_power"
@@ -1350,6 +1451,9 @@ object Prefs {
 
     const val DEF_STACK_STYLE = STACK_STYLE_DOTS
 
+    /** Arcs by default: the shape the two rows have always been drawn in. */
+    const val DEF_RING_STACK_STYLE = RING_STACK_ARC
+
     /** Off: the bolt is a state indicator before it is an ornament. */
     const val DEF_BOLT_ANIM = BOLT_ANIM_OFF
 
@@ -1362,7 +1466,7 @@ object Prefs {
     const val DEF_OUT_TYPE_MARGIN_LEFT = 2
     const val DEF_OUT_TYPE_MARGIN_RIGHT = 2
 
-    /** 2dp: the gap the reading kept from the glyph before it was settable. */
+    /** 2dp: the gap the reading keeps from the system icons beside it. */
     const val DEF_OUT_SIGNAL_MARGIN = 2
 
     /** 65% for the trailing "A": the reference's 56/86 ratio. */
@@ -1381,7 +1485,15 @@ object Prefs {
 
     // Bounds.
     const val MIN_RING_STROKE = 4
-    const val MAX_RING_STROKE = 16
+
+    /**
+     * 20 rather than the 16 the reference paths were authored against.
+     *
+     * The ink box of every placed piece is sized from this constant, so the limit
+     * widens the box the geometry reserves instead of letting a thick ring clip its
+     * neighbours.
+     */
+    const val MAX_RING_STROKE = 20
     const val MIN_ARC_STROKE = 3
     const val MAX_ARC_STROKE = 16
     const val MIN_VALUE_SIZE = 16
@@ -1459,6 +1571,22 @@ object Prefs {
     const val MIN_OUT_DOT_SIZE = 40
     const val MAX_OUT_DOT_SIZE = 180
 
+    /** 100%: the reference bars, and the dot row that matches them. */
+    const val DEF_OUT_BAR_WIDTH = 100
+    const val DEF_OUT_BAR_PITCH = 100
+
+    /**
+     * 40..200 for the width, 60..200 for the spacing.
+     *
+     * Below 40 the bars stop reading as bars, and past 200 four columns no longer fit
+     * the strip the reading is given. The spacing floor is higher because the columns
+     * need air between them before they need body.
+     */
+    const val MIN_OUT_BAR_WIDTH = 40
+    const val MAX_OUT_BAR_WIDTH = 200
+    const val MIN_OUT_BAR_PITCH = 60
+    const val MAX_OUT_BAR_PITCH = 200
+
     /** 0 lets the label butt up against its neighbour; 16 is wider than the icon gap. */
     const val MIN_OUT_TYPE_MARGIN = 0
     const val MAX_OUT_TYPE_MARGIN = 16
@@ -1496,9 +1624,16 @@ object Prefs {
     const val MIN_TRACK_ALPHA = 0
     const val MAX_TRACK_ALPHA = 255
 
-    /** 60..100: the ceiling is the box the row hands over. */
+    /**
+     * 60..130: the glyph may be shrunk or grown relative to the row's own fit.
+     *
+     * The ceiling is not the row's height any more: [GlyphView] reserves the extra
+     * height (up to what the bar offers), so 100% is the reference and anything above
+     * it makes the whole arrangement larger. Past 130% the row has nothing left to
+     * give on a typical MagicOS bar and the scale would be silently capped anyway.
+     */
     const val MIN_GLYPH_SCALE = 60
-    const val MAX_GLYPH_SCALE = 100
+    const val MAX_GLYPH_SCALE = 130
 
     /** Wider than the glyph's span and allowed past 100: this multiplies a text size. */
     const val MIN_PERF_SCALE = 60

@@ -151,7 +151,10 @@ internal class StatusState(val host: View) {
         val slots = sSlotLevels
         slotLevels[0] = slots[0]
         slotLevels[1] = slots[1]
-        sims = (if (slots[0] >= 0) 1 else 0) + (if (slots[1] >= 0) 1 else 0)
+        // A row exists for a slot that is in service, even while its level read has not
+        // arrived yet. Counting only valid levels made the layout collapse to one row
+        // right after a SIM was re-enabled - the other card's dots disappeared with it.
+        sims = (if (slotHasRow(0, slots[0])) 1 else 0) + (if (slotHasRow(1, slots[1])) 1 else 0)
 
         // Single row, no answer from the icon chain: the row still means "the SIM
         // that carries data", and the sampler resolved exactly which one that is.
@@ -441,6 +444,36 @@ internal class StatusState(val host: View) {
         @JvmField
         var sDataSlot = -1
 
+        /**
+         * Whether a card is in service in each slot.
+         *
+         * `activeSubscriptionInfoList` omits disabled subscriptions, so the slot index
+         * stays valid while the card drops out. Drawing uses this only to render that
+         * row as empty; the level sampling itself stays exactly as it was in 1.0.7.
+         */
+        @Volatile
+        private var sSlotEnabled = booleanArrayOf(true, true)
+
+        /** False until the first successful subscription read. */
+        @Volatile
+        private var sSlotKnown = false
+
+        /** True when `slot` may be drawn as a live reading. */
+        @JvmStatic
+        fun slotEnabled(slot: Int): Boolean =
+            slot !in 0 until SIM_SLOTS || !sSlotKnown || sSlotEnabled[slot]
+
+        /**
+         * Whether a placed SIM row exists this frame.
+         *
+         * A slot in service keeps its row even when the level has not been read yet:
+         * otherwise a re-enabled card briefly counted as absent and the layout fell back
+         * to one row, dropping the other card's dots as well.
+         */
+        @JvmStatic
+        fun slotHasRow(slot: Int, level: Int): Boolean =
+            slotEnabled(slot) && (level >= 0 || sSlotKnown)
+
         private const val WHITE = 0xFFFFFFFF.toInt()
         private const val DEFAULT_FOREGROUND = WHITE
 
@@ -623,23 +656,6 @@ internal class StatusState(val host: View) {
             return true
         }
 
-        /**
-         * Re-reads the per-SIM levels right away and reports whether anything moved.
-         *
-         * Called from the signal-icon hook, which is an event-driven refresh
-         * rather than a per-frame one, so the frame-rate guard is not what protects
-         * that path.
-         */
-        @JvmStatic
-        fun pollSimsNow(): Boolean {
-            val context = appContext() ?: return false
-            val before = sSlotLevels
-            val beforeData = sDataSlot
-            sampleSims(context)
-            val after = sSlotLevels
-            return beforeData != sDataSlot || before[0] != after[0] || before[1] != after[1]
-        }
-
         private fun ensureManager(cl: ClassLoader?) {
             if (mgrTried) return
             mgrTried = true
@@ -692,6 +708,22 @@ internal class StatusState(val host: View) {
             sampleSims(appContext())
         }
         /**
+         * Whether the ROM considers `slot` active, from the same call SystemUI uses.
+         *
+         * `HwTelephonyManager.getSubState(slot)`: 0 means the card was deactivated in
+         * settings, non-zero means it is in service. Returns null where the class or
+         * method is absent, so the active-subscription list remains the fallback.
+         */
+        private fun hwSlotActive(context: Context, slot: Int): Boolean? = runCatching {
+            val cls = Refl.cls("com.hihonor.android.telephony.HwTelephonyManager", context.classLoader)
+                ?: return null
+            val getDefault = Refl.method(cls, "getDefault") ?: return null
+            val manager = getDefault.invoke(null) ?: return null
+            val subState = Refl.methodNamed(cls, "getSubState", 1) ?: return null
+            (subState.invoke(manager, slot.toLong()) as? Int)?.let { it != 0 }
+        }.getOrNull()
+
+        /**
          * Reads one signal level per SIM slot straight from telephony.
          *
          * Why not the icons: `setIconForView` names neither a SIM nor a slot, so
@@ -712,6 +744,8 @@ internal class StatusState(val host: View) {
             }
             val levels = intArrayOf(-1, -1)
             var dataSlot = -1
+            var enabled = sSlotEnabled
+            var known = sSlotKnown
             try {
                 val subs = context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE)
                         as? SubscriptionManager
@@ -719,6 +753,23 @@ internal class StatusState(val host: View) {
                 if (subs == null || tel == null) return
                 val dataSubId = SubscriptionManager.getDefaultDataSubscriptionId()
                 val activeList = subs.activeSubscriptionInfoList
+                // SystemUI itself decides "active" from HwTelephonyManager.getSubState,
+                // not from the active-subscription list: a deactivated SIM can still be
+                // listed there, and the list can be briefly empty while re-enabling.
+                // Use the same source so our rows agree with the native icons.
+                val hw0 = hwSlotActive(context, 0)
+                val hw1 = hwSlotActive(context, 1)
+                if (hw0 != null || hw1 != null) {
+                    known = true
+                    enabled = booleanArrayOf(hw0 ?: true, hw1 ?: true)
+                } else {
+                    known = activeList != null
+                    enabled = booleanArrayOf(!known, !known)
+                    activeList?.forEach { info ->
+                        val slot = info.simSlotIndex
+                        if (slot in 0 until SIM_SLOTS) enabled[slot] = true
+                    }
+                }
                 activeList?.forEach { info ->
                     val subId = info.subscriptionId
                     val slot = info.simSlotIndex
@@ -753,7 +804,10 @@ internal class StatusState(val host: View) {
                 // Retain previous sampled values on transient telephony exceptions
             }
 
-            val changed = !sSlotLevels.contentEquals(levels) || sDataSlot != dataSlot
+            val enabledChanged = known != sSlotKnown || !enabled.contentEquals(sSlotEnabled)
+            sSlotEnabled = enabled
+            sSlotKnown = known
+            val changed = !sSlotLevels.contentEquals(levels) || sDataSlot != dataSlot || enabledChanged
             sSlotLevels = levels
             sDataSlot = dataSlot
             if (changed && BarVisibility.shown) {

@@ -118,14 +118,55 @@ object ModuleConfig {
         // has not pushed the user's file across yet. The first [reload] then publishes an
         // all-defaults snapshot, so the early layout passes do nothing and the native icons
         // stay on the bar. The change listener cannot heal that - it only fires on writes,
-        // and nobody writes at boot - so one delayed re-read closes the window.
+        // and nobody writes at boot - so a ladder of delayed re-reads closes the window.
+        //
+        // A ladder rather than one delay: how long the daemon takes is not a constant.
+        // Each rung re-reads only while the snapshot still looks like the defaults, so a
+        // healthy boot pays for the first rung and stops.
         val main = Handler(Looper.getMainLooper())
-        main.postDelayed({ reloadIfChanged() }, RESYNC_DELAY_MS)
-        main.postDelayed({ reloadIfChanged() }, RESYNC_DELAY_MS * 4)
+        for (delay in RESYNC_LADDER_MS) {
+            main.postDelayed({ resyncTick() }, delay)
+        }
     }
 
-    /** How long after install to re-read the remote map, in milliseconds. */
-    private const val RESYNC_DELAY_MS = 5_000L
+    /**
+     * Reports the number of hooks the module installed, for the settings screen.
+     *
+     * The shared preference group is the only channel the framework offers in this
+     * direction; `commit` rather than `apply` so the value is on disk before the screen
+     * asks for it. The app reads it through the service's own handle, which does see a
+     * write from this process - its cached local instance does not.
+     */
+    fun publishHookCount(count: Int) {
+        val p = prefs ?: return
+        runCatching { p.edit().putInt(Prefs.KEY_HOOK_COUNT, count).commit() }
+    }
+
+    /**
+     * The boot-time re-read ladder, in milliseconds.
+     *
+     * Spread from one second to a minute and a half: the first rung heals the common
+     * case, and the later ones cover a daemon that is slow to bind after a cold boot.
+     */
+    private val RESYNC_LADDER_MS = longArrayOf(1_000L, 3_000L, 8_000L, 20_000L, 45_000L, 90_000L)
+
+    /** Set once a non-default snapshot has been published; stops the ladder. */
+    @Volatile
+    private var bootSettled = false
+
+    /**
+     * One rung of the boot ladder: re-read, and stop ticking once real settings arrived.
+     *
+     * A snapshot that still equals [ModuleSettings.defaults] means the daemon has not
+     * delivered the user's file yet; keeping the remaining rungs scheduled is exactly
+     * what the early ones are for.
+     */
+    private fun resyncTick() {
+        if (bootSettled) return
+        reloadIfChanged()
+        if (snapshot == ModuleSettings.defaults()) return
+        bootSettled = true
+    }
 
     /**
      * Re-reads everything and notifies only when something actually moved - the boot-time

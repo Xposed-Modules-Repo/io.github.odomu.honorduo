@@ -97,6 +97,14 @@ class StatusAppearance(c: ModuleSettings) {
     fun wifiScaleFactor(): Float =
         Prefs.clamp(wifiScale, Prefs.MIN_WIFI_SCALE, Prefs.MAX_WIFI_SCALE) / 100f
 
+    /** Bar width as a multiplier, clamped so a stale store cannot distort it. */
+    fun outBarWidthFactor(): Float =
+        Prefs.clamp(outBarWidth, Prefs.MIN_OUT_BAR_WIDTH, Prefs.MAX_OUT_BAR_WIDTH) / 100f
+
+    /** Bar spacing as a multiplier; the dot row multiplies the same number. */
+    fun outBarPitchFactor(): Float =
+        Prefs.clamp(outBarPitch, Prefs.MIN_OUT_BAR_PITCH, Prefs.MAX_OUT_BAR_PITCH) / 100f
+
     /** The signal is drawn beside the glyph, i.e. handed back to the system. */
     @JvmField val signalOutOfRing: Boolean = enabled && c.signalMode == Prefs.SIGNAL_OUT_RING
 
@@ -160,7 +168,14 @@ class StatusAppearance(c: ModuleSettings) {
     /** The Wi-Fi calling "HD" badge is hidden. */
     @JvmField val hideHdVowifi: Boolean = enabled && c.hideHdVowifi
     /** The headset battery as a number, so it joins the reading strip. */
-    @JvmField val perfBt: Boolean = enabled && c.btBatteryMode == Prefs.BT_BATTERY_DIGIT
+    /**
+     * The headset reading is one of the strip's values.
+     *
+     * Inside the glyph it can be a line or a digit; outside there is no arc to follow,
+     * so the strip always prints the digit. The style choice therefore does not gate
+     * the strip - only the glyph drawing reads it.
+     */
+    @JvmField val perfBt: Boolean = enabled && c.btBatteryMode != Prefs.BT_BATTERY_OFF
     @JvmField val fontPath: String = c.fontPath
     @JvmField val replaceWifiIcon: Boolean = enabled && c.replaceWifiIcon
     @JvmField val replaceStatusIcon: Boolean = enabled && c.replaceStatusIcon
@@ -178,6 +193,15 @@ class StatusAppearance(c: ModuleSettings) {
 
     /** The bar's Bluetooth icon is hidden; see [Prefs.KEY_HIDE_BLUETOOTH_ICON]. */
     @JvmField val hideBluetoothIcon: Boolean = enabled && c.hideBluetoothIcon
+
+    /** The green camera/mic privacy chip is hidden; see [Prefs.KEY_HIDE_PRIVACY_CHIP]. */
+    @JvmField val hidePrivacyChip: Boolean = enabled && c.hidePrivacyChip
+
+    /** The native SIM 2 icon is hidden; see [Prefs.KEY_HIDE_SIM2]. */
+    @JvmField val hideSim2: Boolean = enabled && c.hideSim2
+
+    /** The native network-type label is hidden; see [Prefs.KEY_HIDE_NET_TYPE]. */
+    @JvmField val hideNetType: Boolean = enabled && c.hideNetType
     @JvmField val clockSeconds: Boolean = enabled && c.clockSeconds
 
     /** The date is drawn on its own line above the time. */
@@ -231,7 +255,7 @@ class StatusAppearance(c: ModuleSettings) {
     @JvmField val shadeWeatherPosition: Int = c.shadeWeatherPosition
 
     /** Pull-down panel weather display style: 0=text, 1=icon, 2=symbol. */
-    @JvmField val shadeWeatherStyle: Int = c.shadeWeatherStyle
+    @JvmField val shadeWeatherStyle: Int = Prefs.normalizeShadeWeatherStyle(c.shadeWeatherStyle)
 
     /** Effective scope: 0=all locations, 1=exclude control center, 2=exclude notification shade, 3=exclude both. */
     @JvmField val effectiveScope: Int = c.effectiveScope
@@ -246,8 +270,10 @@ class StatusAppearance(c: ModuleSettings) {
 
     /** Trio Bluetooth headset battery indicator mode: 0=off, 1=arc, 2=digit. */
     @JvmField val btBatteryMode: Int = if (enabled) c.btBatteryMode else Prefs.BT_BATTERY_OFF
-    /** A tap on the weather line opens the weather app itself. */
-    @JvmField val shadeWeatherOpensApp: Boolean = true
+    /** What a tap on the shade's weather does: 0=none, 1=open the weather app, 2=native. */
+    @JvmField val shadeWeatherClick: Int = c.shadeWeatherClick.coerceIn(
+        Prefs.WEATHER_CLICK_DISABLED, Prefs.WEATHER_CLICK_NATIVE,
+    )
     /** The battery temperature is drawn in the same strip. */
     @JvmField val perfTemp: Boolean = enabled && c.perfTemp
 
@@ -307,6 +333,8 @@ class StatusAppearance(c: ModuleSettings) {
     @JvmField val outTypeSize: Int = c.outTypeSize
     @JvmField val outSignalSize: Int = c.outSignalSize
     @JvmField val outDotSize: Int = c.outDotSize
+    @JvmField val outBarWidth: Int = c.outBarWidth
+    @JvmField val outBarPitch: Int = c.outBarPitch
     /**
      * Which look the stacked reading uses - see [Prefs.KEY_STACK_STYLE].
      *
@@ -318,6 +346,14 @@ class StatusAppearance(c: ModuleSettings) {
      */
     @JvmField val stackStyle: Int =
         if (c.dataSimOnly) Prefs.STACK_STYLE_DOTS else c.stackStyle
+
+    /**
+     * How the ring's two stacked signal rows are drawn; see [Prefs.KEY_RING_STACK_STYLE].
+     *
+     * Only the ring reads it: the capsule's rows sit on its two openings and have no
+     * arc to follow.
+     */
+    @JvmField val ringStackStyle: Int = c.ringStackStyle
 
     /**
      * Where the caption sits: over bar 1 when beside, or as the standalone label.
@@ -852,30 +888,10 @@ class StatusAppearance(c: ModuleSettings) {
                 if (dotBands[band.ordinal]) dotParts[band.ordinal] = id
             }
 
-            val anyPlaced = anyPlaced(parts) ||
-                dotBands[IconZones.Zone.TOP.ordinal] ||
-                dotBands[IconZones.Zone.BOTTOM.ordinal] ||
-                dotBands[IconZones.Zone.LEFT.ordinal] ||
-                dotBands[IconZones.Zone.RIGHT.ordinal]
-            if (!anyPlaced) {
-                // Nothing has ever been placed: behave exactly as before these cells existed.
-                val boltWanted = charging && a.drawsBolt()
-                val wifiWanted = !boltWanted && a.wifiInk(wifiLevel)
-                val valueWanted = !boltWanted && !wifiWanted && a.value && level >= 0
-                val typeWanted = !boltWanted && !wifiWanted && !valueWanted &&
-                    a.typeInRing && !mobileType.isNullOrEmpty()
-                parts[IconZones.Zone.CENTRE.ordinal] = when {
-                    boltWanted -> Prefs.PART_BOLT
-                    wifiWanted -> Prefs.PART_WIFI
-                    valueWanted -> Prefs.PART_VALUE
-                    typeWanted -> Prefs.PART_TYPE
-                    else -> Prefs.PART_NONE
-                }
-                // And the shipped look's dot rows, which this arrangement always drew.
-                val legacyDots = a.signalDots()
-                dotBands[IconZones.Zone.TOP.ordinal] = legacyDots
-                dotBands[IconZones.Zone.BOTTOM.ordinal] = legacyDots
-            }
+            // Empty bands stay empty. The capsule used to fall back to the pre-cell look
+            // here, which meant a layout with nothing placed still drew two signal rows
+            // and a centre reading the user never asked for. Placement is now the only
+            // source of content, the same rule the ring already follows.
             for (band in zones) {
                 if (dotBands[band.ordinal]) parts[band.ordinal] = Prefs.PART_NONE
             }
@@ -898,8 +914,6 @@ class StatusAppearance(c: ModuleSettings) {
         private companion object {
             fun isDotRow(id: Int): Boolean =
                 id == Prefs.PART_SIM_1 || id == Prefs.PART_SIM_2 || id == Prefs.PART_MOBILE
-
-            fun anyPlaced(ids: IntArray): Boolean = ids.any { it != Prefs.PART_NONE }
         }
     }
 

@@ -45,6 +45,9 @@ class ModuleSettings {
     var showValue = false
     @JvmField
     var showBolt = false
+    /** Part ids this module switched on when they were placed; see [Prefs.KEY_AUTO_ENABLED_PARTS]. */
+    @JvmField
+    var autoEnabledParts = ""
 
     /** See [Prefs.KEY_TYPE_HIDE_ON_WIFI]; one setting for every arrangement. */
     @JvmField
@@ -95,6 +98,15 @@ class ModuleSettings {
     /** Hides the bar's Bluetooth icon; see [Prefs.KEY_HIDE_BLUETOOTH_ICON]. */
     @JvmField
     var hideBluetoothIcon = Prefs.DEF_HIDE_BLUETOOTH_ICON
+
+    /** Hides the green camera/microphone privacy chip; see [Prefs.KEY_HIDE_PRIVACY_CHIP]. */
+    @JvmField
+    var hidePrivacyChip = Prefs.DEF_HIDE_PRIVACY_CHIP
+
+    /** Hides the native SIM 2 icon when both cards are present. */
+    @JvmField var hideSim2 = Prefs.DEF_HIDE_SIM2
+    /** Hides the native network-type label beside the signal bars. */
+    @JvmField var hideNetType = Prefs.DEF_HIDE_NET_TYPE
 
     /** Where the network type is drawn: [Prefs.MOBILE_TYPE_OFF] / `_IN_RING` / `_OUT_RING`. */
     @JvmField
@@ -232,8 +244,17 @@ class ModuleSettings {
     /** Dot-row diameter of the out-of-ring reading, in percent of a bar's width. */
     var outDotSize = Prefs.DEF_OUT_DOT_SIZE
 
+    /** Bar width of the out-of-ring reading, in percent of the reference. */
+    var outBarWidth = Prefs.DEF_OUT_BAR_WIDTH
+
+    /** Bar spacing of the out-of-ring reading, in percent of the reference. */
+    var outBarPitch = Prefs.DEF_OUT_BAR_PITCH
+
     /** Which look the stacked reading uses - see [Prefs.KEY_STACK_STYLE]. */
     var stackStyle = Prefs.DEF_STACK_STYLE
+
+    /** How the ring draws two stacked rows - see [Prefs.KEY_RING_STACK_STYLE]. */
+    var ringStackStyle = Prefs.DEF_RING_STACK_STYLE
 
     /** Where the stacked reading puts its type - see [Prefs.KEY_STACK_LABEL]. */
     var stackLabel = Prefs.DEF_STACK_LABEL
@@ -440,6 +461,7 @@ class ModuleSettings {
             showValue = Prefs.DEF_SHOW_VALUE
             showMobileActivity = Prefs.DEF_SHOW_MOBILE_ACTIVITY
             showBolt = Prefs.DEF_SHOW_BOLT
+            autoEnabledParts = ""
             typeHideOnWifi = Prefs.DEF_TYPE_HIDE_ON_WIFI
             chargingShowsValue = Prefs.DEF_CHARGING_SHOWS_VALUE
             perfTempChargingOnly = Prefs.DEF_PERF_TEMP_CHARGING_ONLY
@@ -456,6 +478,9 @@ class ModuleSettings {
             hideStatusClock = Prefs.DEF_HIDE_STATUS_CLOCK
             hideAlarmIcon = Prefs.DEF_HIDE_ALARM_ICON
             hideBluetoothIcon = Prefs.DEF_HIDE_BLUETOOTH_ICON
+            hidePrivacyChip = Prefs.DEF_HIDE_PRIVACY_CHIP
+            hideSim2 = Prefs.DEF_HIDE_SIM2
+            hideNetType = Prefs.DEF_HIDE_NET_TYPE
             mobileTypeMode = Prefs.DEF_MOBILE_TYPE_MODE
             valueCentred = Prefs.DEF_VALUE_CENTRED
             navStyle = Prefs.DEF_NAV_STYLE
@@ -543,7 +568,10 @@ class ModuleSettings {
             outTypeSize = Prefs.DEF_OUT_TYPE_SIZE_DP
             outSignalSize = Prefs.DEF_OUT_SIGNAL_SIZE
             outDotSize = Prefs.DEF_OUT_DOT_SIZE
+            outBarWidth = Prefs.DEF_OUT_BAR_WIDTH
+            outBarPitch = Prefs.DEF_OUT_BAR_PITCH
             stackStyle = Prefs.DEF_STACK_STYLE
+            ringStackStyle = Prefs.DEF_RING_STACK_STYLE
             stackLabel = Prefs.DEF_STACK_LABEL
             outTypeMarginLeft = Prefs.DEF_OUT_TYPE_MARGIN_LEFT
             outTypeMarginRight = Prefs.DEF_OUT_TYPE_MARGIN_RIGHT
@@ -614,6 +642,7 @@ class ModuleSettings {
                 p, Prefs.KEY_SHOW_VALUE, Prefs.DEF_SHOW_VALUE, s.trioStyle,
             )
             s.showBolt = readStyledBoolean(p, Prefs.KEY_SHOW_BOLT, Prefs.DEF_SHOW_BOLT, s.trioStyle)
+            s.autoEnabledParts = p.getString(Prefs.KEY_AUTO_ENABLED_PARTS, "") ?: ""
             // Plain keys, not styled: one answer for every arrangement.
             s.typeHideOnWifi = p.getBoolean(Prefs.KEY_TYPE_HIDE_ON_WIFI, Prefs.DEF_TYPE_HIDE_ON_WIFI)
             s.chargingShowsValue = p.getBoolean(
@@ -659,6 +688,9 @@ class ModuleSettings {
             s.hideStatusClock = p.getBoolean(Prefs.KEY_HIDE_STATUS_CLOCK, Prefs.DEF_HIDE_STATUS_CLOCK)
             s.hideAlarmIcon = p.getBoolean(Prefs.KEY_HIDE_ALARM_ICON, Prefs.DEF_HIDE_ALARM_ICON)
             s.hideBluetoothIcon = p.getBoolean(Prefs.KEY_HIDE_BLUETOOTH_ICON, Prefs.DEF_HIDE_BLUETOOTH_ICON)
+            s.hidePrivacyChip = p.getBoolean(Prefs.KEY_HIDE_PRIVACY_CHIP, Prefs.DEF_HIDE_PRIVACY_CHIP)
+            s.hideSim2 = p.getBoolean(Prefs.KEY_HIDE_SIM2, Prefs.DEF_HIDE_SIM2)
+            s.hideNetType = p.getBoolean(Prefs.KEY_HIDE_NET_TYPE, Prefs.DEF_HIDE_NET_TYPE)
             s.mobileTypeMode = readMobileTypeMode(p, s.trioStyle)
             s.valueCentred = readStyledBoolean(
                 p, Prefs.KEY_VALUE_CENTRED, Prefs.DEF_VALUE_CENTRED, s.trioStyle,
@@ -837,7 +869,16 @@ class ModuleSettings {
                 p.getInt(Prefs.KEY_OUT_DOT_SIZE, Prefs.DEF_OUT_DOT_SIZE),
                 Prefs.MIN_OUT_DOT_SIZE, Prefs.MAX_OUT_DOT_SIZE,
             )
+            s.outBarWidth = Prefs.clamp(
+                p.getInt(Prefs.KEY_OUT_BAR_WIDTH, Prefs.DEF_OUT_BAR_WIDTH),
+                Prefs.MIN_OUT_BAR_WIDTH, Prefs.MAX_OUT_BAR_WIDTH,
+            )
+            s.outBarPitch = Prefs.clamp(
+                p.getInt(Prefs.KEY_OUT_BAR_PITCH, Prefs.DEF_OUT_BAR_PITCH),
+                Prefs.MIN_OUT_BAR_PITCH, Prefs.MAX_OUT_BAR_PITCH,
+            )
             s.stackStyle = p.getInt(Prefs.KEY_STACK_STYLE, Prefs.DEF_STACK_STYLE)
+            s.ringStackStyle = p.getInt(Prefs.KEY_RING_STACK_STYLE, Prefs.DEF_RING_STACK_STYLE)
             s.stackLabel = p.getInt(Prefs.KEY_STACK_LABEL, Prefs.DEF_STACK_LABEL)
             s.antiBurnIn = p.getBoolean(Prefs.KEY_ANTI_BURN_IN, Prefs.DEF_ANTI_BURN_IN)
             s.signalColumns = Prefs.clamp(
@@ -946,6 +987,7 @@ class ModuleSettings {
             s.showBolt = readStyledBoolean(
                 bundle, Prefs.KEY_SHOW_BOLT, Prefs.DEF_SHOW_BOLT, s.trioStyle,
             )
+            s.autoEnabledParts = bundle.getString(Prefs.KEY_AUTO_ENABLED_PARTS, "") ?: ""
             s.typeHideOnWifi = bundle.getBoolean(
                 Prefs.KEY_TYPE_HIDE_ON_WIFI, Prefs.DEF_TYPE_HIDE_ON_WIFI,
             )
@@ -992,6 +1034,9 @@ class ModuleSettings {
             s.hideStatusClock = bundle.getBoolean(Prefs.KEY_HIDE_STATUS_CLOCK, Prefs.DEF_HIDE_STATUS_CLOCK)
             s.hideAlarmIcon = bundle.getBoolean(Prefs.KEY_HIDE_ALARM_ICON, Prefs.DEF_HIDE_ALARM_ICON)
             s.hideBluetoothIcon = bundle.getBoolean(Prefs.KEY_HIDE_BLUETOOTH_ICON, Prefs.DEF_HIDE_BLUETOOTH_ICON)
+            s.hidePrivacyChip = bundle.getBoolean(Prefs.KEY_HIDE_PRIVACY_CHIP, Prefs.DEF_HIDE_PRIVACY_CHIP)
+            s.hideSim2 = bundle.getBoolean(Prefs.KEY_HIDE_SIM2, Prefs.DEF_HIDE_SIM2)
+            s.hideNetType = bundle.getBoolean(Prefs.KEY_HIDE_NET_TYPE, Prefs.DEF_HIDE_NET_TYPE)
             s.mobileTypeMode = readMobileTypeMode(bundle, s.trioStyle)
             s.valueCentred = readStyledBoolean(
                 bundle, Prefs.KEY_VALUE_CENTRED, Prefs.DEF_VALUE_CENTRED, s.trioStyle,
@@ -1168,7 +1213,16 @@ class ModuleSettings {
                 bundle.getInt(Prefs.KEY_OUT_DOT_SIZE, Prefs.DEF_OUT_DOT_SIZE),
                 Prefs.MIN_OUT_DOT_SIZE, Prefs.MAX_OUT_DOT_SIZE,
             )
+            s.outBarWidth = Prefs.clamp(
+                bundle.getInt(Prefs.KEY_OUT_BAR_WIDTH, Prefs.DEF_OUT_BAR_WIDTH),
+                Prefs.MIN_OUT_BAR_WIDTH, Prefs.MAX_OUT_BAR_WIDTH,
+            )
+            s.outBarPitch = Prefs.clamp(
+                bundle.getInt(Prefs.KEY_OUT_BAR_PITCH, Prefs.DEF_OUT_BAR_PITCH),
+                Prefs.MIN_OUT_BAR_PITCH, Prefs.MAX_OUT_BAR_PITCH,
+            )
             s.stackStyle = bundle.getInt(Prefs.KEY_STACK_STYLE, Prefs.DEF_STACK_STYLE)
+            s.ringStackStyle = bundle.getInt(Prefs.KEY_RING_STACK_STYLE, Prefs.DEF_RING_STACK_STYLE)
             s.stackLabel = bundle.getInt(Prefs.KEY_STACK_LABEL, Prefs.DEF_STACK_LABEL)
             s.antiBurnIn = bundle.getBoolean(Prefs.KEY_ANTI_BURN_IN, Prefs.DEF_ANTI_BURN_IN)
             s.signalColumns = Prefs.clamp(
@@ -1456,6 +1510,7 @@ class ModuleSettings {
         s.showMobile = showMobile
         s.showValue = showValue
         s.showBolt = showBolt
+        s.autoEnabledParts = autoEnabledParts
         s.showMobileActivity = showMobileActivity
         s.typeHideOnWifi = typeHideOnWifi
         s.chargingShowsValue = chargingShowsValue
@@ -1556,7 +1611,10 @@ class ModuleSettings {
         s.outTypeSize = outTypeSize
         s.outSignalSize = outSignalSize
         s.outDotSize = outDotSize
+        s.outBarWidth = outBarWidth
+        s.outBarPitch = outBarPitch
         s.stackStyle = stackStyle
+        s.ringStackStyle = ringStackStyle
         s.stackLabel = stackLabel
         s.antiBurnIn = antiBurnIn
         s.signalColumns = signalColumns
@@ -1573,6 +1631,15 @@ class ModuleSettings {
         s.perfOrder = perfOrder.clone()
         s.typeWeight = typeWeight
         s.trackAlpha = trackAlpha
+        s.currentUnit = currentUnit
+        s.hideStatusClock = hideStatusClock
+        s.hideAlarmIcon = hideAlarmIcon
+        s.hideBluetoothIcon = hideBluetoothIcon
+        s.hidePrivacyChip = hidePrivacyChip
+        s.hideSim2 = hideSim2
+        s.hideNetType = hideNetType
+        s.replaceWifiIcon = replaceWifiIcon
+        s.replaceStatusIcon = replaceStatusIcon
         s.debugLog = debugLog
     }
 
@@ -1628,6 +1695,7 @@ class ModuleSettings {
             Prefs.KEY_SHOW_MOBILE -> showMobile = src.showMobile
             Prefs.KEY_SHOW_VALUE -> showValue = src.showValue
             Prefs.KEY_SHOW_BOLT -> showBolt = src.showBolt
+            Prefs.KEY_AUTO_ENABLED_PARTS -> autoEnabledParts = src.autoEnabledParts
             Prefs.KEY_TYPE_HIDE_ON_WIFI -> typeHideOnWifi = src.typeHideOnWifi
             Prefs.KEY_CHARGING_SHOWS_VALUE -> chargingShowsValue = src.chargingShowsValue
             Prefs.KEY_PERF_TEMP_CHARGING_ONLY -> perfTempChargingOnly = src.perfTempChargingOnly
@@ -1728,7 +1796,10 @@ class ModuleSettings {
             Prefs.KEY_OUT_TYPE_SIZE_DP -> outTypeSize = src.outTypeSize
             Prefs.KEY_OUT_SIGNAL_SIZE -> outSignalSize = src.outSignalSize
             Prefs.KEY_OUT_DOT_SIZE -> outDotSize = src.outDotSize
+            Prefs.KEY_OUT_BAR_WIDTH -> outBarWidth = src.outBarWidth
+            Prefs.KEY_OUT_BAR_PITCH -> outBarPitch = src.outBarPitch
             Prefs.KEY_STACK_STYLE -> stackStyle = src.stackStyle
+            Prefs.KEY_RING_STACK_STYLE -> ringStackStyle = src.ringStackStyle
             Prefs.KEY_STACK_LABEL -> stackLabel = src.stackLabel
             Prefs.KEY_SIGNAL_COLUMNS -> signalColumns = src.signalColumns
             Prefs.KEY_ANTI_BURN_IN -> antiBurnIn = src.antiBurnIn
@@ -1751,6 +1822,9 @@ class ModuleSettings {
             Prefs.KEY_HIDE_STATUS_CLOCK -> hideStatusClock = src.hideStatusClock
             Prefs.KEY_HIDE_ALARM_ICON -> hideAlarmIcon = src.hideAlarmIcon
             Prefs.KEY_HIDE_BLUETOOTH_ICON -> hideBluetoothIcon = src.hideBluetoothIcon
+            Prefs.KEY_HIDE_PRIVACY_CHIP -> hidePrivacyChip = src.hidePrivacyChip
+            Prefs.KEY_HIDE_SIM2 -> hideSim2 = src.hideSim2
+            Prefs.KEY_HIDE_NET_TYPE -> hideNetType = src.hideNetType
             else -> return false
         }
         return true
@@ -1774,6 +1848,7 @@ class ModuleSettings {
         putBoolean(Prefs.styledKey(Prefs.KEY_SHOW_MOBILE, style), showMobile)
         putBoolean(Prefs.styledKey(Prefs.KEY_SHOW_VALUE, style), showValue)
         putBoolean(Prefs.styledKey(Prefs.KEY_SHOW_BOLT, style), showBolt)
+        putString(Prefs.KEY_AUTO_ENABLED_PARTS, autoEnabledParts)
         putBoolean(Prefs.KEY_TYPE_HIDE_ON_WIFI, typeHideOnWifi)
         putBoolean(Prefs.KEY_CHARGING_SHOWS_VALUE, chargingShowsValue)
         putBoolean(Prefs.KEY_PERF_TEMP_CHARGING_ONLY, perfTempChargingOnly)
@@ -1874,7 +1949,10 @@ class ModuleSettings {
         putInt(Prefs.KEY_OUT_TYPE_SIZE_DP, outTypeSize)
         putInt(Prefs.KEY_OUT_SIGNAL_SIZE, outSignalSize)
         putInt(Prefs.KEY_OUT_DOT_SIZE, outDotSize)
+        putInt(Prefs.KEY_OUT_BAR_WIDTH, outBarWidth)
+        putInt(Prefs.KEY_OUT_BAR_PITCH, outBarPitch)
         putInt(Prefs.KEY_STACK_STYLE, stackStyle)
+        putInt(Prefs.KEY_RING_STACK_STYLE, ringStackStyle)
         putInt(Prefs.KEY_STACK_LABEL, stackLabel)
         putBoolean(Prefs.KEY_ANTI_BURN_IN, antiBurnIn)
         putInt(Prefs.KEY_SIGNAL_COLUMNS, signalColumns)
@@ -1897,6 +1975,9 @@ class ModuleSettings {
         putBoolean(Prefs.KEY_HIDE_STATUS_CLOCK, hideStatusClock)
         putBoolean(Prefs.KEY_HIDE_ALARM_ICON, hideAlarmIcon)
         putBoolean(Prefs.KEY_HIDE_BLUETOOTH_ICON, hideBluetoothIcon)
+        putBoolean(Prefs.KEY_HIDE_PRIVACY_CHIP, hidePrivacyChip)
+        putBoolean(Prefs.KEY_HIDE_SIM2, hideSim2)
+        putBoolean(Prefs.KEY_HIDE_NET_TYPE, hideNetType)
     }
 
     /**
@@ -1914,6 +1995,7 @@ class ModuleSettings {
 
         // Scalar fields grouped by domain
         return enabled == other.enabled && mergeIcons == other.mergeIcons && fontPath == other.fontPath &&
+            autoEnabledParts == other.autoEnabledParts &&
             debugLog == other.debugLog && antiBurnIn == other.antiBurnIn &&
             // Styles & layout dimensions
             trioStyle == other.trioStyle && navStyle == other.navStyle && navLabels == other.navLabels &&
@@ -1936,7 +2018,8 @@ class ModuleSettings {
             typeSuffixScale == other.typeSuffixScale && outTypeSize == other.outTypeSize &&
             outTypeMarginLeft == other.outTypeMarginLeft && outTypeMarginRight == other.outTypeMarginRight &&
             outSignalSize == other.outSignalSize && outDotSize == other.outDotSize && outSignalMargin == other.outSignalMargin &&
-            stackStyle == other.stackStyle && stackLabel == other.stackLabel && trackAlpha == other.trackAlpha &&
+            outBarWidth == other.outBarWidth && outBarPitch == other.outBarPitch &&
+            stackStyle == other.stackStyle && ringStackStyle == other.ringStackStyle && stackLabel == other.stackLabel && trackAlpha == other.trackAlpha &&
             // Performance readings
             perfPower == other.perfPower && perfRunning == other.perfRunning && perfTemp == other.perfTemp &&
             perfTempChargingOnly == other.perfTempChargingOnly && perfFps == other.perfFps &&
@@ -1965,6 +2048,8 @@ class ModuleSettings {
             shadeHideAdbNotif == other.shadeHideAdbNotif &&
             replaceStatusIcon == other.replaceStatusIcon && hideAlarmIcon == other.hideAlarmIcon &&
             hideBluetoothIcon == other.hideBluetoothIcon &&
+            hidePrivacyChip == other.hidePrivacyChip &&
+            hideSim2 == other.hideSim2 && hideNetType == other.hideNetType &&
             // Colors & thresholds
             roleColors == other.roleColors && roleColorsTemp == other.roleColorsTemp && lowThreshold == other.lowThreshold &&
             tempThreshold == other.tempThreshold && criticalOnDark == other.criticalOnDark &&

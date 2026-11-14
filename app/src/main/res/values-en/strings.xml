@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="drawing_quick_edit_title">Quick edit</string>
     <string name="drawing_order_title">In-ring order</string>
     <string name="app_name">HonorDuo</string>
     <string name="module_description">Honor status bar · Network, signal and battery, unified</string>
@@ -28,7 +27,7 @@
     <string name="card_clock_title">Clock &amp; Date</string>
     <string name="card_clock_summary">Seconds, 4 date formats, lunar calendar, weekday format and offset</string>
     <string name="section_appearance">Appearance</string>
-    <string name="card_appearance_summary">Overall icon scale, capsule padding, length and position nudges</string>
+    <string name="card_appearance_summary">Overall size, padding, length and position nudges</string>
 
 
     <string name="drawing_priority_empty_summary">Nothing placed here yet. Use "Add component" below.</string>
@@ -64,8 +63,6 @@
     <string name="drawing_feedback_bolt">%1$s is set in %2$s; select Charging or Fast charging to preview it.</string>
     <string name="drawing_feedback_wifi">%1$s is set in %2$s; there is no Wi-Fi in this preview. Select Normal to see it.</string>
     <string name="drawing_feedback_other">%1$s is set in %2$s; this preview currently shows %3$s. Change the preview state to see it.</string>
-    <string name="drawing_pick_impossible">This component does not fit in the %1$s.</string>
-    <string name="drawing_pick_signal_in_centre">%1$s cannot go in the middle: the middle is where the in-ring reading goes, and signal dots only fit the two openings at the top and bottom.</string>
     <string name="drawing_hint_top">Top</string>
     <string name="drawing_hint_centre">Middle</string>
     <string name="drawing_hint_bottom">Bottom</string>
@@ -140,13 +137,11 @@
     <string name="bolt_scale_title">Charging bolt size</string>
     <string name="bolt_scale_summary" formatted="false">The default is 100% and the slider covers 60–160%.</string>
     <string name="show_bolt_summary">Show a bolt in the ring while charging.</string>
-    <string name="bolt_anim_title">Charging animation</string>
     <string name="bolt_anim_enabled_title">Enable charging animation</string>
     <string name="bolt_anim_style_title">Animation style</string>
     <string name="bolt_speed_title">Animation speed</string>
     <string name="bolt_speed_summary" formatted="false">The default is 100% and the slider covers 50–200%. Shown only while the charging animation is on.</string>
     <string name="bolt_anim_summary">The bolt in the ring, capsule and rectangle loops through the chosen style while charging, twice as fast on a fast charger, and stops when the battery is full or unplugged. Off by default.</string>
-    <string name="bolt_anim_off">Off</string>
     <string name="bolt_anim_pulse">Pulse</string>
     <string name="bolt_anim_flow">Light sweep</string>
     <string name="bolt_anim_spark">Sparks</string>
@@ -157,8 +152,6 @@
     <string name="type_hide_on_wifi_summary">Hidden while Wi-Fi is connected; it returns when the connection drops or traffic moves to cellular.</string>
     <string name="show_mobile_type_title">Network type</string>
     <string name="show_mobile_type_summary">The 3G/4G/5G label, inside the ring or outside it.</string>
-    <string name="mobile_type_off">Off</string>
-    <string name="mobile_type_inside">In the ring</string>
     <string name="mobile_type_outside">Outside the ring</string>
     <string name="show_out_type_title">Show out-of-ring network type</string>
     <string name="show_out_type_summary">Hide 5G/4G network type beside signal bars when disabled.</string>
@@ -171,15 +164,11 @@
     <string name="shade_lunar_title">Show lunar</string>
     <string name="shade_lunar_summary">Appends the lunar date to the Notification Shade (left pull) date line; the date itself stays intact.</string>
     <string name="shade_weather_title">Notification Shade weather</string>
-    <string name="shade_weather_summary">Display real-time weather in Notification Shade (left pull) with customizable position and style.</string>
-    <string name="shade_weather_position_title">Weather position</string>
-    <string name="shade_weather_position_date">After date/time</string>
-    <string name="shade_weather_position_traffic">Traffic row</string>
-    <string name="shade_weather_style_title">Weather display style</string>
     <string name="shade_weather_click_title">Weather click action</string>
-    <string name="shade_weather_click_disabled">No action</string>
-    <string name="shade_weather_click_open_app">Open Weather app</string>
-    <string name="shade_weather_click_native">Keep native action</string>
+    <string name="shade_weather_click_disabled">No response</string>
+    <string name="shade_weather_click_open_app">Open the weather app</string>
+    <string name="shade_weather_click_native">Keep the native action</string>
+    <string name="shade_weather_summary">Display real-time weather in Notification Shade (left pull) with customizable position and style.</string>
 
 
 
@@ -188,6 +177,7 @@
 
 
     <string name="perf_power_title">Charging power</string>
+    <string name="perf_reading_common_summary">Placed inside or outside the ring, with adaptive stacking.</string>
 
     <string name="perf_running_title">Running power</string>
     <string name="perf_temp_title">Battery temp</string>
@@ -202,8 +192,8 @@
     <string name="current_positive_title">Always show a positive value</string>
     <string name="current_positive_summary">Off keeps the platform\'s own direction, where discharging is negative.</string>
 
-    <string name="glyph_scale_title">Overall icon size</string>
-    <string name="glyph_scale_summary" formatted="false">The default is 100% and the slider covers 60–100%.</string>
+    <string name="glyph_scale_title">Overall size</string>
+    <string name="glyph_scale_summary" formatted="false">100% is the glyph\'s own size; the slider covers 60–130%. Shrinking leaves blank space, growth stops at the bar\'s available height.</string>
 
     <string name="perf_scale_title">Overall reading size</string>
     <string name="perf_scale_summary" formatted="false">The default is 100% and the slider covers 60–150%; affects every reading the module draws.</string>
@@ -241,16 +231,14 @@
     <string name="color_reset_dialog_summary">Reset all custom colors to their default presets? Current settings will be overwritten.</string>
     <string name="color_reset_confirm">Restore</string>
     <string name="reset_setting_title">Reset to default</string>
-    <string name="reset_setting_confirm">Reset \"%1$s\" to its default value?</string>
-    <string name="confirm">Confirm</string>
 
     <string name="low_threshold_title">Low battery threshold</string>
     <string name="low_threshold_summary" formatted="false">The default is 20% and the slider covers 5–50%.</string>
 
     <string name="stroke_title">Ring stroke</string>
-    <string name="stroke_summary">The default is 14dp and the slider covers 4–16dp.</string>
+    <string name="stroke_summary">The ring outline\'s width; the capsule follows at the same ratio. Default 14dp, 4–20dp.</string>
     <string name="stroke_title_rect">Bar thickness</string>
-    <string name="stroke_summary_rect">The default is 14dp and the slider covers 4–16dp.</string>
+    <string name="stroke_summary_rect">The bar\'s thickness; the capsule follows at the same ratio. Default 14dp, 4–20dp.</string>
 
     <string name="wifi_scale_title">Wi-Fi arc size</string>
     <string name="wifi_scale_summary">100% by default, adjustable 60–160%. It grows inside each style\'s own fit.</string>
@@ -298,8 +286,14 @@
     <string name="hide_alarm_icon_title">Hide alarm</string>
     <string name="hide_alarm_icon_summary">Hides the alarm icon in the status bar; the alarm still rings as usual.</string>
     <string name="hide_bluetooth_icon_title">Hide Bluetooth</string>
+    <string name="hide_privacy_chip_title">Hide privacy indicator</string>
+    <string name="hide_privacy_chip_summary">Hides the green dot at the right of the bar shown while the camera or microphone is in use. Off by default; once on, the bar can no longer tell you that an app is recording.</string>
+    <string name="hide_sim2_title">Hide native secondary SIM icon</string>
+    <string name="hide_sim2_summary">Removes the system\'s secondary-SIM signal icon while both cards are present; a device using only the second card is unaffected.</string>
+    <string name="hide_net_type_title">Hide native network type</string>
+    <string name="hide_net_type_summary">Removes the system\'s own 5G/4G label from the status bar; the module\'s own type reading is unaffected.</string>
     <string name="hide_bluetooth_icon_summary">Hides the Bluetooth icon in the status bar; the connection and audio are unaffected.</string>
-    <string name="clock_weather_style_title">Weather style</string>
+    <string name="weather_style_title">Weather style</string>
     <string name="weather_style_text">Text only</string>
     <string name="weather_style_icon">Vector icon</string>
     <string name="weather_style_icon_text">Vector + text</string>
@@ -332,12 +326,6 @@
     <string name="out_type_size_title">Out-of-ring type size</string>
     <string name="out_type_size_summary">The default is 14dp and the slider covers 8–26dp; affects the network type only.</string>
 
-    <string name="out_type_margin_left_title">Out-of-ring type margin, left</string>
-    <string name="out_type_margin_left_summary">The default is 2dp and the slider covers 0–16dp.</string>
-
-    <string name="out_type_margin_right_title">Out-of-ring type margin, right</string>
-    <string name="out_type_margin_right_summary">The default is 2dp and the slider covers 0–16dp.</string>
-
     <string name="type_suffix_scale_title">The A in 5GA</string>
     <string name="type_suffix_scale_summary" formatted="false">The default is 65% and the slider covers 50–100%.</string>
 
@@ -347,7 +335,6 @@
     <string name="track_alpha_title">Track opacity</string>
     <string name="track_alpha_summary">The default is 56 and the slider covers 0–255.</string>
 
-    <string name="nav_section">Interface</string>
     <string name="nav_style_title">Bottom bar style</string>
     <string name="nav_style_docked">Standard bar</string>
     <string name="nav_style_floating">Floating bar</string>
@@ -356,11 +343,10 @@
     <string name="nav_labels_both">Icon and text</string>
     <string name="nav_labels_icon">Icon only</string>
     <string name="nav_labels_text">Text only</string>
-    <string name="debug_title">Debug log</string>
-    <string name="debug_summary">Write verbose output to the LSPosed log. Enable only when diagnosing.</string>
 
     <string name="about_activated">Activated</string>
     <string name="about_inactive">Inactive</string>
+    <string name="about_inactive_hint">Enable the module in LSPosed</string>
 
     <string name="language_title">App language</string>
     <string name="language_system">System default</string>
@@ -383,7 +369,6 @@
     <string name="info_android_version">Android version</string>
     <string name="info_system_fingerprint">System fingerprint</string>
 
-    <string name="backup_and_restore_title">Backup &amp; Restore</string>
     <string name="backup_export_title">Export Backup Settings</string>
     <string name="backup_export_summary">Export current module settings as a JSON file</string>
     <string name="backup_import_title">Import Backup Settings</string>
@@ -394,30 +379,16 @@
 
     <string name="log_viewer_title">Log Viewer</string>
     <string name="log_viewer_summary">View module logs and output</string>
-    <string name="log_level_title">Log Level</string>
-    <string name="log_level_summary">Configure log verbosity; disabled by default</string>
-    <string name="log_level_off">Off</string>
-    <string name="log_level_error">Error</string>
-    <string name="log_level_warn">Warn</string>
-    <string name="log_level_info">Info</string>
-    <string name="log_level_debug">Debug</string>
     <string name="log_empty">No logs available</string>
     <string name="log_clear">Clear Logs</string>
-    <string name="log_refresh">Refresh</string>
     <string name="logs_title">Logs</string>
     <string name="log_all">All</string>
-    <string name="log_debug">Debug</string>
-    <string name="log_info">Info</string>
-    <string name="log_warn">Warning</string>
-    <string name="log_error">Error</string>
     <string name="scroll_to_top">Scroll to top</string>
     <string name="scroll_to_bottom">Scroll to bottom</string>
     <string name="export_log">Export Logs</string>
     <string name="log_clear_confirm">Clear the current log buffer? This cannot be undone.</string>
-    <string name="log_clear_success">Logs cleared</string>
     <string name="log_export_copied">Share log file</string>
     <string name="log_no_search_results">No matching logs found</string>
-    <string name="log_read_failed">Cannot read the module log: %1$s</string>
     <string name="log_record_on">Record all logs</string>
     <string name="log_record_off">Stop recording all logs</string>
     <string name="hide_icon_confirm_title">Hide Launcher Icon</string>
@@ -427,16 +398,11 @@
     <string name="log_menu_parsed_view">Parsed view</string>
     <string name="log_menu_wrap_text">Wrap text</string>
     <string name="log_menu_clear_now">Clear logs now</string>
-    <string name="log_record_summary">Turns on the debug log so every level is recorded</string>
-    <string name="log_record_started">Recording all logs</string>
-    <string name="log_record_stopped">Stopped recording all logs</string>
     <string name="log_not_recording">Logging is not enabled. Tap the record button above to start.</string>
     <string name="log_level_label_error">Error</string>
     <string name="log_level_label_warn">Warning</string>
     <string name="log_level_label_info">Info</string>
     <string name="log_level_label_debug">Debug</string>
-    <string name="search">Search</string>
-    <string name="logs_empty">No logs available</string>
     <string name="view_repository_title">Repository</string>
     <string name="view_repository_summary">Visit GitHub project homepage and source</string>
     <string name="view_original_repo_title">Original Project</string>
@@ -445,7 +411,6 @@
     <string name="info_unknown">Unknown</string>
 
     <string name="update_title">Check for updates</string>
-    <string name="update_summary_idle">Fetches the newest release from GitHub.</string>
     <string name="release_notes_title">Changelog</string>
     <string name="release_notes_summary">View release notes and feature changes</string>
     <string name="release_notes_loading">Loading changelog…</string>
@@ -453,27 +418,15 @@
     <string name="update_checking">Checking…</string>
     <string name="update_uptodate">Up to date — %1$s</string>
     <string name="update_available">Version %1$s is available</string>
-    <string name="update_dialog_title">Version %1$s is available</string>
     <string name="update_dialog_summary">Installed %1$s · %2$s</string>
-    <string name="update_dialog_notes_title">What changed</string>
-    <string name="update_dialog_no_notes">This release has no notes.</string>
     <string name="update_dialog_later">Not now</string>
-    <string name="update_available_summary">Installed %1$s · %2$s</string>
+    <string name="update_dont_remind">Skip this version</string>
     <string name="update_download">Download</string>
     <string name="update_downloading">Downloading %1$d%%</string>
-    <string name="update_ready">The new version has been downloaded.</string>
     <string name="update_download_completed">Download completed, opening installer…</string>
-    <string name="update_ready_summary">Android will ask you to confirm before installing.</string>
-    <string name="update_install">Install</string>
-    <string name="update_retry">Retry</string>
-    <string name="update_failed">Could not check for updates</string>
-    <string name="update_unconfigured">This build has no update source configured</string>
     <string name="update_no_release">No release has been published yet</string>
     <string name="update_permission_needed">HonorDuo needs permission to install apps; the settings page has been opened for you.</string>
     <string name="update_install_failed">No app on this device can handle the install.</string>
-    <string name="update_release_page">Open release page</string>
-    <string name="update_repo">View repository</string>
-    <string name="update_repo_summary">Read the source and the docs on GitHub.</string>
 
     <string name="restart_title">Restart System UI</string>
     <string name="restart_summary">Restarting System UI reloads the module, which is what to do after installing it or when System UI misbehaves. It needs root access; System UI disappears for a moment and comes back on its own, without interrupting running apps.</string>
@@ -496,6 +449,9 @@
     <string name="stack_style_title">Stacked style</string>
     <string name="stack_style_dots">Dots</string>
     <string name="stack_style_rows">Two bar rows</string>
+    <string name="ring_stack_style_title">Ring signal layout</string>
+    <string name="ring_stack_arc">Arc</string>
+    <string name="ring_stack_flat">Flat rows</string>
     <string name="signal_columns_title">Signal count</string>
     <string name="signal_columns_summary">Choose 4 or 5 signal levels</string>
     <string name="signal_columns_4">4 signals</string>
@@ -504,8 +460,8 @@
     <string name="out_dot_size_summary">100% matches the bar width; 40–180.</string>
     <string name="out_signal_size_title">Stacked signal size</string>
     <string name="out_signal_size_summary">The default is 16dp and the slider covers 6–20dp.</string>
-    <string name="out_signal_margin_title">Reading margin</string>
-    <string name="out_signal_margin_summary">Default is 2px, 0–16px: eliminates 0px ambiguity with pixel alignment.</string>
+    <string name="out_signal_margin_title">Out-of-ring gap</string>
+    <string name="out_signal_margin_summary">One left/right gap shared by every out-of-ring component; default 0dp, range 0–16dp.</string>
     <string name="ring_position_sim_1">SIM 1 dots position</string>
     <string name="ring_position_sim_2">SIM 2 dots position</string>
     <string name="ring_position_value">Battery number position</string>
@@ -521,7 +477,6 @@
     <string name="ring_position_bt">Bluetooth battery slot</string>
     <string name="ring_position_current">Battery current position</string>
     <string name="drawing_part_battery">Battery outline</string>
-    <string name="drawing_part_ring">Battery ring</string>
 
     <!-- issue #38: the launcher entry is an activity-alias and can be switched off. -->
     <string name="about_hide_icon">Hide the launcher icon</string>
@@ -551,15 +506,14 @@
     <string name="ring_spacing_y_summary">Adjust vertical clearance between ring top/bottom openings and center content.</string>
 
     <string name="effective_scope_title">Module scope</string>
-    <string name="effective_scope_summary">Checked places show the module; unchecked places show the stock icons, and at least one stays checked. An expanded panel is judged by its own page; the lockscreen is judged only while no panel is open.</string>
     <string name="scope_all">Everywhere</string>
     <string name="scope_option_cc">Control Center</string>
     <string name="scope_option_shade">Shade</string>
     <string name="scope_option_keyguard">Lockscreen</string>
     <string name="scope_list_separator">, </string>
 
-    <string name="capsule_no_scale_title">No scaling on notification capsule</string>
-    <string name="capsule_no_scale_summary">Keep status bar icons at original size when notification capsule is docked (default off)</string>
+    <string name="capsule_no_scale_title">No shrink with capsule</string>
+    <string name="capsule_no_scale_summary">A docked notification capsule shrinks the whole bar; turn this on to keep the icons at their original size. The capsule itself is unchanged. Off by default.</string>
     <string name="cc_slider_long_press_title">Long press to switch audio output</string>
     <string name="cc_slider_long_press_summary">Long press the control center volume slider to pick the audio output device</string>
     <string name="shade_hide_charge_notif_title">Hide charging notification</string>
@@ -569,16 +523,12 @@
     <string name="shade_hide_adb_notif_title">Hide USB debugging notification</string>
     <string name="shade_hide_adb_notif_summary">Hide USB debugging connected system notification</string>
     <string name="bt_battery_title">Trio Bluetooth battery</string>
-    <string name="bt_battery_summary">Display connected Bluetooth headset battery level inside the trio glyph</string>
-    <string name="bt_battery_off">Off</string>
-    <string name="bt_battery_arc">Arc</string>
+    <string name="bt_battery_summary">Shows the connected headset\'s battery; inside the ring or capsule it follows the style below, outside it is always a digit.</string>
+    <string name="bt_battery_style_title">Style</string>
+    <string name="bt_battery_arc">Line</string>
     <string name="bt_battery_digit">Digit</string>
 
 
-    <string name="group_update">Update</string>
-    <string name="group_launcher_icon">Launcher icon</string>
-    <string name="group_debug">Debug</string>
-    <string name="group_font">Font</string>
     <string name="replace_wifi_icon_title">Replace Wi-Fi icon</string>
     <string name="replace_wifi_icon_summary">Replace status bar Wi-Fi icon with built-in style (supports Wi-Fi 5/6/7)</string>
     <string name="replace_status_icon_title">Replace status icons</string>
@@ -595,4 +545,9 @@
     <string name="settings_search_hint">Search settings</string>
     <string name="settings_search_empty">No matching settings</string>
     <string name="settings_search_clear">Clear search</string>
+
+    <string name="out_bar_width_title">Signal bar width</string>
+    <string name="out_bar_width_summary">100% keeps the reference width; 40 to 200, wider bars are thicker.</string>
+    <string name="out_bar_pitch_title">Signal bar spacing</string>
+    <string name="out_bar_pitch_summary">100% keeps the reference pitch; 60 to 200, also moving the gaps between the dots.</string>
 </resources>

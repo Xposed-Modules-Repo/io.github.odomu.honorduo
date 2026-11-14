@@ -42,6 +42,28 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
  * out of ring" switch, and the "stacked signal" style that went with it, were asking the
  * user to choose between states the layout already decides.
  */
+
+/**
+ * The weather style choices, shared by the clock's row and the shade's.
+ *
+ * One list rather than two copies: the two settings index the same five styles, so a
+ * change to the set has to reach both or the dropdowns stop agreeing.
+ */
+private val WEATHER_STYLE_OPTIONS = listOf(
+    R.string.weather_style_text,
+    R.string.weather_style_icon,
+    R.string.weather_style_icon_text,
+    R.string.weather_style_symbol,
+    R.string.weather_style_symbol_text,
+)
+
+/** The shade's three, in the order [Prefs.SHADE_WEATHER_STYLES] stores them. */
+private val SHADE_WEATHER_OPTIONS = listOf(
+    R.string.weather_style_text,
+    R.string.weather_style_symbol,
+    R.string.weather_style_symbol_text,
+)
+
 internal enum class ContentControl(val owner: SettingsPart) {
     Enabled(SettingsPart.Appearance),
     MergeIcons(SettingsPart.Appearance),
@@ -98,6 +120,14 @@ internal enum class ContentControl(val owner: SettingsPart) {
     ShowOutType(SettingsPart.Type),
     Power(SettingsPart.Readouts),
     StackStyle(SettingsPart.Mobile),
+    /**
+     * How the ring draws its two stacked rows: along its arc or as flat horizontal rows.
+     *
+     * Owned by the signal card: it changes only which shape the signal reading takes,
+     * never where it is placed. Only the ring has an arc to follow, so the row is gated
+     * on that arrangement.
+     */
+    RingStackStyle(SettingsPart.Mobile),
     StackLabel(SettingsPart.Type),
     /**
      * The type steps aside while Wi-Fi is up.
@@ -134,6 +164,8 @@ internal enum class ContentControl(val owner: SettingsPart) {
     Voltage(SettingsPart.Readouts),
     PerfSignal(SettingsPart.Readouts),
     BtBatteryMode(SettingsPart.Readouts),
+    /** Line or digit for the headset reading inside the glyph. */
+    BtBatteryStyle(SettingsPart.Readouts),
     Clock(SettingsPart.Clock),
     HideStatusClock(SettingsPart.Clock),
     ClockLunar(SettingsPart.Clock),
@@ -147,6 +179,24 @@ internal enum class ContentControl(val owner: SettingsPart) {
     ClockStyle(SettingsPart.Clock),
     HideAlarmIcon(SettingsPart.Appearance),
     HideBluetoothIcon(SettingsPart.Appearance),
+    /**
+     * The green camera/mic privacy dot at the right of the bar.
+     *
+     * Owned by Appearance: it is a system-bar element the module simply removes, not a
+     * piece of the glyph, and hiding it is visible with the module's own drawing off.
+     */
+    HidePrivacyChip(SettingsPart.Appearance),
+    /**
+     * Keep the bar at its original size while a notification capsule is docked.
+     *
+     * Owned by Appearance: it is the system bar the module restores, independent of
+     * the module's own glyph.
+     */
+    CapsuleNoScale(SettingsPart.Appearance),
+    /** Native secondary-SIM icon removal; owned by the signal card. */
+    HideSim2(SettingsPart.Mobile),
+    /** Native 5G/4G label removal; owned by the type card. */
+    HideNetType(SettingsPart.Type),
     ShadeHidePower(SettingsPart.Shade),
     CcSliderLongPress(SettingsPart.Shade),
     ShadeHideBell(SettingsPart.Shade),
@@ -158,12 +208,18 @@ internal enum class ContentControl(val owner: SettingsPart) {
     ShadeLunar(SettingsPart.Shade),
     ShadeWeather(SettingsPart.Shade),
     ShadeWeatherStyle(SettingsPart.Shade),
+    ShadeWeatherClick(SettingsPart.Shade),
     EffectiveScope(SettingsPart.Appearance),
 }
 
 internal fun contentControlsFor(part: SettingsPart): List<ContentControl> =
     ContentControl.entries.filter {
-        val matchesOwner = it.owner == part || (part == SettingsPart.Battery && it == ContentControl.Bolt)
+        val matchesOwner = it.owner == part ||
+            (part == SettingsPart.Battery && it in setOf(
+                ContentControl.Bolt,
+                ContentControl.BoltAnimEnabled,
+                ContentControl.BoltAnim,
+            ))
         matchesOwner && !(part == SettingsPart.Appearance &&
             (it == ContentControl.Enabled || it == ContentControl.MergeIcons || it == ContentControl.Style || it == ContentControl.AntiBurnIn || it == ContentControl.EffectiveScope))
     }
@@ -196,20 +252,6 @@ internal fun ContentControlRow(
     if (control == ContentControl.Type) {
         TypePositionControl(settings, update, zonesAllowed = a.slotted)
         return
-    }
-    val isPartActive = when (control) {
-        ContentControl.Power -> settings.perfPower
-        ContentControl.RunningPower -> settings.perfRunning
-        ContentControl.Temperature -> settings.perfTemp
-        ContentControl.Fps -> settings.perfFps
-        ContentControl.Current -> settings.perfCurrent
-        ContentControl.Voltage -> settings.perfVoltage
-        ContentControl.PerfSignal -> settings.perfSignal
-        ContentControl.BtBatteryMode -> settings.btBatteryMode > 0
-        ContentControl.Value -> settings.showValue
-        ContentControl.Bolt -> settings.showBolt
-        ContentControl.Clock -> true
-        else -> true
     }
     if (control == ContentControl.Mobile) {
         SignalPositionControl(settings, update)
@@ -362,15 +404,9 @@ internal fun ContentControlRow(
         ContentControl.ClockWeatherStyle -> if (settings.clockWeather) {
             ContentChoice(
                 selected = settings.clockWeatherStyle.coerceIn(0, Prefs.WEATHER_STYLE_COUNT - 1),
-                title = R.string.clock_weather_style_title,
+                title = R.string.weather_style_title,
                 summaryRes = null,
-                options = listOf(
-                    R.string.weather_style_text,
-                    R.string.weather_style_icon,
-                    R.string.weather_style_icon_text,
-                    R.string.weather_style_symbol,
-                    R.string.weather_style_symbol_text,
-                ),
+                options = WEATHER_STYLE_OPTIONS,
                 dependencies = listOf(settings.clockWeather to R.string.clock_weather_title),
             ) { value -> update { it.setClockWeatherStyle(value) } }
         } else Unit
@@ -393,6 +429,30 @@ internal fun ContentControlRow(
             summaryRes = R.string.hide_bluetooth_icon_summary,
             dependencies = listOf(settings.enabled to R.string.master_module_title),
         ) { value -> update { it.setHideBluetoothIcon(value) } }
+        ContentControl.HidePrivacyChip -> ContentToggle(
+            checked = settings.hidePrivacyChip,
+            title = R.string.hide_privacy_chip_title,
+            summaryRes = R.string.hide_privacy_chip_summary,
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { value -> update { it.setHidePrivacyChip(value) } }
+        ContentControl.CapsuleNoScale -> ContentToggle(
+            checked = settings.capsuleNoScale,
+            title = R.string.capsule_no_scale_title,
+            summaryRes = R.string.capsule_no_scale_summary,
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { value -> update { it.setCapsuleNoScale(value) } }
+        ContentControl.HideSim2 -> ContentToggle(
+            checked = settings.hideSim2,
+            title = R.string.hide_sim2_title,
+            summaryRes = R.string.hide_sim2_summary,
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { value -> update { it.setHideSim2(value) } }
+        ContentControl.HideNetType -> ContentToggle(
+            checked = settings.hideNetType,
+            title = R.string.hide_net_type_title,
+            summaryRes = R.string.hide_net_type_summary,
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { value -> update { it.setHideNetType(value) } }
         ContentControl.ShadeHidePower -> ContentToggle(
             checked = settings.shadeHidePower,
             title = R.string.shade_hide_power_title,
@@ -436,19 +496,34 @@ internal fun ContentControlRow(
             dependencies = listOf(settings.enabled to R.string.master_module_title),
         ) { value -> update { it.setShadeWeather(value) } }
         ContentControl.ShadeWeatherStyle -> if (settings.shadeWeather) {
+            // Only the three styles its text line can draw; the vector ones are the
+            // clock's, and offering them here drew a different glyph than the label said.
+            val style = Prefs.normalizeShadeWeatherStyle(settings.shadeWeatherStyle)
+            val selected = Prefs.SHADE_WEATHER_STYLES.indexOf(style).coerceAtLeast(0)
             ContentChoice(
-                selected = settings.shadeWeatherStyle.coerceIn(0, Prefs.WEATHER_STYLE_COUNT - 1),
-                title = R.string.clock_weather_style_title,
+                selected = selected,
+                title = R.string.weather_style_title,
+                summaryRes = null,
+                options = SHADE_WEATHER_OPTIONS,
+                dependencies = listOf(settings.shadeWeather to R.string.shade_weather_title),
+            ) { index ->
+                update { it.setShadeWeatherStyle(Prefs.SHADE_WEATHER_STYLES[index]) }
+            }
+        } else Unit
+        ContentControl.ShadeWeatherClick -> if (settings.shadeWeather) {
+            ContentChoice(
+                selected = settings.shadeWeatherClick.coerceIn(
+                    Prefs.WEATHER_CLICK_DISABLED, Prefs.WEATHER_CLICK_NATIVE,
+                ),
+                title = R.string.shade_weather_click_title,
                 summaryRes = null,
                 options = listOf(
-                    R.string.weather_style_text,
-                    R.string.weather_style_icon,
-                    R.string.weather_style_icon_text,
-                    R.string.weather_style_symbol,
-                    R.string.weather_style_symbol_text,
+                    R.string.shade_weather_click_disabled,
+                    R.string.shade_weather_click_open_app,
+                    R.string.shade_weather_click_native,
                 ),
                 dependencies = listOf(settings.shadeWeather to R.string.shade_weather_title),
-            ) { value -> update { it.setShadeWeatherStyle(value) } }
+            ) { value -> update { it.setShadeWeatherClick(value) } }
         } else Unit
         ContentControl.Power -> ContentToggle(settings.perfPower, R.string.perf_power_title, R.string.perf_reading_common_summary, emptyList()) { value -> update { it.setPerfPower(value) } }
         ContentControl.RunningPower -> ContentToggle(checked = settings.perfRunning, title = R.string.perf_running_title, summaryRes = R.string.perf_reading_common_summary,
@@ -471,6 +546,14 @@ internal fun ContentControlRow(
                     listOf(R.string.stack_style_dots, R.string.stack_style_rows),
                     listOf(a.stackedOut() to R.string.stacked_signal_title),
                 ) { value -> update { it.setStackStyle(value) } }
+            }
+        ContentControl.RingStackStyle ->
+            if (a.ring) {
+                ContentChoice(
+                    settings.ringStackStyle, R.string.ring_stack_style_title, null,
+                    listOf(R.string.ring_stack_arc, R.string.ring_stack_flat),
+                    listOf(a.ring to R.string.trio_style_ring),
+                ) { value -> update { it.setRingStackStyle(value) } }
             }
         ContentControl.TempChargingOnly -> ContentToggle(
             checked = settings.perfTempChargingOnly,
@@ -573,11 +656,37 @@ internal fun ContentControlRow(
         ContentControl.BtBatteryMode -> ContentToggle(
             checked = settings.btBatteryMode > 0,
             title = R.string.bt_battery_title,
-            summaryRes = R.string.perf_reading_common_summary,
+            summaryRes = R.string.bt_battery_summary,
             dependencies = emptyList(),
         ) { on ->
             update {
-                it.setBtBatteryMode(if (on) Prefs.BT_BATTERY_ARC else Prefs.BT_BATTERY_OFF)
+                // Turning it back on keeps the chosen style; a fresh turn-on starts
+                // with the line form.
+                val mode = if (!on) {
+                    Prefs.BT_BATTERY_OFF
+                } else if (settings.btBatteryMode == Prefs.BT_BATTERY_OFF) {
+                    Prefs.BT_BATTERY_ARC
+                } else {
+                    settings.btBatteryMode
+                }
+                it.setBtBatteryMode(mode)
+            }
+        }
+        // The style only decides how the reading is drawn inside the glyph; outside it
+        // is always a digit. Hidden while the indicator is off, so the switch alone
+        // decides whether the reading exists.
+        ContentControl.BtBatteryStyle -> if (settings.btBatteryMode > 0) {
+            ContentChoice(
+                if (settings.btBatteryMode == Prefs.BT_BATTERY_DIGIT) 1 else 0,
+                R.string.bt_battery_style_title, null,
+                listOf(R.string.bt_battery_arc, R.string.bt_battery_digit),
+                emptyList(),
+            ) { value ->
+                update {
+                    it.setBtBatteryMode(
+                        if (value == 1) Prefs.BT_BATTERY_DIGIT else Prefs.BT_BATTERY_ARC,
+                    )
+                }
             }
         }
         ContentControl.HideHdVolte -> ContentToggle(
@@ -611,8 +720,9 @@ internal fun ContentControlRow(
         ) { next -> update { it.setEffectiveScope(scopeMaskOf(next)) } }
 
     }
-    // 开关渲染完毕后，若该组件处于开启状态，紧接着渲染其对应的环内/胶囊位置选择下拉
-    if ((a.ring || a.capsule) && positioned != null && !a.rect && isPartActive) {
+    // 位置选择与开关是否打开无关：放在这里才能把关闭中的组件先摆到想要的槽位，
+    // 选择槽位本身会通过 withPiece 把组件打开。
+    if ((a.ring || a.capsule) && positioned != null && !a.rect) {
         RingPositionControl(positioned, ringSettings, update)
     }
 }

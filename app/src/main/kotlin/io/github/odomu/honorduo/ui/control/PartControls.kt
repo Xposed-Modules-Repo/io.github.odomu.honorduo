@@ -307,7 +307,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             min = Prefs.MIN_RING_STROKE,
             max = Prefs.MAX_RING_STROKE,
             read = { it.ringStroke },
-            editorOwner = SettingsPart.Battery,
+            editorOwner = SettingsPart.Appearance,
             write = { r, v -> r.setRingStroke(v) },
             // One stroke setting, two names: the rectangle spends it on the bar's
             // thickness, the ring on the outline's width.
@@ -471,32 +471,6 @@ internal fun geometrySliders(): List<SliderSpec> {
         SliderSpec(
             group = GeometryGroup.Type,
             part = type,
-            min = Prefs.MIN_OUT_TYPE_MARGIN,
-            max = Prefs.MAX_OUT_TYPE_MARGIN,
-            read = { it.outTypeMarginLeft },
-            write = { r, v -> r.setOutTypeMarginLeft(v) },
-            titleRes = { R.string.out_type_margin_left_title },
-            summaryRes = { R.string.out_type_margin_left_summary },
-            // Only the standalone label has margins to set; in "above" mode the caption
-            // is drawn inside the reading and these do nothing.
-            enabled = { it.typeOutOfRing && it.stackLabel == Prefs.STACK_LABEL_ALONE },
-            suffix = "dp",
-        ),
-        SliderSpec(
-            group = GeometryGroup.Type,
-            part = type,
-            min = Prefs.MIN_OUT_TYPE_MARGIN,
-            max = Prefs.MAX_OUT_TYPE_MARGIN,
-            read = { it.outTypeMarginRight },
-            write = { r, v -> r.setOutTypeMarginRight(v) },
-            titleRes = { R.string.out_type_margin_right_title },
-            summaryRes = { R.string.out_type_margin_right_summary },
-            enabled = { it.typeOutOfRing && it.stackLabel == Prefs.STACK_LABEL_ALONE },
-            suffix = "dp",
-        ),
-        SliderSpec(
-            group = GeometryGroup.Type,
-            part = type,
             min = Prefs.MIN_TYPE_WEIGHT,
             max = Prefs.MAX_TYPE_WEIGHT,
             step = WEIGHT_STEP,
@@ -535,13 +509,42 @@ internal fun geometrySliders(): List<SliderSpec> {
         SliderSpec(
             group = GeometryGroup.OutSignal,
             part = mobile,
+            min = Prefs.MIN_OUT_BAR_WIDTH,
+            max = Prefs.MAX_OUT_BAR_WIDTH,
+            read = { it.outBarWidth },
+            write = { r, v -> r.setOutBarWidth(v) },
+            titleRes = { R.string.out_bar_width_title },
+            summaryRes = { R.string.out_bar_width_summary },
+            // The bars are on screen wherever a signal row is drawn, so the row is gated
+            // on the reading existing at all rather than only on the stacked style.
+            enabled = { it.foldsMobile() },
+            suffix = "%",
+        ),
+        SliderSpec(
+            group = GeometryGroup.OutSignal,
+            part = mobile,
+            min = Prefs.MIN_OUT_BAR_PITCH,
+            max = Prefs.MAX_OUT_BAR_PITCH,
+            read = { it.outBarPitch },
+            write = { r, v -> r.setOutBarPitch(v) },
+            titleRes = { R.string.out_bar_pitch_title },
+            summaryRes = { R.string.out_bar_pitch_summary },
+            enabled = { it.foldsMobile() },
+            suffix = "%",
+        ),
+        SliderSpec(
+            group = GeometryGroup.OutSignal,
+            part = null,
             min = Prefs.MIN_OUT_SIGNAL_MARGIN,
             max = Prefs.MAX_OUT_SIGNAL_MARGIN,
             read = { it.outSignalMargin },
+            editorOwner = SettingsPart.Readouts,
             write = { r, v -> r.setOutSignalMargin(v) },
             titleRes = { R.string.out_signal_margin_title },
             summaryRes = { R.string.out_signal_margin_summary },
-            enabled = { it.stackedOut() },
+            // Governs every out-of-ring component, so it stays available regardless of
+            // whether the signal reading is currently out of the ring.
+            enabled = { true },
             suffix = "dp",
         ),
         SliderSpec(
@@ -644,7 +647,7 @@ internal fun geometrySliders(): List<SliderSpec> {
             min = Prefs.MIN_TRACK_ALPHA,
             max = Prefs.MAX_TRACK_ALPHA,
             read = { it.trackAlpha },
-            editorOwner = SettingsPart.Battery,
+            editorOwner = SettingsPart.Appearance,
             write = { r, v -> r.setTrackAlpha(v) },
             titleRes = { R.string.track_alpha_title },
             summaryRes = { R.string.track_alpha_summary },
@@ -661,7 +664,8 @@ internal fun slidersForEditor(part: SettingsPart): List<SliderSpec> = when (part
     SettingsPart.Appearance, SettingsPart.Battery, SettingsPart.Readouts ->
         geometrySliders().filter {
             (it.part == null && it.editorOwner == part) ||
-                (part == SettingsPart.Battery && it.part == IconZones.Part.VALUE)
+                (part == SettingsPart.Battery &&
+                    (it.part == IconZones.Part.VALUE || it.part == IconZones.Part.BOLT))
         }
     // Each card gets its own rows. For the signal card those are the out-of-ring readings' two sizes plus the in-ring dot size.
     else -> part.part?.let(::slidersForPart).orEmpty()
