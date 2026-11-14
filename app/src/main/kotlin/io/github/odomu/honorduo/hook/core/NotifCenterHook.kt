@@ -12,6 +12,7 @@ package io.github.odomu.honorduo.hook.core
 
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import android.util.Log
 import android.view.View
 import io.github.libxposed.api.XposedModule
@@ -89,7 +90,24 @@ internal object NotifCenterHook {
         }
     }
 
+    // The header asks for this line from composition, and the shade recomposes while it
+    // expands. Building a ChineseCalendar and the weather string on every one of those
+    // calls is work nobody sees: one result per second is all the line can show.
+    private const val DATE_CACHE_MS = 1_000L
+    @Volatile private var dateCacheAt = 0L
+    @Volatile private var dateCacheInput: String? = null
+    @Volatile private var dateCacheFlags = -1
+    @Volatile private var dateCacheOut: String? = null
+
     private fun decorateDate(line: String, lunar: Boolean, weather: Boolean): String {
+        val now = SystemClock.uptimeMillis()
+        val flags = (if (lunar) 1 else 0) or (if (weather) 2 else 0)
+        val cached = dateCacheOut
+        if (cached != null && now - dateCacheAt < DATE_CACHE_MS &&
+            flags == dateCacheFlags && line == dateCacheInput
+        ) {
+            return cached
+        }
         val extra = StringBuilder()
         if (lunar) {
             val l = ClockTicker.formatLunar(Date())
@@ -102,7 +120,12 @@ internal object NotifCenterHook {
                 extra.append(w)
             }
         }
-        return if (extra.isEmpty()) line else "$line $extra"
+        val out = if (extra.isEmpty()) line else "$line $extra"
+        dateCacheAt = now
+        dateCacheInput = line
+        dateCacheFlags = flags
+        dateCacheOut = out
+        return out
     }
 
     /** Optionally opens the weather app when tapping the date line. */
@@ -111,11 +134,18 @@ internal object NotifCenterHook {
         val clickMethod = Refl.methodNamed(vmClass, "onClickDate", 0) ?: return 0
         return SystemUiHook.hook(module, clickMethod, "honorduo-notif-date-click") { chain ->
             val a = ModuleConfig.appearance()
-            if (a.enabled && a.shadeWeather && a.shadeWeatherOpensApp) {
-                launchWeatherApp()
-                null
-            } else {
+            if (!a.enabled || !a.shadeWeather) {
                 chain.proceed()
+            } else {
+                when (a.shadeWeatherClick) {
+                    Prefs.WEATHER_CLICK_OPEN_APP -> {
+                        launchWeatherApp()
+                        null
+                    }
+                    // Consume the tap: the user asked for the weather line to be inert.
+                    Prefs.WEATHER_CLICK_DISABLED -> null
+                    else -> chain.proceed()
+                }
             }
         }
     }
@@ -256,16 +286,14 @@ internal object NotifCenterHook {
             StatusState.appContext()?.let { WeatherManager.fetchAsync(it) }
             return ""
         }
+        // Normalized on read: the shade's two styles are text and the font symbol, so a
+        // stored vector id arrives here as its symbol counterpart.
         val style = ModuleConfig.appearance().shadeWeatherStyle
-        val glyph = WeatherIconDrawer.glyphFor(data.condition)
-        val text = when (style) {
-            Prefs.WEATHER_STYLE_TEXT -> data.text()
-            Prefs.WEATHER_STYLE_ICON, Prefs.WEATHER_STYLE_SYMBOL -> "$glyph ${data.tempText()}"
-            Prefs.WEATHER_STYLE_ICON_TEXT, Prefs.WEATHER_STYLE_SYMBOL_TEXT -> "$glyph ${data.text()}"
-            else -> data.text()
-        }
-        logDebug("weatherText resolved: '$text' (condition=${data.condition}, temp=${data.tempC}, style=$style)")
-        return text
+        if (style == Prefs.WEATHER_STYLE_TEXT) return data.text()
+        val label = if (style == Prefs.WEATHER_STYLE_SYMBOL) data.tempText() else data.text()
+        val mark = WeatherIconDrawer.glyphFor(data.condition)
+        logDebug("weatherText resolved: '$mark $label' (condition=${data.condition}, style=$style)")
+        return "$mark $label"
     }
 
     fun onConfigChanged(a: StatusAppearance) {
@@ -302,4 +330,5 @@ internal object NotifCenterHook {
         sTimeManager = WeakReference(manager)
         return manager
     }
+
 }
