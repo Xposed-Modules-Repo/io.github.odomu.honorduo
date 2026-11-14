@@ -10,21 +10,7 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextStyle
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import io.github.odomu.honorduo.ui.control.ContentControl
-import io.github.odomu.honorduo.ui.control.geometrySliders
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +25,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -50,13 +39,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,7 +70,9 @@ import io.github.odomu.honorduo.ui.component.GlassDropdownPreference
 import io.github.odomu.honorduo.ui.component.SettingTile
 import io.github.odomu.honorduo.ui.component.SettingsItemMargin
 import io.github.odomu.honorduo.ui.component.isDarkTheme
+import io.github.odomu.honorduo.ui.control.ContentControl
 import io.github.odomu.honorduo.ui.control.SettingsPart
+import io.github.odomu.honorduo.ui.control.geometrySliders
 import io.github.odomu.honorduo.ui.manager.AppUpdater
 import io.github.odomu.honorduo.ui.manager.SettingsStore
 import io.github.odomu.honorduo.ui.manager.UpdateState
@@ -84,6 +81,8 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -234,7 +233,8 @@ private val CONTROL_TITLE_ALIASES = mapOf(
     ContentControl.Value to "show_value_title",
     ContentControl.Bolt to "show_bolt_title",
     ContentControl.Clock to "drawing_occupant_clock",
-    ContentControl.ShadeWeatherStyle to "clock_weather_style_title",
+    ContentControl.ShadeWeatherStyle to "weather_style_title",
+    ContentControl.ShadeWeatherClick to "shade_weather_click_title",
 )
 
 private fun camelToSnake(name: String): String =
@@ -280,6 +280,13 @@ private fun SettingsSearchField(query: String, onQueryChange: (String) -> Unit) 
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Icon(
+            imageVector = ImageVector.vectorResource(R.drawable.ic_lucide_search),
+            contentDescription = null,
+            tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.size(8.dp))
         Box(Modifier.weight(1f)) {
             if (query.isEmpty()) Text(stringResource(R.string.settings_search_hint), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
             BasicTextField(
@@ -568,7 +575,7 @@ fun ActivatedRow(settings: ModuleSettings, service: XposedService?) {
         ) {
             StatCard(
                 label = stringResource(R.string.about_hook_count),
-                value = hookCount(service).toString(),
+                value = hookCount(service, context).toString(),
                 modifier = Modifier.weight(1f),
             )
             StatCard(
@@ -814,9 +821,18 @@ fun readDeviceName(context: Context): String {
     return name?.takeIf { it.isNotBlank() } ?: Build.MODEL.orEmpty()
 }
 
-fun hookCount(service: XposedService?): Int {
-    if (service == null) return 0
-    return 32
+fun hookCount(service: XposedService?, context: Context): Int {
+    // The module writes into the shared preference group; this process's cached instance
+    // never sees another process's write, so the service's own handle is asked first.
+    val remote = service?.let {
+        runCatching { it.getRemotePreferences(Prefs.NAME).getInt(Prefs.KEY_HOOK_COUNT, 0) }
+            .getOrDefault(0)
+    } ?: 0
+    if (remote > 0) return remote
+    return runCatching {
+        context.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
+            .getInt(Prefs.KEY_HOOK_COUNT, 0)
+    }.getOrDefault(0)
 }
 
 fun enabledCount(settings: ModuleSettings): Int {

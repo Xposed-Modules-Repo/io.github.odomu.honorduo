@@ -873,12 +873,17 @@ private fun applyZoneAssignment(
     if (next.showValue != settings.showValue) repository.setShowValue(next.showValue)
     if (next.showBolt != settings.showBolt) repository.setShowBolt(next.showBolt)
     if (next.dualSim != settings.dualSim) repository.setDualSim(next.dualSim)
-    if (next.valueCentred != settings.valueCentred) {
-        repository.setValueCentred(next.valueCentred)
-    }
-    if (next.mobileTypeMode != settings.mobileTypeMode) {
-        repository.setMobileTypeMode(next.mobileTypeMode)
-    }
+    if (next.valueCentred != settings.valueCentred) repository.setValueCentred(next.valueCentred)
+    if (next.mobileTypeMode != settings.mobileTypeMode) repository.setMobileTypeMode(next.mobileTypeMode)
+    if (next.perfPower != settings.perfPower) repository.setPerfPower(next.perfPower)
+    if (next.perfRunning != settings.perfRunning) repository.setPerfRunning(next.perfRunning)
+    if (next.perfTemp != settings.perfTemp) repository.setPerfTemp(next.perfTemp)
+    if (next.perfFps != settings.perfFps) repository.setPerfFps(next.perfFps)
+    if (next.perfCurrent != settings.perfCurrent) repository.setPerfCurrent(next.perfCurrent)
+    if (next.perfVoltage != settings.perfVoltage) repository.setPerfVoltage(next.perfVoltage)
+    if (next.perfSignal != settings.perfSignal) repository.setPerfSignal(next.perfSignal)
+    if (next.btBatteryMode != settings.btBatteryMode) repository.setBtBatteryMode(next.btBatteryMode)
+    if (next.autoEnabledParts != settings.autoEnabledParts) repository.setAutoEnabledParts(next.autoEnabledParts)
 }
 
 /**
@@ -953,12 +958,15 @@ private fun DrawingGlyph(
                         tryAwaitRelease()
                         currentPress.value(null)
                     },
-                    onTap = { _ ->
-                        currentAppearance.value()
-                    },
-                    onLongPress = { offset ->
-                        if (holder[0]?.isBatteryRingAt(offset.x, offset.y) == true) currentBattery.value()
-                        else zoneAt(offset)?.let { currentEdit.value(it) }
+                    onTap = { offset ->
+                        // A tap is the primary action everywhere in the preview: a
+                        // zone opens its own picker, the battery ring opens the battery
+                        // sheet, and only truly empty space opens Appearance. Requiring
+                        // a long press for the zones made a normal tap look broken.
+                        when {
+                            holder[0]?.isBatteryRingAt(offset.x, offset.y) == true -> currentBattery.value()
+                            else -> zoneAt(offset)?.let { currentEdit.value(it) } ?: currentAppearance.value()
+                        }
                     },
                 )
             },

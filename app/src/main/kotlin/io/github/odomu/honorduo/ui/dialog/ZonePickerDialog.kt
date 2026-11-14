@@ -95,25 +95,13 @@ fun ZonePickerDialog(
                     onLongClick = null,
                 )
 
-                IconZones.placeableParts().forEach { part ->
-                    val canPlace = solvable.contains(part)
+                solvable.forEach { part ->
                     val id = IconZones.encodePart(part)
                     val inZone = chain.contains(id)
                     val elsewhere = if (inZone) null else IconZones.Zone.entries.firstOrNull { z ->
                         z != zone && appearance.ringZones[z.ordinal].contains(id)
                     }
-                    val reason = when {
-                        canPlace -> null
-                        !IconZones.accepts(zone, part, settings) -> stringResource(
-                            R.string.drawing_pick_signal_in_centre,
-                            stringResource(occupantLabelRes(part)),
-                        )
-                        else -> stringResource(
-                            R.string.drawing_pick_impossible,
-                            stringResource(zoneLabelRes(zone)),
-                        )
-                    }
-                    val summary = reason ?: when {
+                    val summary = when {
                         currentOccupant == part -> stringResource(R.string.drawing_pick_showing_now)
                         inZone -> stringResource(R.string.drawing_pick_promote_summary)
                         elsewhere != null -> stringResource(
@@ -128,21 +116,15 @@ fun ZonePickerDialog(
                         selected = currentOccupant == part,
                         inZone = inZone,
                         elsewhere = elsewhere != null,
-                        enabled = canPlace,
+                        enabled = true,
                         onClick = {
-                            if (canPlace) {
-                                if (elsewhere != null) {
-                                    confirmingMove = ZoneMove(part, elsewhere)
-                                } else {
-                                    onChoose(part)
-                                }
+                            if (elsewhere != null) {
+                                confirmingMove = ZoneMove(part, elsewhere)
+                            } else {
+                                onChoose(part)
                             }
                         },
-                        onLongClick = if (canPlace) {
-                            { onEdit(part) }
-                        } else {
-                            null
-                        },
+                        onLongClick = { onEdit(part) },
                     )
                 }
             }

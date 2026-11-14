@@ -81,6 +81,22 @@ class SettingsStore(val context: Context) {
     /** SIM 1's own row of dots, placed as a component - see [Prefs.KEY_SHOW_SIM_1]. */
     fun setShowSim1(value: Boolean) = writeStyled(style(), Prefs.KEY_SHOW_SIM_1) { e, k ->
         e.putBoolean(k, value) }
+
+    /**
+     * Records which switches the placement flow turned on; see [Prefs.KEY_AUTO_ENABLED_PARTS].
+     *
+     * Global rather than per style: the switches it restores are a mix of per-arrangement
+     * and global ones, and the record only ever describes the edit that just happened.
+     */
+    fun setAutoEnabledParts(value: String) {
+        if (value == (preferences().getString(Prefs.KEY_AUTO_ENABLED_PARTS, "") ?: "")) return
+        val write: (SharedPreferences.Editor) -> Unit = { e ->
+            e.putString(Prefs.KEY_AUTO_ENABLED_PARTS, value)
+        }
+        preferences().edit { write(this) }
+        push(write)
+        notifyModule()
+    }
     /** SIM 2's own row of dots, placed as a component - see [Prefs.KEY_SHOW_SIM_2]. */
     fun setShowSim2(value: Boolean) = writeStyled(style(), Prefs.KEY_SHOW_SIM_2) { e, k ->
         e.putBoolean(k, value) }
@@ -141,6 +157,18 @@ class SettingsStore(val context: Context) {
             e.putBoolean(Prefs.styledKey(Prefs.KEY_SHOW_SIM_2, style), next.showSim2)
             e.putInt(Prefs.styledKey(Prefs.KEY_MOBILE_TYPE_MODE, style), next.mobileTypeMode)
             e.putInt(Prefs.styledKey(Prefs.KEY_SIGNAL_MODE, style), next.signalMode)
+            // [IconZones.withPiece] turns a placed reading's own switch on; the layout
+            // transaction has to carry those switches too, or the zone reserves room and
+            // draws nothing.
+            e.putBoolean(Prefs.KEY_PERF_POWER, next.perfPower)
+            e.putBoolean(Prefs.KEY_PERF_RUNNING, next.perfRunning)
+            e.putBoolean(Prefs.KEY_PERF_TEMP, next.perfTemp)
+            e.putBoolean(Prefs.KEY_PERF_FPS, next.perfFps)
+            e.putBoolean(Prefs.KEY_PERF_CURRENT, next.perfCurrent)
+            e.putBoolean(Prefs.KEY_PERF_VOLTAGE, next.perfVoltage)
+            e.putBoolean(Prefs.KEY_PERF_SIGNAL, next.perfSignal)
+            e.putInt(Prefs.KEY_BT_BATTERY_MODE, next.btBatteryMode)
+            e.putString(Prefs.KEY_AUTO_ENABLED_PARTS, next.autoEnabledParts)
         }
         preferences().edit {
             write(this)
@@ -157,6 +185,40 @@ class SettingsStore(val context: Context) {
      * the mapping is kept - the ring's editor drives the priority lists directly.
      */
     fun setRingPartZone(part: IconZones.Part, zone: IconZones.Zone?) {
+        // The headset switch is global and its strip reading is global, so "out of ring"
+        // has to mean every arrangement: leaving a copy in the other style's layout made
+        // the line reappear as soon as that style was selected.
+        if (zone == null && part == IconZones.Part.BT) {
+            val id = IconZones.encodePart(part)
+            val write: (SharedPreferences.Editor) -> Unit = { e ->
+                for (style in intArrayOf(Prefs.STYLE_RING, Prefs.STYLE_CAPSULE)) {
+                    val key = Prefs.styledKey(Prefs.KEY_RING_LAYOUT, style)
+                    val zones = Prefs.decodeLayout(
+                        preferences().getString(key, Prefs.EMPTY_LAYOUT),
+                    )
+                    for (z in zones.indices) {
+                        zones[z] = zones[z].filter { it != id }.toIntArray()
+                    }
+                    e.putString(key, Prefs.encodeLayout(zones))
+                }
+                // The headset switch is global, so its restore is written here rather than
+                // through a per-style snapshot: if placing it turned the switch on, taking
+                // it out turns it off again.
+                val auto = preferences().getString(Prefs.KEY_AUTO_ENABLED_PARTS, "") ?: ""
+                val ids = auto.split(',').mapNotNull { it.trim().toIntOrNull() }
+                if (id in ids) {
+                    e.putInt(Prefs.KEY_BT_BATTERY_MODE, Prefs.BT_BATTERY_OFF)
+                    e.putString(
+                        Prefs.KEY_AUTO_ENABLED_PARTS,
+                        ids.filter { it != id }.joinToString(","),
+                    )
+                }
+            }
+            preferences().edit { write(this) }
+            push(write)
+            notifyModule()
+            return
+        }
         val current = ModuleSettings.from(preferences(), density)
         if (zone != null) {
             applyRingAssignment(
@@ -172,6 +234,9 @@ class SettingsStore(val context: Context) {
             if (part == IconZones.Part.TYPE && current.mobileTypeMode == Prefs.MOBILE_TYPE_IN_RING) {
                 next.mobileTypeMode = Prefs.MOBILE_TYPE_OFF
             }
+            // A piece the placement flow switched on goes back off when it leaves the
+            // layout; one the user had already switched on keeps its out-of-ring reading.
+            IconZones.restoreAutoEnabled(next)
             applyRingAssignment(next)
         }
     }
@@ -255,6 +320,9 @@ class SettingsStore(val context: Context) {
     fun setHideStatusClock(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_STATUS_CLOCK, value)
     fun setHideAlarmIcon(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_ALARM_ICON, value)
     fun setHideBluetoothIcon(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_BLUETOOTH_ICON, value)
+    fun setHidePrivacyChip(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_PRIVACY_CHIP, value)
+    fun setHideSim2(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_SIM2, value)
+    fun setHideNetType(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_NET_TYPE, value)
 
     fun setPerfTempChargingOnly(value: Boolean) =
         writeBoolean(Prefs.KEY_PERF_TEMP_CHARGING_ONLY, value)
@@ -555,8 +623,23 @@ class SettingsStore(val context: Context) {
     fun setOutSignalSize(value: Int) = writeInt(Prefs.KEY_OUT_SIGNAL_SIZE, value)
     /** Dot-row size of the out-of-ring reading - see [Prefs.KEY_OUT_DOT_SIZE]. */
     fun setOutDotSize(value: Int) = writeInt(Prefs.KEY_OUT_DOT_SIZE, value)
+
+    /** Bar width of the out-of-ring reading - see [Prefs.KEY_OUT_BAR_WIDTH]. */
+    fun setOutBarWidth(value: Int) =
+        writeInt(Prefs.KEY_OUT_BAR_WIDTH, value.coerceIn(Prefs.MIN_OUT_BAR_WIDTH, Prefs.MAX_OUT_BAR_WIDTH))
+
+    /** Bar spacing of the out-of-ring reading - see [Prefs.KEY_OUT_BAR_PITCH]. */
+    fun setOutBarPitch(value: Int) =
+        writeInt(Prefs.KEY_OUT_BAR_PITCH, value.coerceIn(Prefs.MIN_OUT_BAR_PITCH, Prefs.MAX_OUT_BAR_PITCH))
+
     /** Stacked look of the out-of-ring reading - see [Prefs.KEY_STACK_STYLE]. */
     fun setStackStyle(value: Int) = writeInt(Prefs.KEY_STACK_STYLE, value)
+
+    /** Arc or flat rows for the ring's two stacked signal rows. */
+    fun setRingStackStyle(value: Int) = writeInt(
+        Prefs.KEY_RING_STACK_STYLE,
+        value.coerceIn(Prefs.RING_STACK_ARC, Prefs.RING_STACK_FLAT),
+    )
     fun setAntiBurnIn(value: Boolean) = writeBoolean(Prefs.KEY_ANTI_BURN_IN, value)
     fun setSignalColumns(value: Int) = writeInt(Prefs.KEY_SIGNAL_COLUMNS, Prefs.clamp(value, 4, 5))
     /** Where the stacked reading puts its type - see [Prefs.KEY_STACK_LABEL]. */
@@ -657,6 +740,9 @@ class SettingsStore(val context: Context) {
             prefs.putBoolean(Prefs.KEY_HIDE_STATUS_CLOCK, snapshot.hideStatusClock)
             prefs.putBoolean(Prefs.KEY_HIDE_ALARM_ICON, snapshot.hideAlarmIcon)
             prefs.putBoolean(Prefs.KEY_HIDE_BLUETOOTH_ICON, snapshot.hideBluetoothIcon)
+            prefs.putBoolean(Prefs.KEY_HIDE_PRIVACY_CHIP, snapshot.hidePrivacyChip)
+            prefs.putBoolean(Prefs.KEY_HIDE_SIM2, snapshot.hideSim2)
+            prefs.putBoolean(Prefs.KEY_HIDE_NET_TYPE, snapshot.hideNetType)
             prefs.putBoolean(Prefs.KEY_SHADE_LUNAR, snapshot.shadeLunar)
             prefs.putBoolean(Prefs.KEY_SHADE_WEATHER, snapshot.shadeWeather)
             prefs.putInt(Prefs.KEY_SHADE_WEATHER_STYLE, snapshot.shadeWeatherStyle)
@@ -718,7 +804,10 @@ class SettingsStore(val context: Context) {
             prefs.putInt(Prefs.KEY_OUT_TYPE_SIZE_DP, snapshot.outTypeSize)
             prefs.putInt(Prefs.KEY_OUT_SIGNAL_SIZE, snapshot.outSignalSize)
             prefs.putInt(Prefs.KEY_OUT_DOT_SIZE, snapshot.outDotSize)
+            prefs.putInt(Prefs.KEY_OUT_BAR_WIDTH, snapshot.outBarWidth)
+            prefs.putInt(Prefs.KEY_OUT_BAR_PITCH, snapshot.outBarPitch)
             prefs.putInt(Prefs.KEY_STACK_STYLE, snapshot.stackStyle)
+            prefs.putInt(Prefs.KEY_RING_STACK_STYLE, snapshot.ringStackStyle)
             prefs.putInt(Prefs.KEY_STACK_LABEL, snapshot.stackLabel)
             prefs.putBoolean(Prefs.KEY_ANTI_BURN_IN, snapshot.antiBurnIn)
             prefs.putInt(Prefs.KEY_SIGNAL_COLUMNS, snapshot.signalColumns)

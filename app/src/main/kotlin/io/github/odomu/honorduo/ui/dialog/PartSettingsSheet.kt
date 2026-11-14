@@ -95,10 +95,7 @@ internal fun PartSettingsSheet(
     OverlayBottomSheet(
         show = show,
         modifier = Modifier.layerBackdrop(sheetBackdrop),
-        title = stringResource(
-            R.string.drawing_settings_title,
-            stringResource(if (part == SettingsPart.Battery && a.ring) R.string.drawing_part_ring else part.labelRes),
-        ),
+        title = stringResource(R.string.drawing_settings_title, stringResource(part.labelRes)),
         onDismissRequest = onDismiss,
         onDismissFinished = onDismissFinished,
     ) {

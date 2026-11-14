@@ -174,6 +174,10 @@ internal object ConfigBackupManager {
 
         val prefs = context.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
         val editor = prefs.edit()
+        // Restore means "make this the configuration", not "merge": keys absent from the
+        // backup must go back to their defaults, otherwise a value written after the
+        // backup was taken survives and the file is only half-applied.
+        editor.clear()
         var count = 0
 
         val keys = data.keys()
@@ -189,7 +193,9 @@ internal object ConfigBackupManager {
             }
             count++
         }
-        editor.apply()
+        // commit, not apply: the framework push below reads the file through a different
+        // process and must see the restored values, not the ones it replaces.
+        editor.commit()
 
         // Push restored preferences to the framework service and refresh active state
         repository.syncAllToFramework()
