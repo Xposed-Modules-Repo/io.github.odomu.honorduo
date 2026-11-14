@@ -40,6 +40,7 @@ import io.github.odomu.honorduo.model.Prefs
 import io.github.odomu.honorduo.model.StatusAppearance
 import io.github.odomu.honorduo.model.StatusState
 import io.github.odomu.honorduo.ui.render.GlyphInk
+import io.github.odomu.honorduo.ui.render.IconZones
 import io.github.odomu.honorduo.ui.render.OutSignalRenderer
 import io.github.odomu.honorduo.ui.render.geometry.IconGeometry
 import io.github.odomu.honorduo.ui.view.GlyphView
@@ -107,7 +108,7 @@ internal object StatusBarRowManager {
         val created = Row(row, parent, battery, StatusState(battery))
         synchronized(ROWS) { ROWS.add(created) }
         watchVisibility(row, created)
-        row.post { syncRow(created, true) }
+        row.post { syncRow(created) }
     }
 
     fun drop(row: ViewGroup) {
@@ -187,7 +188,7 @@ internal object StatusBarRowManager {
         suppressed = on
         // One synchronous pass in one order, so no frame shows both sets of icons.
         for (row in snapshot()) {
-            syncRow(row, force = false)
+            syncRow(row)
             row.row.requestLayout()
             row.row.invalidate()
         }
@@ -222,14 +223,50 @@ internal object StatusBarRowManager {
         return null
     }
 
-    fun syncAll(a: StatusAppearance = ModuleConfig.appearance(), force: Boolean = true) {
+    fun syncAll(a: StatusAppearance = ModuleConfig.appearance()) {
         for (row in snapshot()) {
             row.row.post {
-                syncRow(row, force)
+                syncRow(row)
                 row.row.requestLayout()
                 row.row.invalidate()
             }
         }
+    }
+
+    /**
+     * Everything the glyph's measurement depends on.
+     *
+     * The fit is the one that bit: `glyphScale` below 100 shrinks the ink inside the
+     * old box, but above it the box itself has to grow, and without a changed key the
+     * view kept its cached measurement and the enlargement never showed.
+     */
+    private fun measureKey(a: StatusAppearance): Int {
+        var key = a.style
+        key = key * 31 + a.glyphScale
+        key = key * 31 + a.ringSpacingX
+        key = key * 31 + a.ringSpacingY
+        key = key * 31 + (if (a.capsule) 1 else 0)
+        key = key * 31 + (if (a.rect) 1 else 0)
+        key = key * 31 + (if (a.dataSimOnly) 1 else 0)
+        key = key * 31 + (if (a.dualSim) 1 else 0)
+        key = key * 31 + (if (a.antiBurnIn) 1 else 0)
+        if (a.capsule) {
+            // The capsule's width is the width of the readings placed inside it, so a
+            // placement or size change has to reach the measure pass. Without this the
+            // view kept the box it was first measured with after a piece was added.
+            val centre = a.ringZones[IconZones.Zone.CENTRE.ordinal]
+            for (part in centre) key = key * 31 + part
+            key = key * 31 + a.clockSize
+            key = key * 31 + a.valueSize
+            key = key * 31 + a.typeSize
+            key = key * 31 + a.perfReadingSize()
+            key = key * 31 + a.capGap
+            key = key * 31 + a.capsuleLength
+            key = key * 31 + a.ringStroke
+            key = key * 31 + a.typeSuffixScale
+            key = key * 31 + a.fontPath.hashCode()
+        }
+        return key
     }
 
     /**
@@ -238,11 +275,8 @@ internal object StatusBarRowManager {
      * Idempotent, and called from the layout pass: it never measures or lays a child
      * out by hand (the `LinearLayout` does that), only mounts, removes, sizes and sets
      * visibility.
-     *
-     * @param force true from a settings change, where a re-measure of the glyph is
-     *   wanted even if nothing about the row moved
      */
-    fun syncRow(row: Row, force: Boolean) {
+    fun syncRow(row: Row) {
         val a = ModuleConfig.appearance()
         StatusBarIconManager.resolveIds(row.row.resources)
         if (!a.enabled) {
@@ -270,8 +304,9 @@ internal object StatusBarRowManager {
         StatusBarIconManager.settle(row.container, a)
         syncOutViews(row)
         refreshTint(row)
-        if (force || row.lastStyle != a.style) {
-            row.lastStyle = a.style
+        val key = measureKey(a)
+        if (row.lastMeasureKey != key) {
+            row.lastMeasureKey = key
             row.glyph?.requestLayout()
         }
         if (a.antiBurnIn) {
@@ -309,7 +344,7 @@ internal object StatusBarRowManager {
         }
         row.row.post {
             synchronized(row) { row.syncPosted = false }
-            syncRow(row, false)
+            syncRow(row)
         }
     }
 
@@ -337,7 +372,7 @@ internal object StatusBarRowManager {
             // a row torn down under us is not worth crashing over.
         }
         row.glyph = null
-        row.lastStyle = -1
+        row.lastMeasureKey = Int.MIN_VALUE
     }
 
     /**
@@ -702,7 +737,7 @@ internal object StatusBarRowManager {
                 label.setTextColor(baseColor)
             }
         }
-        size(label, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, a.outTypeMarginRight, 0, density)
+        size(label, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, a.outSignalMargin, 0, density)
         label.visibility = View.VISIBLE
         StatusBarIconManager.release(label)
         return label
@@ -739,7 +774,7 @@ internal object StatusBarRowManager {
         label.setTextColor(row.state.foreground())
         size(
             label, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-            a.outTypeMarginRight, a.outTypeMarginLeft, density,
+            a.outSignalMargin, 0, density,
         )
         label.visibility = View.VISIBLE
         StatusBarIconManager.release(label)
@@ -972,6 +1007,40 @@ internal object StatusBarRowManager {
     }
 
     /**
+     * Repaints the hosts that show the headset level, once per frame at most.
+     *
+     * TWS earbuds and their case report separately, so one connection can move the
+     * level several times within a frame. The full resync behind [invalidateAll] is
+     * heavier than the reading: it polls telephony and rebuilds every readout row.
+     * Only the glyph is invalidated unless the level is also drawn in the strip, and
+     * the posted flag folds the burst into a single pass.
+     */
+    @Volatile
+    private var btRedrawPosted = false
+
+    fun invalidateBluetooth() {
+        if (!BarVisibility.shown || suppressed) {
+            SystemUiHook.markRepaintPending()
+            return
+        }
+        synchronized(this) {
+            if (btRedrawPosted) return
+            btRedrawPosted = true
+        }
+        Handler(Looper.getMainLooper()).post {
+            synchronized(this) { btRedrawPosted = false }
+            val a = ModuleConfig.appearance()
+            if (!a.enabled) return@post
+            val inStrip = a.perfBt || (!a.glyph && a.hasRingPart(Prefs.PART_BT))
+            for (row in snapshot()) {
+                if (inStrip) syncPerfReadouts(row, a)
+                row.glyph?.invalidate()
+                row.row.invalidate()
+            }
+        }
+    }
+
+    /**
      * Repaints every reading from the live state.
      *
      * Skipped entirely while the bar is hidden: nothing painted into an undrawn row
@@ -992,6 +1061,9 @@ internal object StatusBarRowManager {
                 syncPerfReadouts(row, a)
             }
             refreshTint(row)
+            // The capsule's width follows the placement, not the live readings; this only
+            // requests a layout on the rare refresh that actually changed it.
+            row.glyph?.refreshCapsuleWidth()
             row.row.invalidate()
         }
     }
@@ -1046,8 +1118,8 @@ internal object StatusBarRowManager {
         var fps: PerfLabel? = null
         var type: OutTypeLabel? = null
 
-        /** Last arrangement the glyph was measured for, so a style change re-measures. */
-        var lastStyle: Int = -1
+        /** Last measurement inputs the glyph was measured for; any change re-measures. */
+        var lastMeasureKey: Int = Int.MIN_VALUE
 
         /** True while a full sync is queued for this row. */
         var syncPosted: Boolean = false

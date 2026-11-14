@@ -5,7 +5,6 @@ import android.content.res.TypedArray
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import androidx.core.graphics.drawable.toDrawable
 import io.github.libxposed.api.XposedModule
@@ -14,6 +13,7 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
+
 /**
  * Replaces native status bar icons with custom built-in assets for Wi-Fi and system status indicators.
  *

@@ -143,7 +143,7 @@ internal object StatusBarIconManager {
 
     /** Caches the resource ids the suppression compares against. */
     fun resolveIds(res: Resources?) {
-        if (res == null) return
+        if (res == null || idsResolved) return
         wifiId = id(res, "wifi_combo")
         mobileId = id(res, "mobile_combo")
         batteryId = id(res, "battery")

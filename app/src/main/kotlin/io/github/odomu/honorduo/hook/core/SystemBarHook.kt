@@ -26,6 +26,14 @@ import io.github.odomu.honorduo.model.StatusState
 internal object SystemBarHook {
     private const val VISIBILITY_FLAGS = 0x0000000C
 
+    /** The privacy chip's view and the visibility to restore when it is shown again. */
+    private class PrivacyChipState(view: View) {
+        val view = java.lang.ref.WeakReference(view)
+        var hiddenVisibility: Int? = null
+    }
+
+    private val privacyChips = ArrayList<PrivacyChipState>()
+
 
     /**
      * Installs all status bar view and container hooks into the target ClassLoader.
@@ -43,7 +51,7 @@ internal object SystemBarHook {
         hooked += hookClockFace(module, cl)
         hooked += hookTint(module, cl)
         hooked += hookPanel(module, cl)
-        hooked += hookBluetooth(module, cl)
+        hooked += hookPrivacyChip(module, cl)
         hooked += hookOperatorIcons(module, cl)
         return hooked
     }
@@ -85,6 +93,11 @@ internal object SystemBarHook {
                     StatusBarRowManager.requestSync(row)
                 }
                 StatusBarRowManager.checkCapsuleAvoidance(self)
+                // Capsule-no-scale fallback for animation-less scale paths; the main
+                // restore path is CapsuleScaleHook riding the host's own spring.
+                if (ModuleConfig.appearance().capsuleNoScale) {
+                    runCatching { CapsuleScaleHook.resetSubtreeScale(self) }
+                }
             }
             result
         }
@@ -170,7 +183,7 @@ internal object SystemBarHook {
                 // While the bar is hidden the update is recorded, not painted: the
                 // measured text is rebuilt by the replay when the bar returns.
                 if (row != null && BarVisibility.shown) {
-                    StatusBarRowManager.syncRow(row, false)
+                    StatusBarRowManager.syncRow(row)
                 }
                 SystemUiHook.invalidateHosts()
             }
@@ -287,6 +300,75 @@ internal object SystemBarHook {
     }
 
     /**
+     * Hooks `HwNotchStatusBar.togglePrivacyChip` to hide the green camera/mic indicator.
+     *
+     * The chip is the bar's own view and is reused between shows, so hiding is done by
+     * visibility only: the view stays in the host's tree and its previous visibility is
+     * remembered, which is what lets the option be turned back off without a restart.
+     */
+    private fun hookPrivacyChip(module: XposedModule, cl: ClassLoader): Int {
+        val bar = Refl.cls("com.android.systemui.statusbar.phone.HwNotchStatusBar", cl) ?: return 0
+        val toggle = Refl.methodNamed(bar, "togglePrivacyChip", 2) ?: return 0
+        return SystemUiHook.hook(module, toggle, "honorduo-privacy-chip") { chain ->
+            chain.proceed()
+            val chip = chain.getArg(0) as? View
+            val show = chain.getArg(1) as? Boolean ?: false
+            if (chip != null) updatePrivacyChip(chip, show)
+            null
+        }
+    }
+
+    /** Records only live show events; release our visibility before the host reuses a chip. */
+    private fun updatePrivacyChip(chip: View, show: Boolean) {
+        for (i in privacyChips.indices.reversed()) {
+            val state = privacyChips[i]
+            val view = state.view.get()
+            if (view == null) {
+                privacyChips.removeAt(i)
+            } else if (view === chip) {
+                if (show) {
+                    setPrivacyChipHidden(state, chip, ModuleConfig.appearance().hidePrivacyChip)
+                } else {
+                    setPrivacyChipHidden(state, chip, false)
+                    privacyChips.removeAt(i)
+                }
+                return
+            }
+        }
+        if (show) {
+            val state = PrivacyChipState(chip)
+            privacyChips.add(state)
+            setPrivacyChipHidden(state, chip, ModuleConfig.appearance().hidePrivacyChip)
+        }
+    }
+
+    /** Applies the setting to every shown chip, including handing it back when off. */
+    fun applyPrivacyChipVisibility(a: io.github.odomu.honorduo.model.StatusAppearance) {
+        for (i in privacyChips.indices.reversed()) {
+            val state = privacyChips[i]
+            val chip = state.view.get()
+            if (chip == null) {
+                privacyChips.removeAt(i)
+            } else {
+                setPrivacyChipHidden(state, chip, a.hidePrivacyChip)
+            }
+        }
+    }
+
+    private fun setPrivacyChipHidden(state: PrivacyChipState, chip: View, hide: Boolean) {
+        if (hide) {
+            if (chip.visibility != View.GONE) {
+                if (state.hiddenVisibility == null) state.hiddenVisibility = chip.visibility
+                chip.visibility = View.GONE
+            }
+        } else {
+            val previous = state.hiddenVisibility ?: return
+            state.hiddenVisibility = null
+            if (chip.visibility == View.GONE) chip.visibility = previous
+        }
+    }
+
+    /**
      * Works out whether the module has to stand down right now and says so.
      *
      * One predicate for the three exclusions, so a panel closing and the lockscreen
@@ -314,33 +396,6 @@ internal object SystemBarHook {
                 SystemUiHook.LOG_INFO,
                 "scope ${ScopeTracker.describe()} mask=$scope -> $excluded",
             )
-        }
-    }
-
-    /**
-     * Hooks Bluetooth status updates to cache headset battery level and invalidate status bar glyphs.
-     */
-    private fun hookBluetooth(module: XposedModule, cl: ClassLoader): Int {
-        val policyClass = Refl.cls("com.android.systemui.statusbar.phone.HwPhoneStatusBarPolicy", cl) ?: return 0
-        val updateMethod = Refl.methodNamed(policyClass, "updateBluetooth", 0) ?: return 0
-        return SystemUiHook.hook(module, updateMethod, "honorduo-bluetooth-battery") { chain ->
-            chain.proceed()
-            val policy = chain.thisObject
-            if (policy != null) {
-                runCatching {
-                    val bluetoothField = Refl.field(policy.javaClass, "mBluetooth")
-                    val controller = Refl.get(bluetoothField, policy)
-                    if (controller != null) {
-                        val levelField = Refl.field(controller.javaClass, "mBluetoothBatteryLevel")
-                        val level = Refl.getInt(levelField, controller, -1)
-                        if (level != StatusState.sBluetoothBatteryLevel) {
-                            StatusState.sBluetoothBatteryLevel = level
-                            StatusBarRowManager.invalidateAll()
-                        }
-                    }
-                }
-            }
-            null
         }
     }
 
