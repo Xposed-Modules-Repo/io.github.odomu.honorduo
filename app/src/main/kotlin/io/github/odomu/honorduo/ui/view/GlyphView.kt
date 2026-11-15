@@ -174,7 +174,7 @@ internal class GlyphView(context: Context) : View(context) {
         val wifi = StatusState.wifiInkLevel()
         val shownType = if (a.typeHideOnWifi && wifi >= 1) null else s.mobileType
         val cap = a.capsule(s.level, s.charging, wifi, shownType, 0)
-        val measured = CapsuleRenderer.requiredCapsuleRight(a, cap, shownType)
+        val measured = CapsuleRenderer.requiredCapsuleRight(a, cap, shownType, s.level)
         return measured - a.capsuleRight()
     }
 
@@ -190,18 +190,13 @@ internal class GlyphView(context: Context) : View(context) {
         if (height <= 0) return
         val a = ModuleConfig.appearance()
         if (!a.capsule) return
-        val s = state ?: return
-        val wifi = StatusState.wifiInkLevel()
-        val type = if (a.typeHideOnWifi && wifi >= 1) null else s.mobileType
-        // The appearance's identity is part of the key: the length, size and spacing
-        // settings all live there, and without it a slider move left the outline at the
-        // old length until some unrelated reading happened to change.
-        // The bolt animation redraws at frame rate and must not rebuild the capsule (or its
-        // strings) every frame, which is why the key exists at all.
-        val key = ((System.identityHashCode(a) * 31 + s.level) * 31 + wifi) * 31 +
-            (type?.hashCode() ?: 0) * 31 + height
-        if (key == widthKey) return
-        widthKey = key
+        // Compare the width itself rather than a key built from the inputs: a piece that
+        // gains ink (the third centre reading, a value that just arrived) changes the
+        // required width without changing any of the key's fields, and the view then kept
+        // the box it was first measured with while the outline was drawn wider - the
+        // capsule spilled to the right and its clock looked pushed off centre.
+        // `requiredCapsuleRight` caches its own answer, so a still frame costs one
+        // comparison.
         val wanted = capsuleWidthPx(a, growthFor(a))
         if (wanted != measuredWidth) requestLayout()
     }
@@ -216,9 +211,6 @@ internal class GlyphView(context: Context) : View(context) {
     private fun capsuleWidthPx(a: StatusAppearance, growth: Float): Int =
         (height * ((CapsuleGeometry.capInkW(a, StatusState.wifiInkLevel()) + growth) /
             CapsuleGeometry.capInkBoxH())).roundToInt()
-
-    /** Last inputs [refreshCapsuleWidth] measured; see the guard there. */
-    private var widthKey = Int.MIN_VALUE
 
     override fun onDraw(canvas: Canvas) {
         val state = state ?: return

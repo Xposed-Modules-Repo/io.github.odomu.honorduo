@@ -38,7 +38,7 @@ class CapsuleWidthStabilityTest {
 
     private fun widthOf(a: StatusAppearance): Float {
         val cap = a.capsule(100, false, -1, "5G", 0)
-        return CapsuleRenderer.requiredCapsuleRight(a, cap, "5G")
+        return CapsuleRenderer.requiredCapsuleRight(a, cap, "5G", 64)
     }
 
     @Test

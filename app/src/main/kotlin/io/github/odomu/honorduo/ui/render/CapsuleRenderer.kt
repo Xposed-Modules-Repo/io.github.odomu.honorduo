@@ -116,7 +116,7 @@ internal object CapsuleRenderer {
         val stroke = a.ringStroke * CapsuleGeometry.CAP_STROKE_RATIO
 
         // The track first, in full, then the charged part over it. `level < 0` is "no reading yet" and fills nothing.
-        val right = requiredCapsuleRight(a, cap, mobileType)
+        val right = requiredCapsuleRight(a, cap, mobileType, level)
         val left = CapsuleGeometry.capLeftFor(right, CapsuleGeometry.capPairRight(a))
         STROKE.strokeWidth = stroke
         STROKE.style = Paint.Style.STROKE
@@ -193,20 +193,23 @@ internal object CapsuleRenderer {
      * answer only changes when the settings or the ink-bearing pieces do.
      */
     internal fun requiredCapsuleRight(
-        a: StatusAppearance, cap: StatusAppearance.Capsule, type: String?,
+        a: StatusAppearance, cap: StatusAppearance.Capsule, type: String?, level: Int,
     ): Float {
         val first = cap.parts[IconZones.Zone.CENTRE.ordinal]
         val second = cap.second[IconZones.Zone.CENTRE.ordinal]
+        val third = cap.third[IconZones.Zone.CENTRE.ordinal]
         if (a === lastAppearance && first == lastFirst && second == lastSecond &&
-            type == lastType
+            third == lastThird && type == lastType && level == lastLevel
         ) {
             return lastRight
         }
-        val right = computeCapsuleRight(a, first, second, type)
+        val right = computeCapsuleRight(a, first, second, third, type, level)
         lastAppearance = a
         lastFirst = first
         lastSecond = second
+        lastThird = third
         lastType = type
+        lastLevel = level
         lastRight = right
         return right
     }
@@ -214,24 +217,73 @@ internal object CapsuleRenderer {
     private var lastAppearance: StatusAppearance? = null
     private var lastFirst = -1
     private var lastSecond = -1
+    private var lastThird = -1
     private var lastType: String? = null
+    private var lastLevel = -1
     private var lastRight = 0f
 
     private fun computeCapsuleRight(
-        a: StatusAppearance, first: Int, second: Int, type: String?,
+        a: StatusAppearance, first: Int, second: Int, third: Int, type: String?, level: Int,
     ): Float {
         val pairRight = CapsuleGeometry.capPairRight(a)
-        if (first == Prefs.PART_NONE || second == Prefs.PART_NONE) return a.capsuleRight()
+        if (first == Prefs.PART_NONE) return a.capsuleRight()
         val stroke = a.ringStroke * CapsuleGeometry.CAP_STROKE_RATIO
         setFont(a.fontPath)
-        val content = pieceInkWidth(first, a, type, stroke) + pieceInkWidth(second, a, type, stroke)
-        if (content <= 0f) return pairRight
-        // The width reserves the reference inset only. Reading the spacing slider here
-        // made the outline grow with the padding, so moving it widened the whole capsule;
-        // the body now spends the slider inside that allowance instead.
-        val needed = content + CapsuleGeometry.CAP_TEXT_GAP + 2f * CAP_CELL_PADDING
         val available = CapsuleGeometry.capReadingsWidth(stroke, pairRight, CapsuleGeometry.CAP_LEFT)
+        // The pair reserves from fixed samples so its width never moves with the readings.
+        // Three pieces cannot afford that: the samples are the widest form of every piece,
+        // so the capsule came out far wider than the line it held and the spare width went
+        // straight into the two gaps. Measure what is drawn instead.
+        val measured = third != Prefs.PART_NONE
+        fun widthOf(part: Int): Float = if (measured) {
+            shownInkWidth(part, a, type, level, stroke, available)
+        } else {
+            pieceInkWidth(part, a, type, stroke)
+        }
+        var content = widthOf(first)
+        var count = 1
+        if (second != Prefs.PART_NONE) {
+            content += widthOf(second)
+            count++
+        }
+        if (third != Prefs.PART_NONE) {
+            content += widthOf(third)
+            count++
+        }
+        if (count == 1) return a.capsuleRight()
+        if (content <= 0f) return pairRight
+        // The pair's width reserves the reference inset plus one reference gap; three
+        // pieces reserve the same, so their two gaps share the slack exactly the way the
+        // pair's single gap does. Reserving the spacing setting four times made the
+        // capsule wider than the two-piece one and left the gaps visibly tighter.
+        // Three pieces reserve the spacing setting four times: two outer margins and two
+        // inner gaps, all the same value. Reserving only the reference 4-unit gap left
+        // the row cramped as soon as the clock was one of the three, because its five
+        // glyphs eat nearly the whole track and the spare width was all the gap there was.
+        val needed = if (count >= 3) {
+            content + 4f * (CAP_CELL_PADDING * a.capGap / 100f)
+        } else content + CapsuleGeometry.CAP_TEXT_GAP + 2f * CAP_CELL_PADDING
         return pairRight + maxOf(0f, needed - available)
+    }
+
+    /**
+     * The width the piece is about to draw, measured from the text it will show.
+     *
+     * [pieceInkWidth] answers the reservation question and therefore measures fixed
+     * samples ("100", "88:88"); using those for placement left the gap beside a short
+     * reading visibly wider than the gap beside a long one.
+     */
+    private fun shownInkWidth(
+        part: Int, a: StatusAppearance, type: String?, level: Int, stroke: Float, track: Float,
+    ): Float {
+        val text = pieceText(part, a, type, level) ?: return pieceInkWidth(part, a, type, stroke)
+        if (text.isEmpty()) return 0f
+        applyWeight(textWeightOf(part, a))
+        val setting = textSizeOf(part, a)
+        val suffix = if (part == Prefs.PART_TYPE) a.typeSuffixScale else 100
+        // The size the drawer will pick for this exact string in this exact cell.
+        val size = capsuleTextSize(text, setting, track, suffix, -1f, stroke)
+        return textBoxWidth(text, size, part == Prefs.PART_TYPE, suffix)
     }
 
     /** Natural width of one piece at the size the interior draws it. */
@@ -308,12 +360,16 @@ internal object CapsuleRenderer {
             drawCapsuleHeadsetLine(c, fg, a, band == IconZones.Zone.TOP, left, right)
             return
         }
+        // A reading in an opening keeps the same margin from the cut ends that the body
+        // keeps from the caps. Fitting it to the whole mouth made it touch both arcs, so
+        // its ink crossed them and the two sides read as different distances.
+        val mouth = CapsuleGeometry.capOpeningWidth(right) - 2f * CapsuleGeometry.capTextInset()
         drawCapsulePiece(
             c, stroke, part, level, quickCharging, wifiLevel, type, fg, a,
             anchorX = CapsuleGeometry.capDotCx(left, right),
             cy = CapsuleGeometry.capOpeningCy(band == IconZones.Zone.TOP, stroke),
             align = CellAlign.CENTRE,
-            width = CapsuleGeometry.capOpeningWidth(right),
+            width = mouth.coerceAtLeast(1f),
             heightHint = openingRoom(band, stroke),
         )
     }
@@ -380,6 +436,7 @@ internal object CapsuleRenderer {
             return
         }
         val second = cap.second[IconZones.Zone.CENTRE.ordinal]
+        val third = cap.third[IconZones.Zone.CENTRE.ordinal]
         val cy = CapsuleGeometry.capInteriorCy(stroke)
         // The two cells are independent components on one track: each hangs off its own
         // edge of the interior, and the track is what each is fitted against. When both
@@ -407,6 +464,31 @@ internal object CapsuleRenderer {
             )
             return
         }
+        if (third != Prefs.PART_NONE) {
+            val placed = threePieceLayout(
+                a, first, second, third, type, level, stroke, edgeLeft, edgeRight,
+            )
+            val x1 = placed[0] + a.capsuleLeftDx
+            val x2 = placed[2]
+            val x3 = placed[4] + a.capsuleRightDx
+            val midY = cy + (a.capsuleLeftDy + a.capsuleRightDy) * 0.5f
+            drawCapsulePiece(
+                c, stroke, first, level, quickCharging, wifiLevel, type, fg, a,
+                anchorX = x1, cy = cy + a.capsuleLeftDy,
+                align = CellAlign.LEFT, width = track, heightHint = -1f,
+            )
+            drawCapsulePiece(
+                c, stroke, second, level, quickCharging, wifiLevel, type, fg, a,
+                anchorX = x2, cy = midY,
+                align = CellAlign.LEFT, width = track, heightHint = -1f,
+            )
+            drawCapsulePiece(
+                c, stroke, third, level, quickCharging, wifiLevel, type, fg, a,
+                anchorX = x3, cy = cy + a.capsuleRightDy,
+                align = CellAlign.LEFT, width = track, heightHint = -1f,
+            )
+            return
+        }
         drawCapsulePiece(
             c, stroke, first, level, quickCharging, wifiLevel, type, fg, a,
             anchorX = edgeLeft + a.capsuleLeftDx,
@@ -415,13 +497,7 @@ internal object CapsuleRenderer {
         )
         val isIcon = second == Prefs.PART_BOLT || second == Prefs.PART_WIFI
         val secondAnchorX = if (isIcon) {
-            val inkHalf = when (second) {
-                Prefs.PART_BOLT -> BOLT_INK_W * CapsuleGeometry.capBoltScale(stroke) *
-                    a.boltScaleFactor() * 0.5f
-                else -> IconGeometry.W_INK_W * CapsuleGeometry.capWifiScale(stroke) *
-                    a.wifiScaleFactor() * 0.5f
-            }
-            CapsuleGeometry.capRightIconCx(stroke, right, baseInset + rightExtra, inkHalf) + a.capsuleRightDx
+            capsuleRightAnchor(second, stroke, right, baseInset + rightExtra, a)
         } else {
             edgeRight + a.capsuleRightDx
         }
@@ -432,6 +508,66 @@ internal object CapsuleRenderer {
             align = if (isIcon) CellAlign.CENTRE else CellAlign.RIGHT,
             width = track, heightHint = -1f,
         )
+    }
+
+    /** Where a right-hand icon's centre goes, so its ink clears the cap. */
+    private fun capsuleRightAnchor(
+        part: Int, stroke: Float, right: Float, inset: Float, a: StatusAppearance,
+    ): Float {
+        val inkHalf = when (part) {
+            Prefs.PART_BOLT -> BOLT_INK_W * CapsuleGeometry.capBoltScale(stroke) * a.boltScaleFactor() * 0.5f
+            else -> IconGeometry.W_INK_W * CapsuleGeometry.capWifiScale(stroke) * a.wifiScaleFactor() * 0.5f
+        }
+        return CapsuleGeometry.capRightIconCx(stroke, right, inset, inkHalf) + a.capsuleRightDx
+    }
+
+    /**
+     * The exact text a piece draws, or null for the pieces that draw ink instead.
+     *
+     * One source for both the drawer and the placement maths: measuring a piece from a
+     * different string than the one it draws is what put the gaps of three pieces out of
+     * step - the signal reading was measured as a wattage.
+     */
+    private fun pieceText(part: Int, a: StatusAppearance, type: String?, level: Int): String? =
+        when (part) {
+            Prefs.PART_VALUE -> valueText(level, a)
+            Prefs.PART_TYPE -> type
+            Prefs.PART_CLOCK -> StatusState.sClockText.takeIf { it.isNotEmpty() }
+            Prefs.PART_POWER, Prefs.PART_RUNNING, Prefs.PART_TEMP, Prefs.PART_CURRENT,
+            Prefs.PART_FPS, -> capsulePerfText(part, a)
+            Prefs.PART_VOLTAGE -> StatusState.voltageText()
+            Prefs.PART_SIGNAL -> StatusState.signalText()
+            Prefs.PART_BT -> if (a.btBatteryMode == Prefs.BT_BATTERY_DIGIT) {
+                StatusState.sBluetoothBatteryLevel.takeIf { it in 0..100 }?.let { btLevelText(it) }
+            } else {
+                null
+            }
+            else -> null
+        }
+
+    /**
+     * Where three centre pieces go on one track.
+     *
+     * The outer two keep the pair's own inset from the caps and the two inner gaps are
+     * equal, so the group reads as one row instead of three cells of unequal slack.
+     * Returns `[x1, w1, x2, w2, x3, w3]`, anchored on each piece's ink edge.
+     */
+    internal fun threePieceLayout(
+        a: StatusAppearance, first: Int, second: Int, third: Int,
+        type: String?, level: Int, stroke: Float,
+        edgeLeft: Float, edgeRight: Float,
+    ): FloatArray {
+        val track = edgeRight - edgeLeft
+        val w1 = shownInkWidth(first, a, type, level, stroke, track)
+        val w2 = shownInkWidth(second, a, type, level, stroke, track)
+        val w3 = shownInkWidth(third, a, type, level, stroke, track)
+        // The pair spends its whole spare width on one gap; three pieces split the same
+        // spare into two, so the row reads like the two-piece arrangement.
+        val step = (track - w1 - w2 - w3).coerceAtLeast(0f) / 2f
+        val x1 = edgeLeft
+        val x2 = x1 + w1 + step
+        val x3 = x2 + w2 + step
+        return floatArrayOf(x1, w1, x2, w2, x3, w3)
     }
 
     /** Draws one piece in a cell of the given width and height budget. */
@@ -488,33 +624,26 @@ internal object CapsuleRenderer {
                 )
             }
             Prefs.PART_VALUE -> drawCapsuleValue(
-                c, stroke, level, fg, a, anchorX, cy, align, heightHint, width,
+                c, stroke, pieceText(part, a, type, level) ?: "", fg, a,
+                anchorX, cy, align, heightHint, width,
             )
             Prefs.PART_TYPE -> drawCapsuleType(
                 c, stroke, type, fg, a, anchorX, cy, align, heightHint, width,
             )
             Prefs.PART_CLOCK -> drawCapsuleTime(
-                c, stroke, fg, a, anchorX, cy, align, heightHint, width,
+                c, stroke, pieceText(part, a, type, level) ?: "", fg, a,
+                anchorX, cy, align, heightHint, width,
             )
-            Prefs.PART_POWER, Prefs.PART_RUNNING, Prefs.PART_TEMP, Prefs.PART_CURRENT, Prefs.PART_FPS ->
-                drawCapsulePerf(
-                    c, stroke, capsulePerfText(part, a), fg, a, anchorX, cy, align,
-                    heightHint, width,
-                )
-            Prefs.PART_VOLTAGE -> drawCapsulePerf(
-                c, stroke, StatusState.voltageText(), fg, a, anchorX, cy, align,
-                heightHint, width,
-            )
-            Prefs.PART_SIGNAL -> drawCapsulePerf(
-                c, stroke, StatusState.signalText(), fg, a, anchorX, cy, align,
+            Prefs.PART_POWER, Prefs.PART_RUNNING, Prefs.PART_TEMP, Prefs.PART_CURRENT,
+            Prefs.PART_FPS, Prefs.PART_VOLTAGE, Prefs.PART_SIGNAL -> drawCapsulePerf(
+                c, stroke, pieceText(part, a, type, level), fg, a, anchorX, cy, align,
                 heightHint, width,
             )
             Prefs.PART_BT -> {
                 val btLevel = StatusState.sBluetoothBatteryLevel
                 if (a.btBatteryMode == Prefs.BT_BATTERY_DIGIT) {
                     drawCapsulePerf(
-                        c, stroke,
-                        btLevel.takeIf { it in 0..100 }?.let { btLevelText(it) },
+                        c, stroke, pieceText(part, a, type, level),
                         fg, a, anchorX, cy, align, heightHint, width,
                     )
                 } else {
@@ -560,7 +689,13 @@ internal object CapsuleRenderer {
      * advance box is still what gets fitted to the track; only the placement uses ink.
      */
     private fun inkAlignedCx(anchorX: Float, advance: Float, align: CellAlign): Float {
-        if (advance <= 0f || align == CellAlign.CENTRE) return anchorX
+        if (advance <= 0f) return anchorX
+        if (align == CellAlign.CENTRE) {
+            // Centre the ink, not the advance box: a run whose last glyph carries a wide
+            // bearing sat visibly right of the opening it was supposed to be centred in,
+            // with no margin left on that side.
+            return anchorX + advance * 0.5f - (INK_BOUNDS.left + INK_BOUNDS.right) * 0.5f
+        }
         val edge = if (align == CellAlign.LEFT) INK_BOUNDS.left.toFloat()
         else INK_BOUNDS.right.toFloat()
         // `drawText` with Align.CENTER puts the glyph origin at `x - advance / 2`, so the
@@ -690,6 +825,16 @@ internal object CapsuleRenderer {
             }
             return piece + CapsuleGeometry.capDotClearance() + stroke * 0.5f
         }
+        if (part != Prefs.PART_WIFI && part != Prefs.PART_BOLT) {
+            // Text: cut the gap for the line that is actually drawn. The geometry's own
+            // estimate counts 0.31 em per character, which is narrower than the clock's
+            // five glyphs at the size the drawer picks - the text then ran over the arc
+            // ends and its two margins stopped matching.
+            val half = openingTextHalfWidth(part, a, type, level, stroke)
+            if (half > 0f) {
+                return half + CapsuleGeometry.capDotClearance() + stroke * 0.5f
+            }
+        }
         val factor = when (part) {
             Prefs.PART_WIFI -> a.wifiScaleFactor()
             Prefs.PART_BOLT -> a.boltScaleFactor()
@@ -699,6 +844,52 @@ internal object CapsuleRenderer {
             part, level, type ?: "", stroke,
             CapsuleGeometry.capOpeningTextRoomH(stroke), factor,
         ) + CapsuleGeometry.capDotClearance() + stroke * 0.5f
+    }
+
+    /**
+     * Half the width a piece inks in an opening, at the size the drawer will request.
+     *
+     * Measured without the mouth fit: the mouth is derived from this answer, so fitting
+     * here would be circular. A line too wide for the capsule still gets shrunk later.
+     */
+    private fun openingTextHalfWidth(
+        part: Int, a: StatusAppearance, type: String?, level: Int, stroke: Float,
+    ): Float {
+        val text = pieceText(part, a, type, level) ?: return -1f
+        if (text.isEmpty()) return 0f
+        applyWeight(textWeightOf(part, a))
+        val size = CapsuleGeometry.capOpeningTextEm(stroke) * textSizeOf(part, a) / Prefs.DEF_VALUE_SIZE
+        val suffix = if (part == Prefs.PART_TYPE) a.typeSuffixScale else 100
+        return textBoxWidth(text, size, part == Prefs.PART_TYPE, suffix) * 0.5f
+    }
+
+    /** The weight a piece draws its text with. */
+    private fun textWeightOf(part: Int, a: StatusAppearance): Int = when (part) {
+        Prefs.PART_VALUE -> a.valueWeight
+        Prefs.PART_TYPE -> a.typeWeight
+        Prefs.PART_CLOCK -> a.clockWeight
+        else -> a.perfTypeWeight()
+    }
+
+    /** The size setting a piece draws its text with. */
+    private fun textSizeOf(part: Int, a: StatusAppearance): Int = when (part) {
+        Prefs.PART_VALUE -> a.valueSize
+        Prefs.PART_TYPE -> a.typeSize
+        Prefs.PART_CLOCK -> a.clockSize
+        else -> a.perfReadingSize()
+    }
+
+    /**
+     * Width of [text] at [size]: its ink for a reading, the box for a type label.
+     *
+     * The drawer aligns a reading by its glyph bounds and a type label by the box
+     * `measureType` returns, so the two must be measured the same way they are placed.
+     */
+    private fun textBoxWidth(text: String, size: Float, isType: Boolean, suffix: Int): Float {
+        TEXT.textSize = size
+        if (isType) return measureType(text, size, suffix)
+        TEXT.getTextBounds(text, 0, text.length, INK_BOUNDS)
+        return INK_BOUNDS.width().toFloat()
     }
 
     private fun buildCapsuleOutline(
@@ -1083,10 +1274,9 @@ internal object CapsuleRenderer {
 
     /** The time, in a capsule cell centred on `(cx, cy)`. */
     private fun drawCapsuleTime(
-        c: Canvas, stroke: Float, fg: Int, a: StatusAppearance,
+        c: Canvas, stroke: Float, text: String, fg: Int, a: StatusAppearance,
         anchorX: Float, cy: Float, align: CellAlign, heightHint: Float, width: Float,
     ) {
-        val text = StatusState.sClockText
         if (text.isEmpty()) {
             return
         }
@@ -1101,7 +1291,26 @@ internal object CapsuleRenderer {
         TEXT.textAlign = Paint.Align.CENTER
         val advance = TEXT.measureText(text)
         TEXT.getTextBounds(text, 0, text.length, INK_BOUNDS)
-        val x = inkAlignedCx(anchorX, advance, align)
+        var x = inkAlignedCx(anchorX, advance, align)
+        if (align == CellAlign.CENTRE) {
+            // drawTimeGlyphs lays the clock out glyph by glyph, and the sum of those
+            // advances is not the string's advance on every face. Centring by the string
+            // bounds therefore left the clock off-centre in its opening; measure the very
+            // layout that will be drawn and centre that.
+            var inkLeft = Float.MAX_VALUE
+            var inkRight = -Float.MAX_VALUE
+            var cursor = 0f
+            for (i in text.indices) {
+                TEXT.getTextWidths(text, i, i + 1, GLYPH_ADVANCE)
+                TEXT.getTextBounds(text, i, i + 1, INK_BOUNDS)
+                inkLeft = minOf(inkLeft, cursor + INK_BOUNDS.left)
+                inkRight = maxOf(inkRight, cursor + INK_BOUNDS.right)
+                cursor += GLYPH_ADVANCE[0]
+            }
+            if (inkRight > inkLeft) {
+                x = anchorX + advance * 0.5f - (inkLeft + inkRight) * 0.5f
+            }
+        }
         val baseline = cy + (size * CapsuleGeometry.CAP_HEIGHT_RATIO) * 0.5f
         drawTimeGlyphs(
             c, TEXT, text, x, baseline,
@@ -1111,11 +1320,10 @@ internal object CapsuleRenderer {
     }
 
     private fun drawCapsuleValue(
-        c: Canvas, stroke: Float, level: Int, fg: Int,
+        c: Canvas, stroke: Float, text: String, fg: Int,
         a: StatusAppearance, anchorX: Float, cy: Float, align: CellAlign,
         heightHint: Float, width: Float,
     ) {
-        val text = valueText(level, a)
         applyWeight(a.valueWeight)
         val size = capsuleTextSize(
             text, a.valueSize, width, 100,

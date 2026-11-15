@@ -110,7 +110,7 @@ class CapsuleCentreSpacingTest {
         val a = StatusAppearance(cfg)
         val wifi = 3
         val cap = a.capsule(100, false, wifi, "5G", 0)
-        val growth = CapsuleRenderer.requiredCapsuleRight(a, cap, "5G") - a.capsuleRight()
+        val growth = CapsuleRenderer.requiredCapsuleRight(a, cap, "5G", 64) - a.capsuleRight()
 
         val h = 160
         val w = (h * ((CapsuleGeometry.capInkW(a, wifi) + growth) / CapsuleGeometry.capInkBoxH()))
