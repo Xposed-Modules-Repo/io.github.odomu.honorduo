@@ -199,18 +199,6 @@ object RingGeometry {
     const val NOTCH_PIECE_EXTRA = 9f
 
 
-    /**
-     * How far the icon in a 12/6 o'clock mouth moves toward that mouth, in design units.
-     *
-     * The band's centre sat nine units inside the arc's own line, so a fan drawn there was
-     * half buried: the mouth was open but the piece filled it from the inside, which reads as
-     * "there is no opening". Moving the piece out is what makes it straddle the gap the way
-     * the capsule's openings already do. The box grows by the same amount on both sides, so
-     * the piece still fits whatever the mouth.
-     */
-    const val NOTCH_PIECE_LIFT = 6f
-
-
     /** Inset the ring keeps between a slot's ink and the slot's own box, in design units. */
     const val RING_SLOT_INSET = 2.5f
 
@@ -321,11 +309,22 @@ object RingGeometry {
      * slots stay in proportion with the dots they stand in for.
      */
     @JvmStatic
-    fun zoneTextRoomH(z: Int): Float {
+    fun zoneTextRoomH(z: Int, a: StatusAppearance?): Float {
+        val inner = IconGeometry.B_R -
+            (a?.ringStroke ?: Prefs.DEF_RING_STROKE) * RING_STROKE_RATIO * 0.5f
+        val openingsHaveText = a != null && a.ring && (
+            a.ringZones.getOrNull(Prefs.ZONE_TOP)?.any { isTextPiece(it) } == true ||
+                a.ringZones.getOrNull(Prefs.ZONE_BOTTOM)?.any { isTextPiece(it) } == true
+            )
         if (z == 1) {
+            // Three rows share the interior when the mouths hold readings: the middle
+            // third gives up the strip the opening rows need, or the two lines collide.
+            if (openingsHaveText) return inner * 0.7f - 2f * ZONE_TYPE_FRINGE
             return 2f * (IconGeometry.B_R - Prefs.DEF_RING_STROKE) - 2f * ZONE_TEXT_INSET - 2f * ZONE_TYPE_FRINGE
         }
-        return if (z == 0) 32f else 26f
+        // An opening's reading stands in the mouth: its height is the strip the cut leaves
+        // on both sides of the band centre, not the circle's interior.
+        return inner * 0.55f - 2f * ZONE_TYPE_FRINGE
     }
 
 
@@ -490,43 +489,29 @@ object RingGeometry {
     }
 
 
-    /**
-     * The extra ink box the ring needs when a mouth holds an icon, on **each** side.
-     *
-     * Zero unless one of the two mouths holds a Wi-Fi fan or the bolt: a text reading keeps the
-     * band's own centre, so nothing has to move for it.
-     */
+    /** Whether the mouth holds a reading rather than a bead row or an icon. */
+    private fun isTextPiece(id: Int): Boolean =
+        !Prefs.isSignalRow(id) && id != Prefs.PART_NONE &&
+            id != Prefs.PART_WIFI && id != Prefs.PART_BOLT
+
+
+    /** The ring's ink height for this frame: its stroke box, with no extra band. */
     @JvmStatic
-    fun ringInkPad(a: StatusAppearance?): Float {
-        if (a == null || !a.ring) return 0f
-        val top = a.ringZones.getOrNull(Prefs.ZONE_TOP)?.any { isNotchIcon(it) } == true
-        val bottom = a.ringZones.getOrNull(Prefs.ZONE_BOTTOM)?.any { isNotchIcon(it) } == true
-        return if (top || bottom) NOTCH_PIECE_LIFT else 0f
-    }
-
-    private fun isNotchIcon(id: Int): Boolean = id == Prefs.PART_WIFI || id == Prefs.PART_BOLT
-
-
-    /** The ring's ink height for this frame: its stroke box plus [ringInkPad] on both sides. */
-    @JvmStatic
-    fun ringInkH(a: StatusAppearance?): Float = 2f * IconGeometry.ringInkHalf(a) + 2f * ringInkPad(a)
-
-
-    /** The top of the ring's ink box, in design units (negative when it grew). */
-    @JvmStatic
-    fun ringInkTop(a: StatusAppearance?): Float = -ringInkPad(a)
+    fun ringInkH(a: StatusAppearance?): Float = 2f * IconGeometry.ringInkHalf(a)
 
 
     /**
      * The slot centre the ring draws band `z` at.
      *
-     * A mouth's icon is pulled toward its mouth by [NOTCH_PIECE_LIFT]; everything else stays on
-     * the band's own centre.
+     * The ring's own spacing moves the mouths outward; everything else stays on the band's
+     * own centre.
      */
     @JvmStatic
     fun notchCy(z: Int, a: StatusAppearance): Float =
-        if (z == 0) ZONE_CY[0] - a.ringSpacingY - ringInkPad(a)
-        else ZONE_CY[2] + a.ringSpacingY + ringInkPad(a)
+        // No pad term: the ink box grows for the band, but the piece itself stays on the
+        // band's centre. Carrying the pad here pushed the reading onto the rim, where it
+        // overlapped the arc instead of sitting inside the mouth.
+        if (z == 0) ZONE_CY[0] - a.ringSpacingY else ZONE_CY[2] + a.ringSpacingY
 
 
     /**
@@ -538,9 +523,9 @@ object RingGeometry {
      * sized to the piece alone leaves the cap sitting on the piece - which reads as "there is
      * no opening". Measured at radius [B_R], the line the arc is drawn on.
      *
-     * Only pieces whose ink is known without a text measurement get a fitted mouth: the Wi-Fi
-     * arcs and the bolt. Text keeps the reference [GAP_WIDTH_DEG], because its width depends on
-     * the string and on the font the user installed.
+     * Text is cut for its sample width too (see [textSampleW]): the reference gap only fits
+     * a bead row, and a reading cut to it either shrank to a footnote or spilled onto the
+     * arc.
      */
     @JvmStatic
     fun notchHalfDeg(z: Int, part: Int, a: StatusAppearance): Float {
@@ -548,6 +533,8 @@ object RingGeometry {
         val inkW = when (part) {
             Prefs.PART_WIFI -> IconGeometry.W_INK_W * notchWifiScale(z, a)
             Prefs.PART_BOLT -> 15f * notchBoltScale(z, a)
+            // Text mouths are cut by the renderer, which knows the string it draws
+            // (notchHalfDegForInk); this copy answers for the icons only.
             else -> return GAP_WIDTH_DEG * 0.5f
         }
         val capR = a.ringStroke * RING_STROKE_RATIO * 0.5f
@@ -555,6 +542,25 @@ object RingGeometry {
         val half = Math.toDegrees(
             asin((reach / IconGeometry.B_R).coerceIn(0f, 1f).toDouble()),
         ).toFloat()
+        return half.coerceIn(12f, 40f)
+    }
+
+    /**
+     * Half the mouth a piece of ink [inkW] wide needs, in degrees.
+     *
+     * The same formula the icons use, and the one source of truth for a mouth's size: the
+     * caller passes the width it is about to draw, so the cut and the fit cannot disagree.
+     */
+    @JvmStatic
+    fun notchHalfDegForInk(inkW: Float, stroke: Int): Float {
+        if (inkW <= 0f) return GAP_WIDTH_DEG * 0.5f
+        val capR = stroke * RING_STROKE_RATIO * 0.5f
+        val reach = inkW * 0.5f + NOTCH_PIECE_CLEARANCE + capR
+        val half = Math.toDegrees(
+            asin((reach / IconGeometry.B_R).coerceIn(0f, 1f).toDouble()),
+        ).toFloat()
+        // Up to the mouth's own limit rather than a hand-set 40: a long reading keeps its
+        // size and the outline opens for it.
         return half.coerceIn(12f, GAP_WIDTH_DEG * 0.5f)
     }
 
@@ -773,26 +779,20 @@ object RingGeometry {
      * only at the centre line did.
      */
     @JvmStatic
-    fun zoneTextRoomW(z: Int, ringStroke: Int, inkH: Float): Float {
+    fun zoneTextRoomW(z: Int, a: StatusAppearance, inkH: Float, halfDeg: Float): Float {
         if (z != 1) {
-            // The end thirds sit in the ring's own openings, where there is no arc across
-            // the slot at all - the ink there is bounded by the arc's END CAPS, not by a
-            // chord that the text's own height would narrow.
-            //
-            // Measuring the chord there was wrong twice over: it made the budget depend on
-            // the line's height (so the fit oscillated between two values instead of
-            // converging), and at the top it collapsed the budget to about 20 units the
-            // moment the text's upper edge passed the circle's apex - a cliff that no
-            // amount of iterating could settle on.
-            //
-            // The room in an opening is its chord: the straight distance between the two
-            // caps, which is fixed by the opening's width, not by the text.
-            return maxOf(0f, openingChord(z, ringStroke.toFloat()))
+            // The reading stands in its mouth, so the room is that mouth's chord: the cut
+            // is measured from the same string (see mouthHalfDeg), so the two agree.
+            if (halfDeg <= 0f) return 0f
+            val halfRad = Math.toRadians(halfDeg.toDouble())
+            val chord = (2.0 * sin(halfRad) * IconGeometry.B_R).toFloat()
+            return maxOf(0f, chord - a.ringStroke - 4f * ZONE_TYPE_FRINGE)
         }
+        val ringStroke = a.ringStroke
         val centre = zoneTextCy(z, ringStroke)
         val half = maxOf(0f, inkH) * 0.5f
-        // The middle third is inside the ring, so its budget really is a chord - and one
-        // that narrows as the line grows, which is why the caller iterates.
+        // The row is inside the ring, so its budget really is a chord - and one that
+        // narrows as the line grows, which is why the caller iterates.
         val rowA = centre - half
         val rowB = centre + half
         val binding =
@@ -809,21 +809,6 @@ object RingGeometry {
     }
 
 
-    /**
-     * The straight distance between the two arc caps of a zone's opening, in design
-     * units.
-     *
-     * That is the width a piece standing in the opening has: the opening is a sector
-     * bounded by the arc's round ends, so its usable width is the chord across it - a
-     * fixed number, unlike the interior chord which shrinks towards the top of the
-     * circle. Insets a stroke's worth so the ink clears both caps.
-     */
-    @JvmStatic
-    fun openingChord(z: Int, ringStroke: Float): Float {
-        val halfAngle = Math.toRadians(GAP_WIDTH_DEG * 0.5)
-        val chord = sin(halfAngle).toFloat() * 2f * IconGeometry.B_R
-        return maxOf(0f, chord - ringStroke - 4f * ZONE_TYPE_FRINGE)
-    }
 
 
     /**
@@ -836,7 +821,10 @@ object RingGeometry {
      */
     @JvmStatic
     fun zoneTextCy(z: Int, ringStroke: Int): Float {
-        return ZONE_CY[z]
+        // The middle third sits on the ring's own centre. ZONE_CY[1] is 64, while the
+        // circle is centred at B_CY (61.5), so everything placed in the middle - text
+        // and figures alike - sat two and a half units below the arcs it lives inside.
+        return if (z == 1) IconGeometry.B_CY else ZONE_CY[z]
     }
 
     @JvmField

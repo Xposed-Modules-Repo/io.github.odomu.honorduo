@@ -202,7 +202,7 @@ internal object IconRenderer {
         // Two centre pieces can need more than the stored pair width. The answer depends on
         // which pieces have ink and how they are sized, never on the reading's current text.
         val capsuleGrowth = if (cap != null) {
-            CapsuleRenderer.requiredCapsuleRight(appearance, cap, shownType) - appearance.capsuleRight()
+            CapsuleRenderer.requiredCapsuleRight(appearance, cap, shownType, level) - appearance.capsuleRight()
         } else {
             0f
         }
@@ -574,14 +574,13 @@ internal object IconRenderer {
                 (appearance.ringZones.getOrNull(2)?.contains(Prefs.PART_MOBILE) == true && appearance.dualSim))
             val stackShiftY = if (hasBottomStacked) 2.0f * scale else 0f
             val inkH = RingGeometry.ringInkH(appearance)
-            val inkTop = RingGeometry.ringInkTop(appearance)
             val half = IconGeometry.ringInkHalf(appearance)
             val leftExtra = RingGeometry.ringFlankWifiExtra(appearance, true)
             val rightExtra = RingGeometry.ringFlankWifiExtra(appearance, false)
             val total = 2f * half + leftExtra + rightExtra
             out[1] = (w - total * scale) / 2f + leftExtra * scale -
                 (IconGeometry.B_CX - half) * scale
-            out[2] = (h - inkH * scale) / 2f - inkTop * scale - stackShiftY
+            out[2] = (h - inkH * scale) / 2f - stackShiftY
         }
         return true
     }

@@ -85,21 +85,20 @@ internal object RingRenderer {
 
     private const val RING_SPARK_SCALE = 0.55f
 
+    /** Half the angular span of a stacked fan, in radians; the outer row inks it longest. */
     private const val DUAL_SIGNAL_HALF_SPAN_RAD = 0.42760567f
 
     /**
      * Flat stacked rows, taken from CombinedStatus's combined-icon geometry.
      *
-     * Its 120-box puts the four dots at x = 34, 51, 69, 86 (centre 60) and the two rows
-     * of the top and bottom readings at y = 11/28 and 92/109. The x values become
-     * `-26..26` around this ring's centre; the y values are absolute design units, so
-     * each zone subtracts its own centre line.
+     * Its 120-box puts the four dots at x = 34, 51, 69, 86 (centre 60), which becomes
+     * `-26..26` around this ring's centre; the rows themselves now sit on the ring's own
+     * radii, so no absolute y survives here.
      */
     private const val FLAT_HALF_WIDTH = 26f
-    private const val FLAT_TOP_OUTER_Y = 11f
-    private const val FLAT_TOP_INNER_Y = 28f
-    private const val FLAT_BOTTOM_OUTER_Y = 109f
-    private const val FLAT_BOTTOM_INNER_Y = 92f
+
+    /** How far a flat pair sits toward the ring's centre from the cut, in design units. */
+    private const val FLAT_STACK_LIFT = 3f
 
 
     /** One point on the battery arc, rewritten per frame; never kept. */
@@ -156,10 +155,18 @@ internal object RingRenderer {
         val hasRightDots = r.hasRightDots
         val hasLeftWifi = r.hasLeftWifi
         val hasRightWifi = r.hasRightWifi
+        // The mouths are cut for the strings this frame actually draws, so the outline and
+        // the readings agree about how wide a third is.
+        val topHalf = mouthHalfDeg(0, r.parts[0], a, level, type)
+        val bottomHalf = mouthHalfDeg(2, r.parts[2], a, level, type)
+        val sweep = (360f - 2f * (topHalf + bottomHalf)).coerceAtLeast(120f)
+        val arcStart = 90f + bottomHalf
+        val gapStart = if (topHalf <= 0f) RingGeometry.GAP_NONE else (270f - topHalf - arcStart) / sweep
+        val gapEnd = if (topHalf <= 0f) RingGeometry.GAP_NONE else (270f + topHalf - arcStart) / sweep
         drawBattery(
-            c, level, role, fg, a, r.gapStart(), r.gapEnd(), r.sweep(), r.arcStart(), charging,
+            c, level, role, fg, a, gapStart, gapEnd, sweep, arcStart, charging,
             openLeft = hasLeftDots, openRight = hasRightDots,
-            topHalfDeg = r.topHalfDeg, bottomHalfDeg = r.bottomHalfDeg,
+            topHalfDeg = topHalf, bottomHalfDeg = bottomHalf,
         )
         for (z in 0 until 3) {
             val chain = a.ringZones.getOrNull(z)
@@ -172,7 +179,7 @@ internal object RingRenderer {
             val cx = IconGeometry.B_CX
             val cy = when (z) {
                 0 -> RingGeometry.notchCy(0, a)
-                1 -> RingGeometry.ZONE_CY[1]
+                1 -> RingGeometry.zoneTextCy(1, a.ringStroke)
                 else -> RingGeometry.notchCy(2, a)
             }
             // The same box the mouth is cut for (see RingGeometry.notchHalfDeg), so a piece
@@ -244,10 +251,9 @@ internal object RingRenderer {
                     val ringStroke = a.ringStroke * RingGeometry.RING_STROKE_RATIO
                     val rhoMid = IconGeometry.B_R - ringStroke * 0.5f
                     val baseCapDotR = if (columns == 5) 4.2f else 4.9f
-                    val dotR = baseCapDotR * a.dotScaleFactor()
+                    val dotR = baseCapDotR * a.dotScaleFactor() * a.outBarWidthFactor()
                     val sign = if (z == 2) 1f else -1f
                     val inactive = withAlpha(fg, a.trackAlpha)
-                    val halfDiv = (columns - 1) * 0.5f
 
                     if (isStackedDual) {
                         val firstPart = chain.firstOrNull { p -> p == Prefs.PART_SIM_1 || p == Prefs.PART_SIM_2 || p == Prefs.PART_MOBILE }
@@ -267,41 +273,34 @@ internal object RingRenderer {
                             // Subtract the zone's real centreline, not ZONE_CY: the ring
                             // spacing and ink pad move the zone, and the flat rows have to
                             // move with it the way the arc rows do.
-                            val yOuter = (if (top) FLAT_TOP_OUTER_Y else FLAT_BOTTOM_OUTER_Y) - cy
-                            val yInner = (if (top) FLAT_TOP_INNER_Y else FLAT_BOTTOM_INNER_Y) - cy
+                            // The pair straddles the cut, then the whole stack moves toward
+                            // the ring's centre: "up" on the bottom mouth is inward, and
+                            // lifting it outward there pushed the lower row off the bar.
+                            val dr = dotR * 2.4f * a.outBarPitchFactor()
+                            val rOuter = IconGeometry.B_R + dr * 0.35f - FLAT_STACK_LIFT
+                            val rInner = rOuter - dr
+                            val yOuter = (IconGeometry.B_CY + sign * rOuter) - cy
+                            val yInner = (IconGeometry.B_CY + sign * rInner) - cy
                             for (dot in 0 until columns) {
-                                val t = if (columns > 1) dot.toFloat() / (columns - 1) else 0.5f
-                                val x = -FLAT_HALF_WIDTH + 2f * FLAT_HALF_WIDTH * t
+                                val x = flatX(dot, columns, a.outBarPitchFactor())
                                 FILL.color = if (dot < active1) fg else inactive
                                 c.drawCircle(x, yOuter, dotR, FILL)
                                 FILL.color = if (dot < active2) fg else inactive
                                 c.drawCircle(x, yInner, dotR, FILL)
                             }
                         } else {
-                            val inward = 3.8f
-                            val r1 = rhoMid - inward
-                            val dr = dotR * 2.65f
+                            // The rows straddle the band with a full row pitch between them;
+                            // the pitch slider scales that gap, which is the only spacing an
+                            // arc row has to offer.
+                            val dr = dotR * 2.4f * a.outBarPitchFactor()
+                            val r1 = rhoMid - dr * 0.5f
                             val r2 = r1 + dr
-                            val halfSpanAngle = DUAL_SIGNAL_HALF_SPAN_RAD
-
-                            // Row 1: Order 1 (shifted inward for comfortable spacing)
-                            for (dot in 0 until columns) {
-                                val t = (dot - halfDiv) / halfDiv
-                                val angle = t * halfSpanAngle
-                                val x = r1 * sin(angle)
-                                val y = (IconGeometry.B_CY + sign * r1 * cos(angle)) - RingGeometry.ZONE_CY[z]
-                                FILL.color = if (dot < active1) fg else inactive
-                                c.drawCircle(x, y, dotR, FILL)
-                            }
-                            // Row 2: Order 2 (parallel outside row 1)
-                            for (dot in 0 until columns) {
-                                val t = (dot - halfDiv) / halfDiv
-                                val angle = t * halfSpanAngle
-                                val x = r2 * sin(angle)
-                                val y = (IconGeometry.B_CY + sign * r2 * cos(angle)) - RingGeometry.ZONE_CY[z]
-                                FILL.color = if (dot < active2) fg else inactive
-                                c.drawCircle(x, y, dotR, FILL)
-                            }
+                            // One angle for both rows: the same angular step inks a longer
+                            // arc, and wider gaps, on the outer row - which is what makes
+                            // the two rows read as one fan rather than two parallel lines.
+                            val halfSpanAngle = DUAL_SIGNAL_HALF_SPAN_RAD * a.outBarPitchFactor()
+                            drawArcRow(c, r1, columns, active1, dotR, halfSpanAngle, sign, cy, fg, inactive)
+                            drawArcRow(c, r2, columns, active2, dotR, halfSpanAngle, sign, cy, fg, inactive)
                         }
                     } else {
                         val rowLevel = when (part) {
@@ -310,24 +309,40 @@ internal object RingRenderer {
                             else -> dataLevel
                         }
                         val active = if (rowLevel < 0) 0 else levelMapped(rowLevel, columns)
-                        val rho = IconGeometry.B_R
-                        val openingRad = Math.toRadians(RingGeometry.GAP_WIDTH_DEG.toDouble()).toFloat()
-                        val inset = (dotR + ringStroke * 0.5f + 1f) / rho
-                        val halfAngle = maxOf(0f, openingRad * 0.5f - inset)
-                        val beadHalfAngle = Math.toRadians((RingGeometry.BEAD_SPAN_DEG * 0.5f).toDouble()).toFloat()
-                        val halfCentreAngle = minOf(halfAngle, beadHalfAngle)
-                        for (dot in 0 until columns) {
-                            val t = (dot - halfDiv) / halfDiv
-                            val angle = t * halfCentreAngle
-                            val x = rho * sin(angle)
-                            val y = (IconGeometry.B_CY + sign * rho * cos(angle)) - RingGeometry.ZONE_CY[z]
-                            FILL.color = if (dot < active) fg else inactive
-                            c.drawCircle(x, y, dotR, FILL)
+                        if (a.ringStackStyle == Prefs.RING_STACK_FLAT &&
+                            (z == IconZones.Zone.TOP.ordinal || z == IconZones.Zone.BOTTOM.ordinal)
+                        ) {
+                            // One row, laid flat across the mouth like the stacked pair's
+                            // rows: the style used to do nothing until two cards were
+                            // stacked, so a single row stayed on the arc.
+                            val y = (IconGeometry.B_CY + sign * IconGeometry.B_R) - cy
+                            for (dot in 0 until columns) {
+                                val x = flatX(dot, columns, a.outBarPitchFactor())
+                                FILL.color = if (dot < active) fg else inactive
+                                c.drawCircle(x, y, dotR, FILL)
+                            }
+                        } else {
+                            val rho = IconGeometry.B_R
+                            val openingRad = Math.toRadians(RingGeometry.GAP_WIDTH_DEG.toDouble()).toFloat()
+                            val inset = (dotR + ringStroke * 0.5f + 1f) / rho
+                            val halfAngle = maxOf(0f, openingRad * 0.5f - inset)
+                            // Same angular span the fan uses, so one row and two rows ink the
+                            // same arc length.
+                            val span = DUAL_SIGNAL_HALF_SPAN_RAD * a.outBarPitchFactor()
+                            drawArcRow(
+                                c, rho, columns, active, dotR, minOf(halfAngle, span),
+                                sign, cy, fg, inactive,
+                            )
                         }
                     }
                     }
                 } else {
-                    drawRingText(c, part, type, level, fg, a, z, 0f)
+                    val mouth = when (z) {
+                        0 -> topHalf
+                        2 -> bottomHalf
+                        else -> 0f
+                    }
+                    drawRingText(c, part, type, level, fg, a, z, 0f, mouth)
                 }
             }
         }
@@ -336,7 +351,7 @@ internal object RingRenderer {
             val dataLevel = StatusState.dataSimSignalLevel()
             val sim1Level = slotLevel(0, levels, dataLevel)
             val sim2Level = slotLevel(1, levels, dataLevel)
-            val dotR = RingGeometry.flankDotR(columns, a.dotScaleFactor())
+            val dotR = RingGeometry.flankDotR(columns, a.dotScaleFactor()) * a.outBarWidthFactor()
             val inactive = withAlpha(fg, a.trackAlpha)
             val rho = IconGeometry.B_R
             val halfDiv = (columns - 1) * 0.5f
@@ -422,56 +437,97 @@ internal object RingRenderer {
     }
 
 
+    /** One arc row of beads at [radius], lit up to [active] of [columns]. */
+    private fun drawArcRow(
+        c: Canvas, radius: Float, columns: Int, active: Int, dotR: Float,
+        halfSpan: Float, sign: Float, cy: Float, fg: Int, inactive: Int,
+    ) {
+        val halfDiv = (columns - 1) * 0.5f
+        for (dot in 0 until columns) {
+            val angle = ((dot - halfDiv) / halfDiv) * halfSpan
+            val x = radius * sin(angle)
+            val y = (IconGeometry.B_CY + sign * radius * cos(angle)) - cy
+            FILL.color = if (dot < active) fg else inactive
+            c.drawCircle(x, y, dotR, FILL)
+        }
+    }
+
+    /** x of bead [dot] in a flat row of [columns], at the given pitch. */
+    private fun flatX(dot: Int, columns: Int, pitch: Float): Float {
+        val t = if (columns > 1) dot.toFloat() / (columns - 1) else 0.5f
+        return (-FLAT_HALF_WIDTH + 2f * FLAT_HALF_WIDTH * t) * pitch
+    }
+
+    /** The string a piece draws, or null when it has no ink this frame. */
+    private fun ringTextOf(part: Int, level: Int, type: String?, a: StatusAppearance): String? = when (part) {
+        Prefs.PART_VALUE -> valueText(level, a)
+        Prefs.PART_TYPE -> type
+        Prefs.PART_POWER, Prefs.PART_RUNNING -> powerText()
+        Prefs.PART_TEMP -> tempText()
+        Prefs.PART_CURRENT -> currentText(a)
+        Prefs.PART_FPS -> fpsText()
+        Prefs.PART_VOLTAGE -> StatusState.voltageText()
+        Prefs.PART_SIGNAL -> StatusState.signalText()
+        Prefs.PART_BT -> StatusState.sBluetoothBatteryLevel
+            .takeIf { it in 0..100 }?.let { btLevelText(it) }
+        else -> StatusState.sClockText
+    }
+
+    private fun ringTextWeightOf(part: Int, a: StatusAppearance): Int = when (part) {
+        Prefs.PART_VALUE -> a.valueWeight
+        Prefs.PART_TYPE -> a.typeWeight
+        Prefs.PART_POWER, Prefs.PART_RUNNING, Prefs.PART_TEMP, Prefs.PART_CURRENT,
+        Prefs.PART_FPS, Prefs.PART_VOLTAGE, Prefs.PART_SIGNAL, Prefs.PART_BT,
+        -> a.perfTypeWeight()
+        else -> a.clockWeight
+    }
+
+    private fun ringTextRequestedOf(part: Int, a: StatusAppearance): Float = when (part) {
+        Prefs.PART_VALUE -> maxOf(a.valueSize.toFloat(), 50f)
+        Prefs.PART_TYPE -> maxOf(a.typeSize.toFloat(), 46f)
+        Prefs.PART_POWER, Prefs.PART_RUNNING, Prefs.PART_TEMP, Prefs.PART_CURRENT,
+        Prefs.PART_FPS, Prefs.PART_VOLTAGE, Prefs.PART_SIGNAL, Prefs.PART_BT,
+        -> maxOf(a.perfReadingSize().toFloat(), 46f)
+        else -> maxOf(a.clockSize.toFloat(), 46f)
+    }
+
     /**
-     * One text reading in the ring: a band's third, or a flank's cell.
+     * Half the mouth a piece needs, measured from the string it is about to draw.
      *
-     * `band` names the zone the reading sits in; passing a negative value means "a flank",
-     * where the room is the cell cut for it rather than a third's chord. Shared so the two
-     * places cannot fit the same string two different ways.
+     * Icons keep the geometry's own answer (their ink is fixed); a reading is measured at
+     * the size the drawer will request, so the cut follows the text instead of a table of
+     * sample widths.
      */
+    private fun mouthHalfDeg(z: Int, part: Int, a: StatusAppearance, level: Int, type: String?): Float {
+        if (part == Prefs.PART_NONE) return 0f
+        // Bead rows keep the reference mouth: cut to a measured string they lost half their
+        // gap and the dots landed on the arc ends.
+        if (Prefs.isSignalRow(part)) return RingGeometry.GAP_WIDTH_DEG * 0.5f
+        if (part == Prefs.PART_WIFI || part == Prefs.PART_BOLT) {
+            return RingGeometry.notchHalfDeg(z, part, a)
+        }
+        val text = ringTextOf(part, level, type, a) ?: return RingGeometry.GAP_WIDTH_DEG * 0.5f
+        if (text.isEmpty()) return RingGeometry.GAP_WIDTH_DEG * 0.5f
+        applyWeight(ringTextWeightOf(part, a))
+        TEXT.textSize = ringTextRequestedOf(part, a)
+        return RingGeometry.notchHalfDegForInk(TEXT.measureText(text), a.ringStroke)
+    }
+
     private fun drawRingText(
         c: Canvas, part: Int, type: String?, level: Int, fg: Int,
-        a: StatusAppearance, band: Int, flankHalfDeg: Float,
+        a: StatusAppearance, band: Int, flankHalfDeg: Float, mouthHalfDeg: Float = 0f,
     ) {
         val flank = band < 0
-        val text = when (part) {
-            Prefs.PART_VALUE -> valueText(level, a)
-            Prefs.PART_TYPE -> type
-            Prefs.PART_POWER, Prefs.PART_RUNNING -> powerText()
-            Prefs.PART_TEMP -> tempText()
-            Prefs.PART_CURRENT -> currentText(a)
-            Prefs.PART_FPS -> fpsText()
-            Prefs.PART_VOLTAGE -> StatusState.voltageText()
-            Prefs.PART_SIGNAL -> StatusState.signalText()
-            Prefs.PART_BT -> StatusState.sBluetoothBatteryLevel
-                .takeIf { it in 0..100 }?.let { btLevelText(it) }
-            else -> StatusState.sClockText
-        }
-        if (text.isNullOrEmpty()) return
-        val weight = when (part) {
-            Prefs.PART_VALUE -> a.valueWeight
-            Prefs.PART_TYPE -> a.typeWeight
-            Prefs.PART_POWER, Prefs.PART_RUNNING,
-            Prefs.PART_TEMP, Prefs.PART_CURRENT, Prefs.PART_FPS,
-            Prefs.PART_VOLTAGE, Prefs.PART_SIGNAL, Prefs.PART_BT,
-            -> a.perfTypeWeight()
-            else -> a.clockWeight
-        }
-        val requested = when (part) {
-            Prefs.PART_VALUE -> maxOf(a.valueSize.toFloat(), 50f)
-            Prefs.PART_TYPE -> maxOf(a.typeSize.toFloat(), 46f)
-            Prefs.PART_POWER, Prefs.PART_RUNNING,
-            Prefs.PART_TEMP, Prefs.PART_CURRENT, Prefs.PART_FPS,
-            Prefs.PART_VOLTAGE, Prefs.PART_SIGNAL, Prefs.PART_BT,
-            -> maxOf(a.perfReadingSize().toFloat(), 46f)
-            else -> maxOf(a.clockSize.toFloat(), 46f)
-        }
+        val text = ringTextOf(part, level, type, a) ?: return
+        if (text.isEmpty()) return
+        val weight = ringTextWeightOf(part, a)
+        val requested = ringTextRequestedOf(part, a)
         applyWeight(weight)
         TEXT.textSize = requested
         val room = if (flank) {
             RingGeometry.FLANK_CELL_ROOM_H
         } else {
-            RingGeometry.zoneTextRoomH(band)
+            RingGeometry.zoneTextRoomH(band, a)
         }
         val suffixScale = if (part == Prefs.PART_TYPE) a.typeSuffixScale else 100
         // The height cap is a straight ratio at the requested size.
@@ -483,7 +539,7 @@ internal object RingRenderer {
         var fitted = maxByHeight
         for (pass in 0 until 4) {
             val inkH = max(1f, textInkHeight(text, fitted))
-            val roomW = if (flank) flankRoomW else RingGeometry.zoneTextRoomW(band, a.ringStroke, inkH)
+            val roomW = if (flank) flankRoomW else RingGeometry.zoneTextRoomW(band, a, inkH, mouthHalfDeg)
             val next = min(maxByHeight, fitSize(text, requested, roomW, suffixScale))
             if (abs(next - fitted) < 0.05f) {
                 fitted = next
@@ -491,9 +547,11 @@ internal object RingRenderer {
             }
             fitted = next
         }
-        // Centred on its INK rather than on its metrics.
-        val slotCentre = if (flank) 0f else RingGeometry.zoneTextCy(band, a.ringStroke) -
-            RingGeometry.ZONE_CY[band]
+        // The middle third centres on the band's own centre, which IS the canvas origin.
+        // An opening's reading stays in the mouth, on the band's centre: the cut is sized
+        // from that reading (see mouthHalfDeg), so it has room there and does not have to
+        // be squeezed into the circle's interior.
+        val slotCentre = 0f
         val baseline = inkCentredBaseline(text, fitted, slotCentre)
         if (part == Prefs.PART_TYPE) {
             drawType(c, text, 0f, baseline, fitted, fg, a)

@@ -154,16 +154,11 @@ object IconZones {
             // reach the margin too, or tapping the arcs the user placed lands on nothing.
             val leftExtra = if (a.ring) RingGeometry.ringFlankWifiExtra(a, true) else 0f
             val rightExtra = if (a.ring) RingGeometry.ringFlankWifiExtra(a, false) else 0f
-            val pad = if (a.ring) RingGeometry.ringInkPad(a) else 0f
             // Mutated in place rather than copied: `base` was built for this call only, and
             // the settings preview asks for these boxes on every frame of a highlighted flank.
             when (zone) {
                 Zone.LEFT -> for (box in base) box[0] -= leftExtra
                 Zone.RIGHT -> for (box in base) box[2] += rightExtra
-                // A mouth's icon is lifted past the reference box, so the band that holds it
-                // has to reach the margin the box grew into.
-                Zone.TOP -> for (box in base) box[1] -= pad
-                Zone.BOTTOM -> for (box in base) box[3] += pad
                 else -> Unit
             }
             return base
