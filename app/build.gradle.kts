@@ -92,6 +92,12 @@ android {
     }
 }
 
+// The render bench draws PNGs only when asked for: `-PrenderDump=true`. A normal test run
+// still loads the class (and compiles it) but writes nothing.
+tasks.withType<Test>().configureEach {
+    systemProperty("render.dump", providers.gradleProperty("renderDump").getOrElse("false"))
+}
+
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
