@@ -130,19 +130,6 @@ object ModuleConfig {
     }
 
     /**
-     * Reports the number of hooks the module installed, for the settings screen.
-     *
-     * The shared preference group is the only channel the framework offers in this
-     * direction; `commit` rather than `apply` so the value is on disk before the screen
-     * asks for it. The app reads it through the service's own handle, which does see a
-     * write from this process - its cached local instance does not.
-     */
-    fun publishHookCount(count: Int) {
-        val p = prefs ?: return
-        runCatching { p.edit().putInt(Prefs.KEY_HOOK_COUNT, count).commit() }
-    }
-
-    /**
      * The boot-time re-read ladder, in milliseconds.
      *
      * Spread from one second to a minute and a half: the first rung heals the common

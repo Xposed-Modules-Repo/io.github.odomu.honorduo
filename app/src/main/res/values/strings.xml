@@ -333,6 +333,10 @@
     <string name="hide_sim2_summary">双卡时不再显示系统自带的卡二信号图标；只有卡二在用的设备不受影响。</string>
     <string name="hide_net_type_title">隐藏原生网络类型</string>
     <string name="hide_net_type_summary">状态栏不再显示系统自带的 5G/4G 标签；模块自己绘制的网络类型不受影响。</string>
+    <string name="five_ga_style_title">5GA 显示方式</string>
+    <string name="five_ga_style_summary">网络类型是 5GA 时写成哪种：保留系统的 5GA，或只写 5A。其他制式不受影响。</string>
+    <string name="five_ga_style_ga">5GA</string>
+    <string name="five_ga_style_a">5A</string>
     <string name="hide_bluetooth_icon_summary">不在状态栏显示蓝牙图标；蓝牙连接与音频不受影响。</string>
     <string name="weather_style_title">天气显示风格</string>
     <string name="weather_style_text">纯文本</string>
@@ -510,6 +514,8 @@
 
     <string name="capsule_no_scale_title">胶囊常驻不缩放</string>
     <string name="capsule_no_scale_summary">通知上岛常驻时系统会把整条状态栏缩小；开启后图标保持原始大小，胶囊不变。默认关闭。</string>
+    <string name="capsule_three_centre_title">中部显示三个组件</string>
+    <string name="capsule_three_centre_summary">胶囊中部可同时放三个组件，从左到右依次排开，胶囊按三者总宽加宽；只放两个时布局与现在一致。默认关闭。</string>
     <string name="cc_slider_long_press_title">长按音量条切换输出设备</string>
     <string name="cc_slider_long_press_summary">在控制中心长按音量条，弹出系统音频输出设备列表</string>
     <string name="shade_hide_charge_notif_title">隐藏充电通知</string>

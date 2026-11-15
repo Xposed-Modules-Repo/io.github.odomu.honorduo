@@ -107,6 +107,8 @@ class ModuleSettings {
     @JvmField var hideSim2 = Prefs.DEF_HIDE_SIM2
     /** Hides the native network-type label beside the signal bars. */
     @JvmField var hideNetType = Prefs.DEF_HIDE_NET_TYPE
+    @JvmField var fiveGaStyle = Prefs.DEF_FIVE_GA_STYLE
+    @JvmField var capsuleThreeCentre = Prefs.DEF_CAPSULE_THREE_CENTRE
 
     /** Where the network type is drawn: [Prefs.MOBILE_TYPE_OFF] / `_IN_RING` / `_OUT_RING`. */
     @JvmField
@@ -481,6 +483,8 @@ class ModuleSettings {
             hidePrivacyChip = Prefs.DEF_HIDE_PRIVACY_CHIP
             hideSim2 = Prefs.DEF_HIDE_SIM2
             hideNetType = Prefs.DEF_HIDE_NET_TYPE
+            fiveGaStyle = Prefs.DEF_FIVE_GA_STYLE
+            capsuleThreeCentre = Prefs.DEF_CAPSULE_THREE_CENTRE
             mobileTypeMode = Prefs.DEF_MOBILE_TYPE_MODE
             valueCentred = Prefs.DEF_VALUE_CENTRED
             navStyle = Prefs.DEF_NAV_STYLE
@@ -691,6 +695,10 @@ class ModuleSettings {
             s.hidePrivacyChip = p.getBoolean(Prefs.KEY_HIDE_PRIVACY_CHIP, Prefs.DEF_HIDE_PRIVACY_CHIP)
             s.hideSim2 = p.getBoolean(Prefs.KEY_HIDE_SIM2, Prefs.DEF_HIDE_SIM2)
             s.hideNetType = p.getBoolean(Prefs.KEY_HIDE_NET_TYPE, Prefs.DEF_HIDE_NET_TYPE)
+            s.fiveGaStyle = p.getInt(Prefs.KEY_FIVE_GA_STYLE, Prefs.DEF_FIVE_GA_STYLE)
+            s.capsuleThreeCentre = p.getBoolean(
+                Prefs.KEY_CAPSULE_THREE_CENTRE, Prefs.DEF_CAPSULE_THREE_CENTRE,
+            )
             s.mobileTypeMode = readMobileTypeMode(p, s.trioStyle)
             s.valueCentred = readStyledBoolean(
                 p, Prefs.KEY_VALUE_CENTRED, Prefs.DEF_VALUE_CENTRED, s.trioStyle,
@@ -1037,6 +1045,10 @@ class ModuleSettings {
             s.hidePrivacyChip = bundle.getBoolean(Prefs.KEY_HIDE_PRIVACY_CHIP, Prefs.DEF_HIDE_PRIVACY_CHIP)
             s.hideSim2 = bundle.getBoolean(Prefs.KEY_HIDE_SIM2, Prefs.DEF_HIDE_SIM2)
             s.hideNetType = bundle.getBoolean(Prefs.KEY_HIDE_NET_TYPE, Prefs.DEF_HIDE_NET_TYPE)
+            s.fiveGaStyle = bundle.getInt(Prefs.KEY_FIVE_GA_STYLE, Prefs.DEF_FIVE_GA_STYLE)
+            s.capsuleThreeCentre = bundle.getBoolean(
+                Prefs.KEY_CAPSULE_THREE_CENTRE, Prefs.DEF_CAPSULE_THREE_CENTRE,
+            )
             s.mobileTypeMode = readMobileTypeMode(bundle, s.trioStyle)
             s.valueCentred = readStyledBoolean(
                 bundle, Prefs.KEY_VALUE_CENTRED, Prefs.DEF_VALUE_CENTRED, s.trioStyle,
@@ -1638,6 +1650,8 @@ class ModuleSettings {
         s.hidePrivacyChip = hidePrivacyChip
         s.hideSim2 = hideSim2
         s.hideNetType = hideNetType
+        s.fiveGaStyle = fiveGaStyle
+        s.capsuleThreeCentre = capsuleThreeCentre
         s.replaceWifiIcon = replaceWifiIcon
         s.replaceStatusIcon = replaceStatusIcon
         s.debugLog = debugLog
@@ -1825,6 +1839,8 @@ class ModuleSettings {
             Prefs.KEY_HIDE_PRIVACY_CHIP -> hidePrivacyChip = src.hidePrivacyChip
             Prefs.KEY_HIDE_SIM2 -> hideSim2 = src.hideSim2
             Prefs.KEY_HIDE_NET_TYPE -> hideNetType = src.hideNetType
+            Prefs.KEY_FIVE_GA_STYLE -> fiveGaStyle = src.fiveGaStyle
+            Prefs.KEY_CAPSULE_THREE_CENTRE -> capsuleThreeCentre = src.capsuleThreeCentre
             else -> return false
         }
         return true
@@ -1978,6 +1994,8 @@ class ModuleSettings {
         putBoolean(Prefs.KEY_HIDE_PRIVACY_CHIP, hidePrivacyChip)
         putBoolean(Prefs.KEY_HIDE_SIM2, hideSim2)
         putBoolean(Prefs.KEY_HIDE_NET_TYPE, hideNetType)
+        putInt(Prefs.KEY_FIVE_GA_STYLE, fiveGaStyle)
+        putBoolean(Prefs.KEY_CAPSULE_THREE_CENTRE, capsuleThreeCentre)
     }
 
     /**
@@ -2050,6 +2068,7 @@ class ModuleSettings {
             hideBluetoothIcon == other.hideBluetoothIcon &&
             hidePrivacyChip == other.hidePrivacyChip &&
             hideSim2 == other.hideSim2 && hideNetType == other.hideNetType &&
+            fiveGaStyle == other.fiveGaStyle && capsuleThreeCentre == other.capsuleThreeCentre &&
             // Colors & thresholds
             roleColors == other.roleColors && roleColorsTemp == other.roleColorsTemp && lowThreshold == other.lowThreshold &&
             tempThreshold == other.tempThreshold && criticalOnDark == other.criticalOnDark &&

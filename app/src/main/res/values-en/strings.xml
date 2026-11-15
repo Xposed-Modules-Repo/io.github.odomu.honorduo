@@ -292,6 +292,10 @@
     <string name="hide_sim2_summary">Removes the system\'s secondary-SIM signal icon while both cards are present; a device using only the second card is unaffected.</string>
     <string name="hide_net_type_title">Hide native network type</string>
     <string name="hide_net_type_summary">Removes the system\'s own 5G/4G label from the status bar; the module\'s own type reading is unaffected.</string>
+    <string name="five_ga_style_title">5GA label</string>
+    <string name="five_ga_style_summary">How a 5GA network is written: the system\'s own 5GA, or just 5A. Other types are unchanged.</string>
+    <string name="five_ga_style_ga">5GA</string>
+    <string name="five_ga_style_a">5A</string>
     <string name="hide_bluetooth_icon_summary">Hides the Bluetooth icon in the status bar; the connection and audio are unaffected.</string>
     <string name="weather_style_title">Weather style</string>
     <string name="weather_style_text">Text only</string>
@@ -514,6 +518,8 @@
 
     <string name="capsule_no_scale_title">No shrink with capsule</string>
     <string name="capsule_no_scale_summary">A docked notification capsule shrinks the whole bar; turn this on to keep the icons at their original size. The capsule itself is unchanged. Off by default.</string>
+    <string name="capsule_three_centre_title">Three pieces in the middle</string>
+    <string name="capsule_three_centre_summary">Lets the capsule body hold three pieces at once, laid out left to right; the capsule widens to fit all three. With two pieces the layout is unchanged. Off by default.</string>
     <string name="cc_slider_long_press_title">Long press to switch audio output</string>
     <string name="cc_slider_long_press_summary">Long press the control center volume slider to pick the audio output device</string>
     <string name="shade_hide_charge_notif_title">Hide charging notification</string>

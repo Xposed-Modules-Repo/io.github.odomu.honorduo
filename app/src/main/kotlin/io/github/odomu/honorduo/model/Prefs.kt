@@ -185,6 +185,15 @@ object Prefs {
     const val KEY_HIDE_NET_TYPE = "hide_net_type"
     const val DEF_HIDE_NET_TYPE = false
 
+    /** How "5GA" is written in the type label: the ROM's own name, or just "5A". */
+    const val KEY_FIVE_GA_STYLE = "five_ga_style"
+    const val FIVE_GA_STYLE_GA = 0
+    const val FIVE_GA_STYLE_A = 1
+    const val DEF_FIVE_GA_STYLE = FIVE_GA_STYLE_GA
+
+    const val KEY_CAPSULE_THREE_CENTRE = "capsule_three_centre"
+    const val DEF_CAPSULE_THREE_CENTRE = false
+
 
     /**
      * Size of the Wi-Fi arcs, as a percentage of the size the arrangement fits them to.
@@ -968,7 +977,6 @@ object Prefs {
      * Diagnostic only: the settings screen shows it, and a number the module reports
      * cannot drift from what it actually hooked the way a constant in the app would.
      */
-    const val KEY_HOOK_COUNT = "hook_count"
 
     /** Hides the power button in the control center's header. */
     const val KEY_SHADE_HIDE_POWER = "shade_hide_cc_power"

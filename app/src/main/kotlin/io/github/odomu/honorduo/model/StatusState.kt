@@ -142,7 +142,13 @@ internal class StatusState(val host: View) {
         wifiLevel = sWifiLevel
         mobileLevel = sMobileLevel
         wifiPresent = sWifiPresent
-        mobileType = sMobileType
+        // The radio is the answer; the icon name only refines it and is the fallback
+        // when telephony has no reading for the card. Trusting the icon alone made the
+        // capsule's type text vanish as soon as the ROM stopped drawing a type icon -
+        // which is exactly what switching 5G off does on this build.
+        val radioType = sSlotTypes.getOrNull(if (sDataSlot in 0 until SIM_SLOTS) sDataSlot else 0)
+            ?.takeIf { it.isNotEmpty() } ?: sSlotTypes.firstOrNull { it.isNotEmpty() }
+        mobileType = radioType ?: shownLabel(sMobileType)
         val types = sSlotTypes
         if (!slotTypes.contentEquals(types)) {
             slotTypes = types.copyOf()
@@ -214,6 +220,7 @@ internal class StatusState(val host: View) {
          */
         @Volatile
         private var sSlotTypes = arrayOf("", "")
+        private var sRawTypes = arrayOf("", "")
 
         /**
          * The clock string the capsule arrangement draws: "19:41", or "9:41" where
@@ -615,10 +622,44 @@ internal class StatusState(val host: View) {
                 radios[slot] = next
                 sRadioTypes = radios
             }
-            if (sSlotTypes[slot] == next) return
-            val copy = sSlotTypes.copyOf()
+            val raw = sRawTypes
+            if (raw[slot] == next) return
+            val copy = raw.copyOf()
             copy[slot] = next
-            sSlotTypes = copy
+            sRawTypes = copy
+            publishTypes()
+        }
+
+        /**
+         * Re-derives the displayed labels from the raw ones.
+         *
+         * "5GA" is a name the ROM's icon carries, not a radio family: some users read
+         * the trailing A as a separate standard and want plain "5G". The setting only
+         * rewrites the label shown; the raw value stays so turning it back off restores
+         * the original wording.
+         */
+        private fun publishTypes() {
+            val raw = sRawTypes
+            val shown = sSlotTypes.copyOf()
+            var changed = false
+            for (i in raw.indices) {
+                val v = shownLabel(raw[i])
+                if (shown[i] != v) {
+                    shown[i] = v
+                    changed = true
+                }
+            }
+            if (changed) sSlotTypes = shown
+        }
+
+        /** The label as the setting wants it written: "5GA" or "5A". */
+        private fun shownLabel(type: String): String =
+            if (type == "5GA" && ModuleConfig.appearance().fiveGaStyle == Prefs.FIVE_GA_STYLE_A) "5A" else type
+
+        /** Re-applies label-level settings after a config change. */
+        @JvmStatic
+        fun refreshTypeLabels() {
+            publishTypes()
         }
 
         /**
@@ -780,7 +821,11 @@ internal class StatusState(val host: View) {
                         // of the same answer.
                         val ss = runCatching { tel.createForSubscriptionId(subId)?.signalStrength }.getOrNull()
                         levels[slot] = ss?.level?.takeIf { it in 0..4 } ?: -1
-                        val radio = romSlotType(slot, subId) ?: typeOf(tel, subId)
+                        // The radio decides the family; the ROM's per-slot table only
+                        // fills in when the radio cannot answer. The table keeps an NSA
+                        // override after 5G is switched off, which showed up as a bar
+                        // stuck on 5G while the card was on LTE.
+                        val radio = typeOf(tel, subId) ?: romSlotType(slot, subId)
                         if (radio != null) {
                             setSlotType(slot, radio, fromIcon = false)
                         }
@@ -909,20 +954,27 @@ internal class StatusState(val host: View) {
         }
 
         private fun typeOf(tel: TelephonyManager, subId: Int): String? = try {
-            when (tel.createForSubscriptionId(subId)?.dataNetworkType) {
-                TelephonyManager.NETWORK_TYPE_NR -> "5G"
-                TelephonyManager.NETWORK_TYPE_LTE -> "4G"
-                TelephonyManager.NETWORK_TYPE_HSPAP,
-                TelephonyManager.NETWORK_TYPE_HSDPA,
-                TelephonyManager.NETWORK_TYPE_HSUPA,
-                TelephonyManager.NETWORK_TYPE_UMTS,
-                -> "3G"
-                TelephonyManager.NETWORK_TYPE_EDGE,
-                TelephonyManager.NETWORK_TYPE_GPRS,
-                TelephonyManager.NETWORK_TYPE_GSM,
-                -> "2G"
-                else -> null
+            val sub = tel.createForSubscriptionId(subId) ?: return null
+            val dnt = sub.dataNetworkType
+            @Suppress("DEPRECATION")
+            val legacy = sub.networkType
+            // After 5G is switched off, a per-subscription handle can keep reporting NR
+            // (the NSA anchor is not refreshed) while the data subscription's global
+            // reading has already dropped to LTE. The bar follows the global reading, so
+            // any NR from a slot is treated as stale when the global one disagrees.
+            val global = try {
+                tel.dataNetworkType
+            } catch (_: Throwable) {
+                TelephonyManager.NETWORK_TYPE_UNKNOWN
             }
+            val raw = when {
+                dnt == TelephonyManager.NETWORK_TYPE_NR && global != TelephonyManager.NETWORK_TYPE_UNKNOWN &&
+                    global != TelephonyManager.NETWORK_TYPE_NR -> global
+                dnt != TelephonyManager.NETWORK_TYPE_UNKNOWN -> dnt
+                global != TelephonyManager.NETWORK_TYPE_UNKNOWN -> global
+                else -> legacy
+            }
+            labelOfNetworkType(raw)
         } catch (_: SecurityException) {
             // READ_PHONE_STATE can be revoked while the process lives; the icon-borne
             // label (when there is one) is still on screen, so fall through to it.

@@ -55,10 +55,6 @@ internal object SystemUiHook {
 
     private var sScreenTrackerStarted = false
 
-    /** Hooks installed at boot, kept so the settings screen can be told once a context exists. */
-    @Volatile
-    private var sHookedCount = 0
-
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     fun install(module: XposedModule, cl: ClassLoader) {
         sModule = module
@@ -76,8 +72,6 @@ internal object SystemUiHook {
         hooked += BtBatteryHook.install(module, cl)
         hooked += CapsuleScaleHook.install(module, cl)
         hooked += NativeSignalTweakHook.install(module, cl)
-        sHookedCount = hooked
-        ModuleConfig.publishHookCount(hooked)
         log(
             module,
             "HonorDuo installed, hooks=$hooked enabled=${ModuleConfig.get().enabled}",
@@ -102,6 +96,7 @@ internal object SystemUiHook {
             a.hideBluetoothIcon,
         )
         SystemBarHook.applyPrivacyChipVisibility(a)
+        StatusState.refreshTypeLabels()
         NativeSignalTweakHook.updateConfig(a.hideSim2, a.hideNetType)
         NotifCenterHook.onConfigChanged(a)
         ControlCenterHook.onConfigChanged(a)
@@ -114,9 +109,6 @@ internal object SystemUiHook {
     fun ensureScreenStateTracker(context: Context) {
         if (sScreenTrackerStarted) return
         sScreenTrackerStarted = true
-        // The install runs before the process has an app context, so the hook count could
-        // not be reported then; this is the first call that has one.
-        ModuleConfig.publishHookCount(sHookedCount)
         ScreenStateTracker.start(context)
         ScreenStateTracker.addListener { screenOn ->
             val handler = Handler(Looper.getMainLooper())

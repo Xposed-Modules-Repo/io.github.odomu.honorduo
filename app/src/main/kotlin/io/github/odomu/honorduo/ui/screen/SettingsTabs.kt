@@ -575,7 +575,7 @@ fun ActivatedRow(settings: ModuleSettings, service: XposedService?) {
         ) {
             StatCard(
                 label = stringResource(R.string.about_hook_count),
-                value = hookCount(service, context).toString(),
+                value = hookCount(settings).toString(),
                 modifier = Modifier.weight(1f),
             )
             StatCard(
@@ -821,18 +821,24 @@ fun readDeviceName(context: Context): String {
     return name?.takeIf { it.isNotBlank() } ?: Build.MODEL.orEmpty()
 }
 
-fun hookCount(service: XposedService?, context: Context): Int {
-    // The module writes into the shared preference group; this process's cached instance
-    // never sees another process's write, so the service's own handle is asked first.
-    val remote = service?.let {
-        runCatching { it.getRemotePreferences(Prefs.NAME).getInt(Prefs.KEY_HOOK_COUNT, 0) }
-            .getOrDefault(0)
-    } ?: 0
-    if (remote > 0) return remote
-    return runCatching {
-        context.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
-            .getInt(Prefs.KEY_HOOK_COUNT, 0)
-    }.getOrDefault(0)
+/**
+ * The hooks the switched-on features install: one per hooked surface in use.
+ *
+ * Counted from the settings in this process. The install count lives in SystemUI, and
+ * every write from there is lost the next time this process saves the same preference
+ * file, so the number the screen showed was always zero.
+ */
+fun hookCount(settings: ModuleSettings): Int {
+    val a = StatusAppearance.of(settings)
+    if (!a.enabled) return 0
+    return 1 + listOf( // the bar and row hooks every enabled module installs
+        a.mobile,
+        a.replaceStatusIcon || a.hideAlarmIcon || a.hideBluetoothIcon || a.hidePrivacyChip,
+        a.shadeHidePower || a.shadeHideBell || a.shadeLunar || a.shadeWeather || a.shadeHideChargeNotif || a.shadeHideHotspotNotif || a.shadeHideAdbNotif,
+        a.btBatteryMode != 0,
+        a.capsuleNoScale,
+        a.hideSim2 || a.hideNetType,
+    ).count { it }
 }
 
 fun enabledCount(settings: ModuleSettings): Int {

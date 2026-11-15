@@ -323,6 +323,8 @@ class SettingsStore(val context: Context) {
     fun setHidePrivacyChip(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_PRIVACY_CHIP, value)
     fun setHideSim2(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_SIM2, value)
     fun setHideNetType(value: Boolean) = writeBoolean(Prefs.KEY_HIDE_NET_TYPE, value)
+    fun setFiveGaStyle(value: Int) = writeInt(Prefs.KEY_FIVE_GA_STYLE, value)
+    fun setCapsuleThreeCentre(value: Boolean) = writeBoolean(Prefs.KEY_CAPSULE_THREE_CENTRE, value)
 
     fun setPerfTempChargingOnly(value: Boolean) =
         writeBoolean(Prefs.KEY_PERF_TEMP_CHARGING_ONLY, value)
@@ -743,6 +745,8 @@ class SettingsStore(val context: Context) {
             prefs.putBoolean(Prefs.KEY_HIDE_PRIVACY_CHIP, snapshot.hidePrivacyChip)
             prefs.putBoolean(Prefs.KEY_HIDE_SIM2, snapshot.hideSim2)
             prefs.putBoolean(Prefs.KEY_HIDE_NET_TYPE, snapshot.hideNetType)
+            prefs.putInt(Prefs.KEY_FIVE_GA_STYLE, snapshot.fiveGaStyle)
+            prefs.putBoolean(Prefs.KEY_CAPSULE_THREE_CENTRE, snapshot.capsuleThreeCentre)
             prefs.putBoolean(Prefs.KEY_SHADE_LUNAR, snapshot.shadeLunar)
             prefs.putBoolean(Prefs.KEY_SHADE_WEATHER, snapshot.shadeWeather)
             prefs.putInt(Prefs.KEY_SHADE_WEATHER_STYLE, snapshot.shadeWeatherStyle)

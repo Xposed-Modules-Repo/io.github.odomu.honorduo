@@ -202,6 +202,8 @@ class StatusAppearance(c: ModuleSettings) {
 
     /** The native network-type label is hidden; see [Prefs.KEY_HIDE_NET_TYPE]. */
     @JvmField val hideNetType: Boolean = enabled && c.hideNetType
+    @JvmField val fiveGaStyle: Int = if (enabled) c.fiveGaStyle else Prefs.DEF_FIVE_GA_STYLE
+    @JvmField val capsuleThreeCentre: Boolean = enabled && c.capsuleThreeCentre
     @JvmField val clockSeconds: Boolean = enabled && c.clockSeconds
 
     /** The date is drawn on its own line above the time. */
@@ -508,7 +510,8 @@ class StatusAppearance(c: ModuleSettings) {
      * delete a signal indicator from the status bar. That is why this asks "am I drawing
      * the reading" rather than "did the user ask for a reading".
      */
-    fun foldsMobile(): Boolean = signalDots() || drawsAnySimRow() || stackedOut()
+    fun foldsMobile(): Boolean = signalDots() || drawsAnySimRow() || stackedOut() ||
+        hasRingPart(Prefs.PART_MOBILE) || hasRingPart(Prefs.PART_SIM_1) || hasRingPart(Prefs.PART_SIM_2)
 
     /** Whether the network type is drawn at all, in either position. */
     fun typeAnywhere(): Boolean = typeInRing || typeOutOfRing
@@ -864,6 +867,8 @@ class StatusAppearance(c: ModuleSettings) {
         @JvmField val parts: IntArray = IntArray(Prefs.ZONE_COUNT)
         /** The next piece that has ink in each band; only the body draws two. */
         @JvmField val second: IntArray = IntArray(Prefs.ZONE_COUNT)
+        /** The third piece in the body; filled only while the three-piece switch is on. */
+        @JvmField val third: IntArray = IntArray(Prefs.ZONE_COUNT)
         @JvmField val dotBands: BooleanArray = BooleanArray(Prefs.ZONE_COUNT)
         /** Resolved signal component per band, retained after parts are cleared for dot drawing. */
         @JvmField val dotParts: IntArray = IntArray(Prefs.ZONE_COUNT)
@@ -899,6 +904,12 @@ class StatusAppearance(c: ModuleSettings) {
                 a, a.ringZones[IconZones.Zone.CENTRE.ordinal],
                 level, charging, wifiLevel, mobileType,
             )
+            if (a.capsuleThreeCentre) {
+                third[IconZones.Zone.CENTRE.ordinal] = nthInk(
+                    a, a.ringZones[IconZones.Zone.CENTRE.ordinal], 3,
+                    level, charging, wifiLevel, mobileType,
+                )
+            }
             dots = dotBands[IconZones.Zone.TOP.ordinal] || dotBands[IconZones.Zone.BOTTOM.ordinal] ||
                 dotBands[IconZones.Zone.LEFT.ordinal] || dotBands[IconZones.Zone.RIGHT.ordinal]
             dual = a.dualSimRows(false, charging, sims)
@@ -996,6 +1007,17 @@ class StatusAppearance(c: ModuleSettings) {
             charging: Boolean,
             wifiLevel: Int,
             mobileType: String?,
+        ): Int = nthInk(a, order, 2, level, charging, wifiLevel, mobileType)
+
+        /** The `n`th piece with ink in `order`, or [Prefs.PART_NONE] past the end. */
+        private fun nthInk(
+            a: StatusAppearance,
+            order: IntArray?,
+            n: Int,
+            level: Int,
+            charging: Boolean,
+            wifiLevel: Int,
+            mobileType: String?,
         ): Int {
             if (order == null) return Prefs.PART_NONE
             var ink = 0
@@ -1003,7 +1025,7 @@ class StatusAppearance(c: ModuleSettings) {
                 if (id == Prefs.PART_NONE) continue
                 if (!hasInk(a, id, level, charging, wifiLevel, mobileType)) continue
                 ink++
-                if (ink == 2) return id
+                if (ink == n) return id
             }
             return Prefs.PART_NONE
         }

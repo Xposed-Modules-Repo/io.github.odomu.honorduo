@@ -193,10 +193,12 @@ internal enum class ContentControl(val owner: SettingsPart) {
      * the module's own glyph.
      */
     CapsuleNoScale(SettingsPart.Appearance),
+    CapsuleThreeCentre(SettingsPart.Appearance),
     /** Native secondary-SIM icon removal; owned by the signal card. */
     HideSim2(SettingsPart.Mobile),
     /** Native 5G/4G label removal; owned by the type card. */
     HideNetType(SettingsPart.Type),
+    FiveGaStyle(SettingsPart.Type),
     ShadeHidePower(SettingsPart.Shade),
     CcSliderLongPress(SettingsPart.Shade),
     ShadeHideBell(SettingsPart.Shade),
@@ -211,6 +213,9 @@ internal enum class ContentControl(val owner: SettingsPart) {
     ShadeWeatherClick(SettingsPart.Shade),
     EffectiveScope(SettingsPart.Appearance),
 }
+
+/** Whether `part` is placed anywhere in the layout. */
+private fun ModuleSettings.hasPlaced(part: Int): Boolean = ringZones.any { zone -> zone.contains(part) }
 
 internal fun contentControlsFor(part: SettingsPart): List<ContentControl> =
     ContentControl.entries.filter {
@@ -321,20 +326,31 @@ internal fun ContentControlRow(
                 dependencies = listOf(true to R.string.ring_position_mobile),
             ) { value -> update { it.setShowMobileActivity(value) } }
         } else Unit
-        ContentControl.Sim1 -> ContentToggle(
-            checked = a.showSim1,
-            title = R.string.show_sim_1_title,
-            summaryRes = null,
-            dependencies = listOf(a.mobile to R.string.show_mobile_title) +
-                (signalInsideRing(a) to R.string.ring_position_mobile),
-        ) { value -> update { it.setShowSim1(value) } }
-        ContentControl.Sim2 -> ContentToggle(
-            checked = a.showSim2,
-            title = R.string.show_sim_2_title,
-            summaryRes = null,
-            dependencies = listOf(a.mobile to R.string.show_mobile_title) +
-                (signalInsideRing(a) to R.string.ring_position_mobile),
-        ) { value -> update { it.setShowSim2(value) } }
+        // A row that is placed in the layout is shown because it is placed, so its
+        // switch would only argue with the placement: it stays hidden until the row is
+        // removed again, which is the same rule removal already follows.
+        ContentControl.Sim1 -> {
+            if (!a.hasRingPart(Prefs.PART_SIM_1)) {
+                ContentToggle(
+                    checked = a.showSim1,
+                    title = R.string.show_sim_1_title,
+                    summaryRes = null,
+                    dependencies = listOf(a.mobile to R.string.show_mobile_title) +
+                        (signalInsideRing(a) to R.string.ring_position_mobile),
+                ) { value -> update { it.setShowSim1(value) } }
+            }
+        }
+        ContentControl.Sim2 -> {
+            if (!a.hasRingPart(Prefs.PART_SIM_2)) {
+                ContentToggle(
+                    checked = a.showSim2,
+                    title = R.string.show_sim_2_title,
+                    summaryRes = null,
+                    dependencies = listOf(a.mobile to R.string.show_mobile_title) +
+                        (signalInsideRing(a) to R.string.ring_position_mobile),
+                ) { value -> update { it.setShowSim2(value) } }
+            }
+        }
         ContentControl.Value -> ContentToggle(a.value, R.string.show_value_title, null, emptyList()) { value -> update { it.setShowValue(value) } }
         ContentControl.Percent -> ContentToggle(
             checked = settings.showPercent,
@@ -441,6 +457,12 @@ internal fun ContentControlRow(
             summaryRes = R.string.capsule_no_scale_summary,
             dependencies = listOf(settings.enabled to R.string.master_module_title),
         ) { value -> update { it.setCapsuleNoScale(value) } }
+        ContentControl.CapsuleThreeCentre -> ContentToggle(
+            checked = settings.capsuleThreeCentre,
+            title = R.string.capsule_three_centre_title,
+            summaryRes = R.string.capsule_three_centre_summary,
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { value -> update { it.setCapsuleThreeCentre(value) } }
         ContentControl.HideSim2 -> ContentToggle(
             checked = settings.hideSim2,
             title = R.string.hide_sim2_title,
@@ -453,6 +475,19 @@ internal fun ContentControlRow(
             summaryRes = R.string.hide_net_type_summary,
             dependencies = listOf(settings.enabled to R.string.master_module_title),
         ) { value -> update { it.setHideNetType(value) } }
+        ContentControl.FiveGaStyle -> ContentChoice(
+            selected = if (settings.fiveGaStyle == Prefs.FIVE_GA_STYLE_A) 1 else 0,
+            title = R.string.five_ga_style_title,
+            summaryRes = R.string.five_ga_style_summary,
+            options = listOf(R.string.five_ga_style_ga, R.string.five_ga_style_a),
+            dependencies = listOf(settings.enabled to R.string.master_module_title),
+        ) { index ->
+            update {
+                it.setFiveGaStyle(
+                    if (index == 1) Prefs.FIVE_GA_STYLE_A else Prefs.FIVE_GA_STYLE_GA,
+                )
+            }
+        }
         ContentControl.ShadeHidePower -> ContentToggle(
             checked = settings.shadeHidePower,
             title = R.string.shade_hide_power_title,
